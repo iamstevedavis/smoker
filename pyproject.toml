@@ -33,3 +33,6 @@ where = ["src"]
 pythonpath = ["src"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = [
+  "ignore:.*asyncio.get_event_loop_policy.*:DeprecationWarning:pytest_asyncio.plugin",
+]

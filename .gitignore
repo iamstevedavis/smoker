@@ -4,6 +4,7 @@ __pycache__/
 .ruff_cache/
 *.pyc
 *.pyo
+*.egg-info/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
