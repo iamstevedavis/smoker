@@ -35,4 +35,21 @@ On Windows with WSL2, run these commands inside Ubuntu so Python 3.10 is used.
 
 ## Docker Direction
 
-The target server deployment is Linux with BlueZ. The container should use the host Bluetooth stack via host networking and D-Bus mounts.
+The target server deployment is Linux with BlueZ. Start with the fake source:
+
+```bash
+docker compose up --build
+curl http://localhost:8000/api/health
+```
+
+After the Python BLE probe works on the Linux host, switch:
+
+```yaml
+environment:
+  PITBOSS_SOURCE: ble
+  PITBOSS_MODEL: PB850PS2
+  PITBOSS_DEVICE_NAME: PBL-EC6260C77A8C
+```
+
+The compose file uses host networking and read-only D-Bus mounts so `bleak`
+can talk to the host Bluetooth stack.
