@@ -1,0 +1,15 @@
+services:
+  pitboss-bridge:
+    build: .
+    network_mode: host
+    environment:
+      PITBOSS_SOURCE: fake
+      PITBOSS_MODEL: PB850PS2
+      PITBOSS_DEVICE_NAME: PBL-EC6260C77A8C
+      PITBOSS_DB: /data/pitboss.sqlite
+      PITBOSS_POLL_SECONDS: "2"
+      PITBOSS_STALE_AFTER_SECONDS: "30"
+    volumes:
+      - ./data:/data
+      - /run/dbus:/run/dbus:ro
+      - /var/run/dbus:/var/run/dbus:ro
