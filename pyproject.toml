@@ -1,0 +1,35 @@
+[project]
+name = "pitboss-bridge"
+version = "0.1.0"
+description = "Local monitoring bridge for Pit Boss grills"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+ble = [
+  "bleak>=0.22,<1",
+  "pytboss>=0.4,<1",
+]
+test = [
+  "httpx>=0.27,<1",
+  "pytest>=8,<9",
+  "pytest-asyncio>=0.24,<1",
+]
+
+[project.scripts]
+pitboss-bridge = "pitboss_bridge.__main__:main"
+
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+testpaths = ["tests"]
