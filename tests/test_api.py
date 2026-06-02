@@ -44,3 +44,24 @@ def test_history_since_filter(tmp_path):
         filtered = client.get(f"/api/history?since={since}").json()
 
     assert filtered["count"] == 1
+
+
+def test_live_websocket_streams_current_and_next_state(tmp_path):
+    settings = Settings(
+        source="fake",
+        db_path=tmp_path / "pitboss.sqlite",
+        poll_seconds=0,
+        start_collector=False,
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        app.state.collector_sync_collect_next()
+        with client.websocket_connect("/api/live") as websocket:
+            first = websocket.receive_json()
+            app.state.collector_sync_collect_next()
+            second = websocket.receive_json()
+
+    assert first["fields"]["grillSetTemp"]["value"] == 225
+    assert second["fields"]["grillSetTemp"]["value"] == 225
+    assert second["fields"]["grillTemp"]["value"] != first["fields"]["grillTemp"]["value"]
