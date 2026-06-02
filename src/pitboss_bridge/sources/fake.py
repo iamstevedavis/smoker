@@ -18,8 +18,9 @@ class FakeGrillSource:
 
     async def readings(self) -> AsyncIterator[dict[str, Any]]:
         while True:
-            yield self._reading()
+            reading = self._reading()
             self._tick += 1
+            yield reading
             if self.interval_seconds > 0:
                 await asyncio.sleep(self.interval_seconds)
 

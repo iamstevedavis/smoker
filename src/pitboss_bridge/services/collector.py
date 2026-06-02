@@ -131,7 +131,11 @@ class Collector:
     async def collect_next(self) -> StateSnapshot:
         self.health.mark_started()
         self.health.mark_connected()
-        raw = await anext(self._stream)
+        try:
+            raw = await anext(self._stream)
+        except StopAsyncIteration:
+            self._stream = self.source.readings()
+            raw = await anext(self._stream)
         snapshot = normalize_state(raw, source=self.source.name)
         self.store.insert_reading(snapshot)
         await self.hub.publish(snapshot)
