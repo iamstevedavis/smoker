@@ -11,7 +11,8 @@ dependencies = [
 [project.optional-dependencies]
 ble = [
   "bleak>=0.22,<1",
-  "pytboss>=0.4,<1",
+  # pytboss uses date-based versions, so a `<1` cap would exclude all releases.
+  "pytboss>=2023.2.0",
 ]
 test = [
   "httpx>=0.27,<1",

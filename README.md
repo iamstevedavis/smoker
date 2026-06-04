@@ -23,6 +23,37 @@ PITBOSS_SOURCE=fake uvicorn pitboss_bridge.api:create_app --factory --reload
 
 On Windows with WSL2, run these commands inside Ubuntu so Python 3.10 is used.
 
+## Linux BLE Setup
+
+For real Bluetooth testing on a Linux host, use a Python 3.13 virtualenv for now.
+Python 3.14 cannot currently resolve the BLE dependencies used by this repo.
+
+```bash
+python3.13 -m venv .venv
+. .venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e ".[ble,test]"
+bluetoothctl scan on
+```
+
+Once you know the smoker's advertised BLE name, start the bridge with BLE enabled:
+
+```bash
+PITBOSS_SOURCE=ble \
+PITBOSS_MODEL=PB850PS2 \
+PITBOSS_DEVICE_NAME='REAL_DEVICE_NAME' \
+uvicorn pitboss_bridge.api:create_app --factory --reload
+```
+
+In another terminal, check the health and state endpoints:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:8000/api/state
+```
+
+If `PITBOSS_DEVICE_NAME` does not match what `bluetoothctl` shows, the BLE source will not connect.
+
 ## Configuration
 
 - `PITBOSS_SOURCE`: `fake` or `ble`
