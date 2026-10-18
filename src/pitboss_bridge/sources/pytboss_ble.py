@@ -7,9 +7,12 @@ Bluetooth dependencies.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -36,6 +39,7 @@ class PytbossBleSource:
                 "BLE source requires installing the bridge with the 'ble' extra"
             ) from exc
 
+        logger.info("Scanning for Pit Boss BLE device %r", self.device_name)
         device = await BleakScanner.find_device_by_filter(
             lambda d, ad: d.name == self.device_name
             or ad.local_name == self.device_name
@@ -43,12 +47,16 @@ class PytbossBleSource:
         if device is None:
             raise RuntimeError(f"Pit Boss BLE device not found: {self.device_name}")
 
+        logger.info("Found %s (%s); connecting", self.device_name, device.address)
         boss = PitBoss(BleConnection(device), self.model, password=self.password)
-        await boss.start()
         try:
+            # Inside the try so a failed connect still releases the BLE client.
+            await boss.start()
+            logger.info("Connected to %s", self.device_name)
             while True:
                 state = await boss.get_state()
                 yield dict(state)
                 await asyncio.sleep(self.poll_seconds)
         finally:
+            logger.info("Disconnecting from %s", self.device_name)
             await boss.stop()

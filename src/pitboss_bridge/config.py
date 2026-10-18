@@ -26,6 +26,7 @@ class Settings:
     poll_seconds: float = 2.0
     stale_after_seconds: int = 30
     start_collector: bool = True
+    log_level: str = "INFO"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -38,4 +39,5 @@ class Settings:
             poll_seconds=float(os.getenv("PITBOSS_POLL_SECONDS", "2")),
             stale_after_seconds=int(os.getenv("PITBOSS_STALE_AFTER_SECONDS", "30")),
             start_collector=_bool_env("PITBOSS_START_COLLECTOR", True),
+            log_level=os.getenv("PITBOSS_LOG_LEVEL", "INFO").upper(),
         )

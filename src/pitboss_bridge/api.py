@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
@@ -42,9 +43,24 @@ def _make_source(settings: Settings) -> Any:
     raise ValueError(f"Unsupported PITBOSS_SOURCE={settings.source!r}")
 
 
+def _configure_logging(level: str) -> None:
+    # uvicorn only configures its own loggers, so without this the bridge's
+    # INFO logs (connects, disconnects, retries) would be silently dropped.
+    logger = logging.getLogger("pitboss_bridge")
+    logger.setLevel(level)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        logger.addHandler(handler)
+        logger.propagate = False
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the FastAPI app."""
     app_settings = settings or Settings.from_env()
+    _configure_logging(app_settings.log_level)
     store = Database(app_settings.db_path)
     store.initialize()
     hub = StateHub(stale_after_seconds=app_settings.stale_after_seconds)

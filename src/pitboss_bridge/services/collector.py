@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -11,10 +12,18 @@ from pitboss_bridge.sources.base import GrillSource
 from pitboss_bridge.state import StateSnapshot, normalize_state, utc_now
 from pitboss_bridge.store import Database
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class CollectorHealth:
-    """Mutable health state for the collector."""
+    """Mutable health state for the collector.
+
+    `connected` only becomes true once a reading has actually arrived from the
+    source, and `reconnect_count` only counts sessions that delivered data
+    after an earlier session was lost -- failed attempts are tracked
+    separately in `consecutive_failures`.
+    """
 
     source: str
     stale_after_seconds: int
@@ -22,25 +31,31 @@ class CollectorHealth:
     started_at: datetime | None = None
     last_update_at: datetime | None = None
     last_error: str | None = None
+    last_error_at: datetime | None = None
     reconnect_count: int = 0
+    consecutive_failures: int = 0
+    _has_connected: bool = False
 
     def mark_started(self) -> None:
         if self.started_at is None:
             self.started_at = utc_now()
 
-    def mark_connected(self) -> None:
+    def mark_update(self, at: datetime | None = None) -> bool:
+        """Record a reading. Returns True if this begins a new session."""
+        new_session = not self.connected
+        if new_session and self._has_connected:
+            self.reconnect_count += 1
         self.connected = True
-        self.last_error = None
-
-    def mark_update(self, at: datetime | None = None) -> None:
-        self.connected = True
+        self._has_connected = True
+        self.consecutive_failures = 0
         self.last_update_at = at or utc_now()
-        self.last_error = None
+        return new_session
 
-    def mark_error(self, error: str) -> None:
+    def mark_error(self, error: str, at: datetime | None = None) -> None:
         self.connected = False
         self.last_error = error
-        self.reconnect_count += 1
+        self.last_error_at = at or utc_now()
+        self.consecutive_failures += 1
 
     def to_api_dict(self, now: datetime | None = None) -> dict[str, Any]:
         current = now or utc_now()
@@ -62,7 +77,11 @@ class CollectorHealth:
             "stale": stale,
             "stale_after_seconds": self.stale_after_seconds,
             "reconnect_count": self.reconnect_count,
+            "consecutive_failures": self.consecutive_failures,
             "last_error": self.last_error,
+            "last_error_at": self.last_error_at.astimezone(UTC).isoformat()
+            if self.last_error_at
+            else None,
         }
 
 
@@ -119,18 +138,19 @@ class Collector:
         hub: StateHub,
         health: CollectorHealth,
         retry_seconds: float = 5.0,
+        max_retry_seconds: float = 60.0,
     ) -> None:
         self.source = source
         self.store = store
         self.hub = hub
         self.health = health
         self.retry_seconds = retry_seconds
+        self.max_retry_seconds = max_retry_seconds
         self._stream = source.readings()
         self._stop = asyncio.Event()
 
     async def collect_next(self) -> StateSnapshot:
         self.health.mark_started()
-        self.health.mark_connected()
         try:
             raw = await anext(self._stream)
         except StopAsyncIteration:
@@ -139,30 +159,69 @@ class Collector:
         snapshot = normalize_state(raw, source=self.source.name)
         self.store.insert_reading(snapshot)
         await self.hub.publish(snapshot)
-        self.health.mark_update(snapshot.received_at)
+        if self.health.mark_update(snapshot.received_at):
+            logger.info("Receiving readings from %s source", self.source.name)
+            self.store.insert_health_event(
+                "connected",
+                "source delivering readings",
+                {
+                    "source": self.source.name,
+                    "reconnect_count": self.health.reconnect_count,
+                },
+            )
         return snapshot
+
+    def retry_delay(self) -> float:
+        """Exponential backoff based on consecutive failures."""
+        failures = max(self.health.consecutive_failures, 1)
+        return min(self.retry_seconds * 2 ** (failures - 1), self.max_retry_seconds)
+
+    async def _close_stream(self) -> None:
+        """Close the current stream so sources release connections promptly."""
+        try:
+            await self._stream.aclose()
+        except Exception:
+            logger.debug("Error while closing source stream", exc_info=True)
 
     async def run(self) -> None:
         self.health.mark_started()
+        logger.info("Collector started with %s source", self.source.name)
         self.store.insert_health_event(
             "collector_started",
             "collector started",
             {"source": self.source.name},
         )
-        while not self._stop.is_set():
-            try:
-                await self.collect_next()
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                self.health.mark_error(str(exc))
-                self.store.insert_health_event(
-                    "source_error",
-                    str(exc),
-                    {"source": self.source.name},
-                )
-                await asyncio.sleep(self.retry_seconds)
-                self._stream = self.source.readings()
+        try:
+            while not self._stop.is_set():
+                try:
+                    await self.collect_next()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    message = str(exc) or type(exc).__name__
+                    self.health.mark_error(message)
+                    delay = self.retry_delay()
+                    logger.warning(
+                        "Source error (%s consecutive): %s; retrying in %.0fs",
+                        self.health.consecutive_failures,
+                        message,
+                        delay,
+                    )
+                    self.store.insert_health_event(
+                        "source_error",
+                        message,
+                        {
+                            "source": self.source.name,
+                            "consecutive_failures": self.health.consecutive_failures,
+                            "retry_in_seconds": delay,
+                        },
+                    )
+                    await self._close_stream()
+                    await asyncio.sleep(delay)
+                    self._stream = self.source.readings()
+        finally:
+            await self._close_stream()
+            logger.info("Collector stopped")
 
     def stop(self) -> None:
         self._stop.set()
