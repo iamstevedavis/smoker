@@ -63,6 +63,21 @@ If `PITBOSS_DEVICE_NAME` does not match what `bluetoothctl` shows, the BLE sourc
 - `PITBOSS_DB`: SQLite path, default `data/pitboss.sqlite`
 - `PITBOSS_POLL_SECONDS`: source polling interval, default `2`
 - `PITBOSS_STALE_AFTER_SECONDS`: age threshold for stale data, default `30`
+- `PITBOSS_LOG_LEVEL`: bridge log level, default `INFO` (use `DEBUG` when
+  troubleshooting BLE)
+
+## Health Reporting
+
+`GET /api/health` is the main signal during a real-grill test:
+
+- `connected`: true only once a reading has arrived from the current session
+- `reconnect_count`: sessions that recovered after a lost connection
+- `consecutive_failures`: failed attempts since the last good reading
+- `last_error` / `last_error_at`: most recent source error
+
+After a source error the collector waits 5s, then doubles the wait on each
+consecutive failure up to 60s, and resets after a good reading. Connects,
+errors, and retries are also logged and recorded as health events in SQLite.
 
 ## Docker Direction
 
