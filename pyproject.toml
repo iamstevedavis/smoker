@@ -5,6 +5,9 @@ description = "Local monitoring bridge for Pit Boss grills"
 requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.115,<1",
+  # The API uses the Pydantic 2 model API (model_dump); FastAPI alone
+  # would still allow Pydantic 1.
+  "pydantic>=2,<3",
   "uvicorn[standard]>=0.30,<1",
 ]
 
