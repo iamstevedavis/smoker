@@ -11,7 +11,7 @@ before starting the new version:
 docker compose down
 docker compose up --no-start          # creates the pitboss-data volume
 docker run --rm -v smoker_pitboss-data:/data -v "$PWD/data":/old:ro alpine \
-  sh -c 'cp -a /old/. /data/ && chown -R 10001 /data'
+  sh -c 'cp -a /old/. /data/ && chown -R 10001:10001 /data'
 docker compose up -d
 ```
 

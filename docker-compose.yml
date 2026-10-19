@@ -9,10 +9,15 @@ services:
         EXTRAS: http
     image: ghcr.io/iamstevedavis/smoker:latest
     restart: unless-stopped
+    # Starts as root only so the entrypoint can hand /data back to `pitboss`
+    # if docker-compose.ble.yml (which runs as `nobody`) used the volume last;
+    # it drops root before the bridge starts.
+    user: root
     env_file:
       - path: .env
         required: false
     environment:
+      PITBOSS_RUN_AS: "10001:10001"
       PITBOSS_SOURCE: ${PITBOSS_SOURCE:-http}
       PITBOSS_MODEL: ${PITBOSS_MODEL:-PB850PS2}
       PITBOSS_HOST: ${PITBOSS_HOST:-}

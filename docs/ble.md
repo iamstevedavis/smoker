@@ -40,7 +40,9 @@ policy prevents this sender`. The rest of the hardening stays: no root, no
 capabilities, `no-new-privs`, Docker's seccomp filter, no host networking.
 
 Upgrading from the earlier root-run setup needs nothing extra: the first start
-hands the existing data volume to the new user.
+hands the existing data volume to the new user. Switching between this file
+and the WiFi `docker-compose.yml` works the same way, since both share the
+`pitboss-data` volume and each hands it to its own user on start.
 
 ## Linux laptop test
 
