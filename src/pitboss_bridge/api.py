@@ -8,9 +8,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from pitboss_bridge import auth
 from pitboss_bridge.config import Settings
 from pitboss_bridge.services.alerts import (
     AlertConfig,
@@ -48,6 +49,10 @@ class CookCreate(BaseModel):
 class CookUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1)
     notes: str | None = None
+
+
+class LoginBody(BaseModel):
+    password: str
 
 
 def _make_source(settings: Settings) -> Any:
@@ -164,7 +169,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 except asyncio.CancelledError:
                     pass
 
+    signer: auth.SessionSigner | None = None
+    if app_settings.ui_password:
+        signer = auth.SessionSigner(
+            auth.load_or_create_key(app_settings.db_path.parent / auth.KEY_FILENAME),
+            password=app_settings.ui_password,
+            max_age_seconds=app_settings.session_days * 86400,
+        )
+
     app = FastAPI(title="Pit Boss Bridge", lifespan=lifespan)
+    if signer is not None:
+        app.add_middleware(auth.AuthGate, signer=signer)
     app.state.settings = app_settings
     app.state.store = store
     app.state.hub = hub
@@ -179,6 +194,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/health")
     async def health_endpoint() -> dict[str, Any]:
         return health.to_api_dict()
+
+    @app.get("/api/session")
+    async def session_endpoint() -> dict[str, Any]:
+        return {"auth_enabled": signer is not None}
+
+    if signer is not None:
+        # Registered only with a password set, so auth-off deployments keep
+        # exactly the routes they had before.
+        @app.post("/api/login", status_code=204)
+        async def login_endpoint(body: LoginBody) -> Response:
+            if not auth.password_matches(body.password, app_settings.ui_password):
+                await asyncio.sleep(auth.LOGIN_FAILURE_DELAY_SECONDS)
+                raise HTTPException(status_code=401, detail="wrong password")
+            response = Response(status_code=204)
+            # No `Secure`: the bridge serves plain HTTP on the LAN.
+            response.set_cookie(
+                auth.COOKIE_NAME,
+                signer.issue(),
+                max_age=signer.max_age_seconds,
+                path="/",
+                httponly=True,
+                samesite="strict",
+            )
+            return response
+
+        @app.post("/api/logout", status_code=204)
+        async def logout_endpoint() -> Response:
+            response = Response(status_code=204)
+            response.delete_cookie(
+                auth.COOKIE_NAME, path="/", httponly=True, samesite="strict"
+            )
+            return response
 
     @app.get("/api/state")
     async def state_endpoint() -> dict[str, Any]:
@@ -273,6 +320,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             hub.unsubscribe(queue)
 
-    mount_dashboard(app)
+    mount_dashboard(app, login_page=signer is not None)
 
     return app

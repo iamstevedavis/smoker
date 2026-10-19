@@ -66,6 +66,44 @@
 
   const serverNow = () => Date.now() + state.clockOffset;
 
+  // Auth (only when the bridge has PITBOSS_UI_PASSWORD set) ---------------
+
+  async function clearShellCache() {
+    if (!("caches" in window)) return;
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((key) => key.startsWith("smoker-shell")).map((key) => caches.delete(key)));
+    } catch (e) { /* cache storage unavailable */ }
+  }
+
+  async function toLogin() {
+    // Drop the cached shell so a signed-out device can't reopen it offline.
+    await clearShellCache();
+    location.replace("login");
+  }
+
+  // fetch() that sends a signed-out user to the login page.
+  async function apiFetch(path, options) {
+    const res = await fetch(path, options);
+    if (res.status === 401) {
+      toLogin();
+      throw new Error("not authenticated");
+    }
+    return res;
+  }
+
+  async function setupLogout() {
+    const btn = $("logout");
+    btn.addEventListener("click", async () => {
+      try { await fetch("api/logout", { method: "POST" }); } catch (e) { /* still leave */ }
+      toLogin();
+    });
+    try {
+      const res = await apiFetch("api/session", { cache: "no-store" });
+      if (res.ok && (await res.json()).auth_enabled) btn.hidden = false;
+    } catch (e) { /* unreachable bridge: keep the button hidden */ }
+  }
+
   function num(value) {
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
@@ -195,6 +233,7 @@
     }
     state.ws = ws;
     ws.onopen = () => {
+      opened = true;
       const reconnected = state.everConnected;
       state.everConnected = true;
       state.wsOpen = true;
@@ -207,8 +246,11 @@
     ws.onmessage = (event) => {
       try { onSnapshot(JSON.parse(event.data)); } catch (e) { /* ignore bad frame */ }
     };
+    let opened = false;
     ws.onclose = () => {
       if (state.ws !== ws) return;
+      // Browsers hide why a handshake failed, so ask whether the session ended.
+      if (!opened) apiFetch("api/session", { cache: "no-store" }).catch(() => {});
       if (state.wsOpen) state.wsDownSince = Date.now();
       state.wsOpen = false;
       state.ws = null;
@@ -245,7 +287,7 @@
 
   async function loadInitialState() {
     try {
-      const res = await fetch("api/state", { cache: "no-store" });
+      const res = await apiFetch("api/state", { cache: "no-store" });
       if (res.ok) onSnapshot(await res.json());
     } catch (e) { /* the websocket and health poll report failures */ }
   }
@@ -260,7 +302,7 @@
       const loaded = [];
       for (let page = 0; page < HISTORY_MAX_PAGES; page++) {
         const query = "limit=" + HISTORY_PAGE + "&since=" + encodeURIComponent(since);
-        const res = await fetch("api/history?" + query, { cache: "no-store" });
+        const res = await apiFetch("api/history?" + query, { cache: "no-store" });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const body = await res.json();
         const items = Array.isArray(body.items) ? body.items : [];
@@ -820,6 +862,7 @@
 
   function start() {
     setupControls();
+    setupLogout();
     renderReadings();
     renderStatus();
     // History's time window is based on the bridge clock, so learn the clock

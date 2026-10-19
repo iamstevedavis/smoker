@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Smoker: sign in</title>
+  <meta name="theme-color" content="#0f0f0e">
+  <meta name="color-scheme" content="light dark">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="static/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="static/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="static/app.css">
+  <script>
+    try {
+      var t = localStorage.getItem("smoker.theme");
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <main class="login">
+    <form id="login" class="card login-card">
+      <div class="brand">
+        <img src="static/icons/icon.svg" alt="" width="28" height="28">
+        <span>Smoker</span>
+      </div>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <p id="login-error" class="login-error" role="alert" hidden></p>
+      <button type="submit" class="login-btn">Sign in</button>
+    </form>
+  </main>
+  <script>
+    "use strict";
+    const form = document.getElementById("login");
+    const error = document.getElementById("login-error");
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button");
+      button.disabled = true;
+      error.hidden = true;
+      try {
+        const res = await fetch("api/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ password: form.password.value }),
+        });
+        if (res.ok) {
+          location.replace("./");
+          return;
+        }
+        error.textContent = res.status === 401 ? "Wrong password." : "Sign in failed (HTTP " + res.status + ").";
+      } catch (e) {
+        error.textContent = "Can't reach the bridge.";
+      }
+      error.hidden = false;
+      button.disabled = false;
+      form.password.select();
+    });
+  </script>
+</body>
+</html>

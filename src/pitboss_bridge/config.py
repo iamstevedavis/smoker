@@ -47,6 +47,8 @@ class Settings:
     alert_stale_seconds: float = 60.0
     alert_cooldown_seconds: float = 0.0
     retention_days: float = 0
+    ui_password: str = ""
+    session_days: float = 30.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -77,4 +79,6 @@ class Settings:
                 os.getenv("PITBOSS_ALERT_COOLDOWN_SECONDS", "0")
             ),
             retention_days=float(os.getenv("PITBOSS_RETENTION_DAYS", "0")),
+            ui_password=os.getenv("PITBOSS_UI_PASSWORD", ""),
+            session_days=float(os.getenv("PITBOSS_SESSION_DAYS", "30")),
         )
