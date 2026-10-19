@@ -85,7 +85,7 @@ def test_drift_ignored_when_grill_is_off_or_returns_to_normal_in_time():
 
 
 def test_disconnect_and_recovery_notifications():
-    engine = AlertEngine(AlertConfig(stale_seconds=60))
+    engine = AlertEngine(AlertConfig(stale_seconds=60), Clock())
 
     assert engine.on_health({"last_update_age_seconds": None}) == []
     assert engine.on_health({"last_update_age_seconds": 30}) == []
@@ -94,6 +94,49 @@ def test_disconnect_and_recovery_notifications():
     assert keys(engine.on_health({"last_update_age_seconds": 2})) == ["recovered"]
     assert engine.on_health({"last_update_age_seconds": 2}) == []
     assert keys(engine.on_health({"last_update_age_seconds": 90})) == ["disconnected"]
+
+
+def test_disconnect_fires_when_no_reading_ever_arrives():
+    clock = Clock()
+    engine = AlertEngine(AlertConfig(stale_seconds=60), clock)
+
+    assert engine.on_health({"last_update_age_seconds": None}) == []
+    clock.now = 60
+    assert engine.on_health({"last_update_age_seconds": None}) == []
+    clock.now = 61
+    assert keys(engine.on_health({"last_update_age_seconds": None})) == ["disconnected"]
+    assert keys(engine.on_health({"last_update_age_seconds": 1})) == ["recovered"]
+
+
+def test_drift_timer_resets_during_a_disconnect():
+    clock = Clock()
+    engine = AlertEngine(AlertConfig(drift_seconds=600, stale_seconds=60), clock)
+    drifting = snap(moduleIsOn=True, grillTemp=300, grillSetTemp=225)
+
+    engine.on_snapshot(drifting)
+    clock.now = 100
+    engine.on_health({"last_update_age_seconds": 100})
+    clock.now = 1000
+    engine.on_health({"last_update_age_seconds": 1})
+    assert engine.on_snapshot(drifting) == []  # timer restarted on recovery
+    clock.now = 1600
+    assert keys(engine.on_snapshot(drifting)) == ["grill_drift"]
+
+
+def test_turning_the_grill_off_rearms_drift():
+    clock = Clock()
+    engine = AlertEngine(AlertConfig(drift_seconds=60), clock)
+    drifting = snap(moduleIsOn=True, grillTemp=300, grillSetTemp=225)
+
+    engine.on_snapshot(drifting)
+    clock.now = 60
+    assert keys(engine.on_snapshot(drifting)) == ["grill_drift"]
+    engine.on_snapshot(snap(moduleIsOn=False, grillTemp=300, grillSetTemp=225))
+
+    clock.now = 100
+    engine.on_snapshot(drifting)
+    clock.now = 160
+    assert keys(engine.on_snapshot(drifting)) == ["grill_drift"]
 
 
 def test_error_flags_fire_on_rising_edge_and_no_pellets_is_urgent():

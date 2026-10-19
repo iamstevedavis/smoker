@@ -106,6 +106,7 @@ class AlertEngine:
         self.config = config
         self._clock = clock
         self._rules: dict[str, _RuleState] = {}
+        self._first_health_at: float | None = None
 
     def _rule(self, key: str) -> _RuleState:
         return self._rules.setdefault(key, _RuleState())
@@ -136,12 +137,20 @@ class AlertEngine:
         return out
 
     def on_health(self, health: dict[str, Any]) -> list[Notification]:
+        now = self._clock()
+        if self._first_health_at is None:
+            self._first_health_at = now
         age = health.get("last_update_age_seconds")
         if age is None:
-            return []
+            # No reading yet: count from when we started watching, so a grill
+            # that is unreachable at startup still raises a disconnect alert.
+            age = now - self._first_health_at
         key = "disconnected"
         rule = self._rule(key)
         if age > self.config.stale_seconds:
+            # The temperature was not observed during the outage, so it must
+            # not count towards a sustained drift once readings resume.
+            self._rule("grill_drift").since = None
             return self._fire(
                 key,
                 Notification(
@@ -201,7 +210,8 @@ class AlertEngine:
         )
         if not usable or abs(temp - set_temp) <= self.config.drift_degrees:
             rule.since = None
-            if usable:
+            # Back in range, or the grill was turned off: the incident is over.
+            if usable or values.get("moduleIsOn") is False:
                 rule.armed = True
             return []
         now = self._clock()
