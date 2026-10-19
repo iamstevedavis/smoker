@@ -11,6 +11,10 @@ docker compose -f docker-compose.ble.yml up -d --build
 Needs a Linux host with a Bluetooth adapter and `bluetoothd` running. Docker
 Desktop on macOS or Windows can't reach the host's Bluetooth.
 
+The first connection can take a minute or two. A grill that is connected to
+something else, usually the Pit Boss phone app, stops advertising, and the
+bridge retries with growing delays of up to 60 seconds. Close the app and wait.
+
 The container talks to the host's BlueZ through the host's D-Bus socket, which
 is the only host resource it gets: no host networking, so `PITBOSS_PORT` works
 as usual. The bridge runs unprivileged as `nobody` (uid 65534). The entrypoint
