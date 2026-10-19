@@ -163,6 +163,15 @@ def test_retry_delay_backs_off_exponentially_and_caps(tmp_path):
     assert delays == [5, 10, 20, 40, 60, 60]
 
 
+def test_retry_delay_never_overflows_during_a_long_outage(tmp_path):
+    collector, health, _ = make_collector(tmp_path, ScriptedSource([]))
+    collector.retry_seconds = 5.0
+    collector.max_retry_seconds = 60.0
+    health.consecutive_failures = 5000
+
+    assert collector.retry_delay() == 60.0
+
+
 async def test_open_session_is_closed_when_processing_fails(tmp_path):
     class FailingOnceStore(Database):
         failed = False

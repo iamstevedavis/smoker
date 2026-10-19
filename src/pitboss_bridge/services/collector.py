@@ -198,7 +198,10 @@ class Collector:
     def retry_delay(self) -> float:
         """Exponential backoff based on consecutive failures."""
         failures = max(self.health.consecutive_failures, 1)
-        return min(self.retry_seconds * 2 ** (failures - 1), self.max_retry_seconds)
+        # Cap the exponent so a grill that stays unreachable (about 17 hours
+        # at the 60s cap) cannot overflow the float and kill the collector.
+        exponent = min(failures - 1, 16)
+        return min(self.retry_seconds * 2**exponent, self.max_retry_seconds)
 
     async def _close_stream(self) -> None:
         """Close the current stream so sources release connections promptly."""
