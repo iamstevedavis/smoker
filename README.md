@@ -313,7 +313,7 @@ host networking or D-Bus.
 The container runs as a non-root user, keeps the SQLite database on the
 `pitboss-data` volume (`PITBOSS_DB=/data/pitboss.sqlite`), restarts
 automatically, and has a healthcheck on `/api/health`: healthy once the source
-is delivering readings, with a 2 minute startup grace period
+is delivering fresh (non-stale) readings, with a 2 minute startup grace period
 (`PITBOSS_HEALTH_GRACE_SECONDS`).
 
 Multi-arch images (amd64 and arm64, so a Raspberry Pi works) are published to

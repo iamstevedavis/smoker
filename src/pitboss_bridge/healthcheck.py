@@ -1,6 +1,6 @@
 """Container healthcheck: `python -m pitboss_bridge.healthcheck`.
 
-Healthy when the source is delivering readings, or while the bridge is still
+Healthy when the source is delivering fresh readings, or while the bridge is still
 inside its startup grace period (so a slow first connect is not reported as a
 failure). Exits 0 when healthy and 1 otherwise.
 """
@@ -15,6 +15,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 DEFAULT_GRACE_SECONDS = 120.0
+# Uvicorn always listens on 8000 inside the container; PITBOSS_PORT only picks
+# the published host port, so it must not be used here.
+CONTAINER_PORT = 8000
 
 
 def is_healthy(
@@ -23,7 +26,7 @@ def is_healthy(
     grace_seconds: float = DEFAULT_GRACE_SECONDS,
 ) -> bool:
     if health.get("connected"):
-        return True
+        return not health.get("stale")
     started_at = health.get("started_at")
     if started_at is None:
         return True  # collector has not started yet
@@ -32,11 +35,10 @@ def is_healthy(
 
 
 def main() -> int:
-    port = os.getenv("PITBOSS_PORT", "8000")
     grace = float(os.getenv("PITBOSS_HEALTH_GRACE_SECONDS", DEFAULT_GRACE_SECONDS))
     try:
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/api/health", timeout=4
+            f"http://127.0.0.1:{CONTAINER_PORT}/api/health", timeout=4
         ) as response:
             health = json.load(response)
         return 0 if is_healthy(health, grace_seconds=grace) else 1
