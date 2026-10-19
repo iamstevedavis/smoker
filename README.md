@@ -25,7 +25,8 @@ No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up --bu
 
 ## Security
 
-- **The bridge API has no authentication.** Don't expose port 8000 to the internet; use a VPN (WireGuard, Tailscale) or an authenticating reverse proxy.
+- **Auth is off by default**, so anyone on the LAN can use the dashboard and API. Set `PITBOSS_UI_PASSWORD` to require a shared password for the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. Sessions are signed cookies; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
+- **On plain HTTP the password and session cookie cross the LAN unencrypted.** That's fine for home use, but don't expose port 8000 to the internet: use a VPN (WireGuard, Tailscale), or put a TLS reverse proxy such as Caddy in front.
 - The grill's local HTTP RPC exposes its configuration, including stored **WiFi credentials**, to anyone on the network. Keep the grill on an IoT VLAN that only the bridge host can reach. Details: [docs/testing/2026-10-18-cook-test.md](docs/testing/2026-10-18-cook-test.md).
 
 ## Configuration
@@ -44,6 +45,8 @@ Set these in `.env` (Docker) or the environment.
 | `PITBOSS_STALE_AFTER_SECONDS` | `30` | Age at which a reading counts as stale |
 | `PITBOSS_RETENTION_DAYS` | `0` | Delete data older than this; `0` keeps everything |
 | `PITBOSS_LOG_LEVEL` | `INFO` | Use `DEBUG` when troubleshooting |
+| `PITBOSS_UI_PASSWORD` | | Shared password for the dashboard and API; unset means no login |
+| `PITBOSS_SESSION_DAYS` | `30` | How long a login lasts |
 
 Home Assistant (`PITBOSS_MQTT_*`) and ntfy alerts (`PITBOSS_NTFY_*`, `PITBOSS_ALERT_*`) are optional and off by default. Every variable and its default is listed in [docs/integrations.md](docs/integrations.md#settings).
 

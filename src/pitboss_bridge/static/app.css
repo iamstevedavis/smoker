@@ -585,6 +585,63 @@ main.is-stale .probe-target { opacity: 0.55; }
 
 .foot a { margin-left: auto; }
 
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  color: var(--text-2);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Login ----------------------------------------------------------------- */
+
+main.login {
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(100%, 340px);
+  padding: 24px;
+}
+
+.login-card .brand { margin: 0 0 8px; }
+
+.login-card label { font-weight: 650; font-size: 14px; color: var(--text-2); }
+
+.login-card input {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 44px;
+}
+
+.login-error { margin: 0; color: var(--critical); font-size: 14px; }
+
+.login-btn {
+  margin-top: 6px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.login-btn:disabled { opacity: 0.6; cursor: progress; }
+
 @media (forced-colors: active) {
   .key, .meter-fill { forced-color-adjust: none; }
   .ind[data-on="true"] { border-width: 3px; }

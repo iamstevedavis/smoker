@@ -2,6 +2,21 @@
 
 Endpoints: `GET /api/health`, `GET /api/state`, `GET /api/history`, `WS /api/live`, `/api/cooks`. Interactive docs are at `/docs`.
 
+## Login
+
+Only when `PITBOSS_UI_PASSWORD` is set. Every route except `/api/health`, the
+login page and static files then needs the `smoker_session` cookie: `/` redirects
+to `/login`, other routes answer 401 and `WS /api/live` is refused (close code
+1008). A wrong password answers 401 after a short delay.
+
+```bash
+curl -c jar -X POST localhost:8000/api/login -H 'content-type: application/json' \
+  -d '{"password": "..."}'                 # 204, sets the cookie
+curl -b jar localhost:8000/api/state
+curl -b jar -X POST localhost:8000/api/logout
+curl localhost:8000/api/session          # {"auth_enabled": true|false}
+```
+
 ## History
 
 `GET /api/history` query parameters (all optional; the response is always

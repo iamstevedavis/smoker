@@ -1,7 +1,7 @@
 /* Service worker: caches the app shell only. API responses are never cached. */
 "use strict";
 
-const CACHE = "smoker-shell-v1";
+const CACHE = "smoker-shell-v2";
 const SHELL = [
   "./",
   "static/app.css",
@@ -15,10 +15,23 @@ const SHELL = [
 
 const shellUrls = () => SHELL.map((path) => new URL(path, self.registration.scope).href);
 
+// With auth on, a signed-out request for the shell is redirected to the login
+// page (or answered 401). Such responses must never be cached as the shell.
+const cacheable = (response) => response.ok && !response.redirected;
+// Navigations fetch with redirect: "manual", so their redirect is opaque.
+const signedOut = (response) =>
+  response.redirected || response.type === "opaqueredirect" || response.status === 401;
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(shellUrls())).then(() => self.skipWaiting())
+  // Cache what we can; a signed-out install must not store the login page.
+  const fill = caches.open(CACHE).then((cache) =>
+    Promise.all(shellUrls().map((url) =>
+      fetch(url, { cache: "no-cache" })
+        .then((response) => (cacheable(response) ? cache.put(url, response) : undefined))
+        .catch(() => undefined)
+    ))
   );
+  event.waitUntil(fill.then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -43,9 +56,12 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok) {
+        if (cacheable(response)) {
           const copy = response.clone();
           caches.open(CACHE).then((cache) => cache.put(url.href, copy));
+        } else if (signedOut(response)) {
+          // Logged out: forget the shell so it isn't served offline later.
+          caches.delete(CACHE);
         }
         return response;
       })

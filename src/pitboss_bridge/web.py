@@ -12,10 +12,11 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # The shell must revalidate so a bridge upgrade reaches installed apps.
 _NO_CACHE = {"Cache-Control": "no-cache"}
+_NO_STORE = {"Cache-Control": "no-store"}
 _READ_METHODS = ["GET", "HEAD"]
 
 
-def mount_dashboard(app: FastAPI) -> None:
+def mount_dashboard(app: FastAPI, login_page: bool = False) -> None:
     """Serve the dashboard at `/`, leaving `/api/*` and `/docs` untouched."""
 
     @app.api_route("/", methods=_READ_METHODS, include_in_schema=False)
@@ -40,5 +41,13 @@ def mount_dashboard(app: FastAPI) -> None:
             media_type="application/manifest+json",
             headers=_NO_CACHE,
         )
+
+    if login_page:
+
+        @app.api_route("/login", methods=_READ_METHODS, include_in_schema=False)
+        async def login() -> FileResponse:
+            return FileResponse(
+                STATIC_DIR / "login.html", media_type="text/html", headers=_NO_STORE
+            )
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
