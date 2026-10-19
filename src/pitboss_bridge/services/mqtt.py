@@ -220,6 +220,19 @@ class MqttPublisher:
                         await client.publish(availability, status, retain=True)
             finally:
                 self.hub.unsubscribe(queue)
+                await self._publish_offline(client)
+
+    async def _publish_offline(self, client: MqttClient) -> None:
+        """Brokers skip the last will on a graceful disconnect, so say it ourselves."""
+        try:
+            await asyncio.wait_for(
+                client.publish(
+                    f"{self.config.prefix}/availability", "offline", retain=True
+                ),
+                timeout=self.check_interval_seconds,
+            )
+        except Exception:
+            logger.debug("Could not publish MQTT offline status", exc_info=True)
 
     def _availability(self) -> str:
         info = self.health.to_api_dict()

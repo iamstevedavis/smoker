@@ -103,6 +103,10 @@ class StateHub:
     async def publish(self, snapshot: StateSnapshot) -> None:
         self.current = snapshot
         for queue in list(self._subscribers):
+            if queue.full():
+                # A slow subscriber loses its oldest snapshot rather than
+                # raising into (and stalling) the collector.
+                queue.get_nowait()
             queue.put_nowait(snapshot)
 
     def subscribe(self) -> asyncio.Queue[StateSnapshot]:

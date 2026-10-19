@@ -135,6 +135,25 @@ async def test_availability_goes_offline_when_source_is_stale():
     assert client.on("pitboss/availability") == ["online", "offline"]
 
 
+async def test_publishes_offline_on_graceful_shutdown():
+    client = FakeClient()
+
+    @asynccontextmanager
+    async def factory(config):
+        yield client
+
+    publisher, hub, health = make_publisher(factory)
+    health.mark_update()
+    task = asyncio.create_task(publisher.run())
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert client.on("pitboss/availability") == ["online", "offline"]
+    assert client.published[-1][2] is True
+
+
 async def test_discovery_is_republished_when_unit_changes():
     client = FakeClient()
 

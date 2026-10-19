@@ -12,7 +12,7 @@ RUN apt-get update \
 COPY pyproject.toml README.md ./
 COPY src ./src
 
-RUN python -m pip install --no-cache-dir ".[ble]"
+RUN python -m pip install --no-cache-dir ".[ble,mqtt]"
 
 EXPOSE 8000
 
