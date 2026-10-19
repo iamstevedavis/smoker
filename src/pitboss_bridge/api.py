@@ -202,11 +202,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if signer is not None:
         # Registered only with a password set, so auth-off deployments keep
         # exactly the routes they had before.
+        # Attempts are checked one at a time and a failure holds the lock
+        # through its delay, so concurrent guesses can't share one wait.
+        login_lock = asyncio.Lock()
+
         @app.post("/api/login", status_code=204)
         async def login_endpoint(body: LoginBody) -> Response:
-            if not auth.password_matches(body.password, app_settings.ui_password):
-                await asyncio.sleep(auth.LOGIN_FAILURE_DELAY_SECONDS)
-                raise HTTPException(status_code=401, detail="wrong password")
+            async with login_lock:
+                if not auth.password_matches(body.password, app_settings.ui_password):
+                    await asyncio.sleep(auth.LOGIN_FAILURE_DELAY_SECONDS)
+                    raise HTTPException(status_code=401, detail="wrong password")
             response = Response(status_code=204)
             # No `Secure`: the bridge serves plain HTTP on the LAN.
             response.set_cookie(
