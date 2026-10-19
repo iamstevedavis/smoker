@@ -34,7 +34,7 @@ Set these in `.env` (Docker) or the environment.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `PITBOSS_SOURCE` | `http` | `http` (WiFi), `ble` or `fake` |
+| `PITBOSS_SOURCE` | `fake` (`http` in Docker Compose) | `http` (WiFi), `ble` or `fake` |
 | `PITBOSS_HOST` | | Grill LAN address for `http`, `host` or `host:port` |
 | `PITBOSS_DEVICE_NAME` | | BLE device name for `ble` |
 | `PITBOSS_PASSWORD` | | Grill password, if set |
