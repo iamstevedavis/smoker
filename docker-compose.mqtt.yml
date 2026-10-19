@@ -1,11 +1,12 @@
 # Optional Mosquitto broker for local MQTT / Home Assistant testing.
 #   docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt up
-# The bridge uses host networking, so it reaches the broker's published port on
-# localhost.
+# The bridge reaches the broker by its service name on the compose network. With
+# the host-networked BLE variant (docker-compose.ble.yml) use
+# PITBOSS_MQTT_HOST=localhost instead.
 services:
   pitboss-bridge:
     environment:
-      PITBOSS_MQTT_HOST: localhost
+      PITBOSS_MQTT_HOST: mosquitto
   mosquitto:
     image: eclipse-mosquitto:2
     profiles: ["mqtt"]
