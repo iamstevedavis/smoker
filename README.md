@@ -182,8 +182,55 @@ Keep the grill on an isolated or IoT network. See
 - `PITBOSS_STALE_AFTER_SECONDS`: age threshold for stale data, default `30`
 - `PITBOSS_RETENTION_DAYS`: delete readings and health events older than this many
   days, at startup and then daily; default `0` keeps everything
+- `PITBOSS_MQTT_HOST`, `PITBOSS_MQTT_PORT` (default `1883`), `PITBOSS_MQTT_USER`,
+  `PITBOSS_MQTT_PASSWORD`, `PITBOSS_MQTT_PREFIX` (default `pitboss`): MQTT
+  publishing, disabled when the host is unset (see Home Assistant)
 - `PITBOSS_LOG_LEVEL`: bridge log level, default `INFO` (use `DEBUG` when
   troubleshooting BLE)
+
+## Home Assistant
+
+The bridge can publish to MQTT with Home Assistant discovery, so the grill shows
+up as a device with no custom integration. It is read-only: there are no command
+topics. Install the extra and point it at your broker:
+
+```bash
+python -m pip install -e ".[mqtt]"
+PITBOSS_MQTT_HOST=192.168.1.10 PITBOSS_MQTT_USER=ha PITBOSS_MQTT_PASSWORD=... \
+  uvicorn pitboss_bridge.api:create_app --factory
+```
+
+Home Assistant (with the MQTT integration and discovery enabled) creates a
+**Pit Boss Grill** device with temperature sensors for the grill, set
+temperature and both probes (unit follows the grill's `isFahrenheit`), binary
+sensors for power, fan, igniter and auger, and a `Problem` sensor that turns on
+when any error flag is set. Entities go unavailable when the source is
+disconnected or stale (`pitboss/availability`, with a last-will of `offline`).
+
+Topics, with the default prefix: `pitboss/state` (JSON of field values) and
+`pitboss/availability`. The unreliable fields are not published. An unreachable
+broker is retried with backoff and never affects `/api/*` or collection.
+
+Example automation:
+
+```yaml
+automation:
+  - alias: Brisket probe done
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.pit_boss_grill_probe_1
+        above: 200
+    action:
+      - service: notify.mobile_app_phone
+        data:
+          message: "Probe 1 is at {{ states('sensor.pit_boss_grill_probe_1') }}"
+```
+
+To try it locally with a throwaway broker:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt up
+```
 
 ## Health Reporting
 

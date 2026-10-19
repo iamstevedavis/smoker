@@ -23,6 +23,9 @@ ble = [
   "bleak>=0.22,<1",
   "pytboss>=2026.8.4",
 ]
+mqtt = [
+  "aiomqtt>=2,<3",
+]
 test = [
   "httpx>=0.27,<1",
   "pytest>=8,<9",

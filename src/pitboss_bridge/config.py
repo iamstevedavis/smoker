@@ -28,6 +28,11 @@ class Settings:
     stale_after_seconds: int = 30
     start_collector: bool = True
     log_level: str = "INFO"
+    mqtt_host: str = ""
+    mqtt_port: int = 1883
+    mqtt_user: str = ""
+    mqtt_password: str = ""
+    mqtt_prefix: str = "pitboss"
     retention_days: float = 0
 
     @classmethod
@@ -43,5 +48,10 @@ class Settings:
             stale_after_seconds=int(os.getenv("PITBOSS_STALE_AFTER_SECONDS", "30")),
             start_collector=_bool_env("PITBOSS_START_COLLECTOR", True),
             log_level=os.getenv("PITBOSS_LOG_LEVEL", "INFO").upper(),
+            mqtt_host=os.getenv("PITBOSS_MQTT_HOST", ""),
+            mqtt_port=int(os.getenv("PITBOSS_MQTT_PORT", "1883")),
+            mqtt_user=os.getenv("PITBOSS_MQTT_USER", ""),
+            mqtt_password=os.getenv("PITBOSS_MQTT_PASSWORD", ""),
+            mqtt_prefix=os.getenv("PITBOSS_MQTT_PREFIX", "pitboss"),
             retention_days=float(os.getenv("PITBOSS_RETENTION_DAYS", "0")),
         )
