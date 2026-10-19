@@ -2,6 +2,10 @@
 
 ## Settings
 
+Every setting below can also be changed from the dashboard's settings panel
+and applied without a restart. Values saved there are stored in the data volume
+and override `.env`; see [Changing settings from the dashboard](../README.md#changing-settings-from-the-dashboard).
+
 - `PITBOSS_MQTT_HOST`, `PITBOSS_MQTT_PORT` (default `1883`), `PITBOSS_MQTT_USER`, `PITBOSS_MQTT_PASSWORD`, `PITBOSS_MQTT_PREFIX` (default `pitboss`): MQTT publishing, disabled when the host is unset
 - `PITBOSS_NTFY_URL`, `PITBOSS_NTFY_TOKEN`: ntfy topic URL and optional access token; alerts are off when the URL is unset
 - `PITBOSS_ALERT_PROBE1_TARGET`, `PITBOSS_ALERT_PROBE2_TARGET`: probe alert temperatures, in the grill's unit; unset disables that alert

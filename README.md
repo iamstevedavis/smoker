@@ -47,12 +47,24 @@ Set these in `.env` (Docker) or the environment.
 | `PITBOSS_LOG_LEVEL` | `INFO` | Use `DEBUG` when troubleshooting |
 | `PITBOSS_UI_PASSWORD` | | Shared password for the dashboard and API; unset means no login |
 | `PITBOSS_SESSION_DAYS` | `30` | How long a login lasts |
+| `PITBOSS_SETTINGS_EDITABLE` | on with a UI password | `false` makes the settings panel read-only; `true` allows editing without a login |
 
 Home Assistant (`PITBOSS_MQTT_*`) and ntfy alerts (`PITBOSS_NTFY_*`, `PITBOSS_ALERT_*`) are optional and off by default. Every variable and its default is listed in [docs/integrations.md](docs/integrations.md#settings).
 
+### Changing settings from the dashboard
+
+The gear button opens a settings panel. **Save & apply** restarts the grill connection, MQTT and alerts inside the bridge, so there's no container restart and the page stays up.
+
+- **Precedence:** built-in default, then `.env`/environment, then values saved in the panel. Saved values win.
+- Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Each field shows where its value comes from (Default, .env or UI); **Reset** drops the saved value and falls back to `.env` or the default.
+- Passwords and tokens are write-only: the panel shows whether they are set, never their value.
+- Editing needs a login, since otherwise anyone on the LAN could point MQTT or ntfy at their own server and receive the saved secrets. Without `PITBOSS_UI_PASSWORD` the panel is read-only unless you set `PITBOSS_SETTINGS_EDITABLE=true`.
+- **Env only:** `PITBOSS_DB`, `PITBOSS_PORT`, `PITBOSS_START_COLLECTOR`, `PITBOSS_UI_PASSWORD`, `PITBOSS_SESSION_DAYS` and `PITBOSS_SETTINGS_EDITABLE`.
+- The source list only offers what the image has: `fake`, plus `http` or `ble` depending on how it was built. Switching between WiFi and Bluetooth also needs the matching image and compose file ([docs/ble.md](docs/ble.md)).
+
 ## More
 
-- [API reference](docs/api.md): history, cook sessions, health
+- [API reference](docs/api.md): history, cook sessions, settings, health
 - [Home Assistant and alerts](docs/integrations.md)
 - [Bluetooth setup](docs/ble.md)
 - [Docker operations](docs/docker.md): upgrade, backup, migrating the old `./data` mount

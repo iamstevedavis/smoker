@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Literal
@@ -11,17 +10,10 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from pitboss_bridge import auth
-from pitboss_bridge.config import Settings
-from pitboss_bridge.services.alerts import (
-    AlertConfig,
-    AlertEngine,
-    AlertService,
-    NtfySender,
-)
-from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
-from pitboss_bridge.services.mqtt import MqttConfig, MqttPublisher
-from pitboss_bridge.sources.fake import FakeGrillSource
+from pitboss_bridge import auth, overrides
+from pitboss_bridge.config import EDITABLE_FIELDS, Settings
+from pitboss_bridge.runtime import Runtime, configure_logging, make_source
+from pitboss_bridge.services.collector import StateHub
 from pitboss_bridge.store import Database
 from pitboss_bridge.web import mount_dashboard
 
@@ -55,145 +47,65 @@ class LoginBody(BaseModel):
     password: str
 
 
-def _make_source(settings: Settings) -> Any:
-    if settings.source == "fake":
-        return FakeGrillSource(interval_seconds=settings.poll_seconds)
-    if settings.source == "ble":
-        from pitboss_bridge.sources.pytboss_ble import PytbossBleSource
+# Re-exported under its old name; tests import it from here.
+_make_source = make_source
 
-        return PytbossBleSource(
-            model=settings.model,
-            device_name=settings.device_name,
-            password=settings.password,
-            poll_seconds=settings.poll_seconds,
-        )
-    if settings.source == "http":
-        from pitboss_bridge.sources.pytboss_http import PytbossHttpSource
-
-        return PytbossHttpSource(
-            model=settings.model,
-            host=settings.host,
-            password=settings.password,
-            poll_seconds=settings.poll_seconds,
-        )
-    raise ValueError(f"Unsupported PITBOSS_SOURCE={settings.source!r}")
-
-
-def _configure_logging(level: str) -> None:
-    # uvicorn only configures its own loggers, so without this the bridge's
-    # INFO logs (connects, disconnects, retries) would be silently dropped.
-    logger = logging.getLogger("pitboss_bridge")
-    logger.setLevel(level)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-        )
-        logger.addHandler(handler)
-        logger.propagate = False
+# Settings that point at a different grill; changing one drops the last
+# reading so the dashboard doesn't show the old grill's state as current.
+_GRILL_FIELDS = ("source", "model", "host", "device_name")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the FastAPI app."""
-    app_settings = settings or Settings.from_env()
-    _configure_logging(app_settings.log_level)
-    store = Database(app_settings.db_path)
+    base_settings = settings or Settings.from_env()
+    store = Database(base_settings.db_path)
     store.initialize()
+    saved = overrides.clean_overrides(store.load_settings())
+    app_settings = base_settings.with_overrides(saved)
+    configure_logging(app_settings.log_level)
     hub = StateHub(stale_after_seconds=app_settings.stale_after_seconds)
-    source = _make_source(app_settings)
-    health = CollectorHealth(
-        source=source.name,
-        stale_after_seconds=app_settings.stale_after_seconds,
-    )
-    collector = Collector(
-        source=source,
-        store=store,
-        hub=hub,
-        health=health,
-        retention_days=app_settings.retention_days,
-    )
+    runtime = Runtime(app_settings, store, hub)
 
-    mqtt: MqttPublisher | None = None
-    if app_settings.mqtt_host:
-        mqtt = MqttPublisher(
-            MqttConfig(
-                host=app_settings.mqtt_host,
-                port=app_settings.mqtt_port,
-                user=app_settings.mqtt_user,
-                password=app_settings.mqtt_password,
-                prefix=app_settings.mqtt_prefix,
-                model=app_settings.model,
-            ),
-            hub=hub,
-            health=health,
-        )
-
-    alerts: AlertService | None = None
-    if app_settings.ntfy_url:
-        alerts = AlertService(
-            engine=AlertEngine(
-                AlertConfig(
-                    probe1_target=app_settings.alert_probe1_target,
-                    probe2_target=app_settings.alert_probe2_target,
-                    drift_degrees=app_settings.alert_drift_degrees,
-                    drift_seconds=app_settings.alert_drift_minutes * 60,
-                    stale_seconds=app_settings.alert_stale_seconds,
-                    cooldown_seconds=app_settings.alert_cooldown_seconds,
-                )
-            ),
-            hub=hub,
-            health=health,
-            sender=NtfySender(app_settings.ntfy_url, app_settings.ntfy_token),
-            store=store,
-        )
+    def use_runtime(new: Runtime, new_overrides: dict[str, Any]) -> None:
+        # Handlers read app.state, so they always see the current runtime.
+        app.state.runtime = new
+        app.state.overrides = new_overrides
+        app.state.settings = new.settings
+        app.state.health = new.health
+        app.state.collector = new.collector
+        hub.stale_after_seconds = new.settings.stale_after_seconds
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        tasks: list[asyncio.Task[None]] = []
-        # Alerts first, so they subscribe before the collector's first reading.
-        if alerts is not None:
-            tasks.append(asyncio.create_task(alerts.run()))
-        if mqtt is not None:
-            tasks.append(asyncio.create_task(mqtt.run()))
-        if app_settings.start_collector:
-            tasks.append(asyncio.create_task(collector.run()))
+        await app.state.runtime.start()
         try:
             yield
         finally:
-            collector.stop()
-            for task in tasks:
-                task.cancel()
-            for task in tasks:
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+            await app.state.runtime.stop()
 
     signer: auth.SessionSigner | None = None
-    if app_settings.ui_password:
+    if base_settings.ui_password:
         signer = auth.SessionSigner(
-            auth.load_or_create_key(app_settings.db_path.parent / auth.KEY_FILENAME),
-            password=app_settings.ui_password,
-            max_age_seconds=app_settings.session_days * 86400,
+            auth.load_or_create_key(base_settings.db_path.parent / auth.KEY_FILENAME),
+            password=base_settings.ui_password,
+            max_age_seconds=base_settings.session_days * 86400,
         )
 
     app = FastAPI(title="Pit Boss Bridge", lifespan=lifespan)
     if signer is not None:
         app.add_middleware(auth.AuthGate, signer=signer)
-    app.state.settings = app_settings
     app.state.store = store
     app.state.hub = hub
-    app.state.health = health
-    app.state.collector = collector
+    use_runtime(runtime, saved)
 
     def collector_sync_collect_next() -> None:
-        asyncio.run(collector.collect_next())
+        asyncio.run(app.state.collector.collect_next())
 
     app.state.collector_sync_collect_next = collector_sync_collect_next
 
     @app.get("/api/health")
     async def health_endpoint() -> dict[str, Any]:
-        return health.to_api_dict()
+        return app.state.health.to_api_dict()
 
     @app.get("/api/session")
     async def session_endpoint() -> dict[str, Any]:
@@ -209,7 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.post("/api/login", status_code=204)
         async def login_endpoint(body: LoginBody) -> Response:
             async with login_lock:
-                if not auth.password_matches(body.password, app_settings.ui_password):
+                if not auth.password_matches(body.password, base_settings.ui_password):
                     await asyncio.sleep(auth.LOGIN_FAILURE_DELAY_SECONDS)
                     raise HTTPException(status_code=401, detail="wrong password")
             response = Response(status_code=204)
@@ -231,6 +143,86 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 auth.COOKIE_NAME, path="/", httponly=True, samesite="strict"
             )
             return response
+
+    apply_lock = asyncio.Lock()
+
+    def current_settings_payload() -> dict[str, Any]:
+        return overrides.settings_payload(
+            base_settings, app.state.overrides, app.state.settings
+        )
+
+    def require_editable() -> None:
+        reason = base_settings.settings_read_only()
+        if reason == "disabled":
+            raise HTTPException(
+                status_code=403,
+                detail="settings are read-only (PITBOSS_SETTINGS_EDITABLE=false)",
+            )
+        if reason == "no_login":
+            raise HTTPException(
+                status_code=403,
+                detail="set PITBOSS_UI_PASSWORD to edit settings from the dashboard",
+            )
+
+    def build_runtime(new_overrides: dict[str, Any], changes: dict[str, Any]) -> Runtime:
+        """Build (but don't start) the runtime for `new_overrides`.
+
+        Raises 422 if the settings can't be built. Callers persist only after
+        this returns, so a rejected update changes nothing.
+        """
+        effective = base_settings.with_overrides(new_overrides)
+        try:
+            overrides.check_source(effective, changes)
+            new = Runtime(effective, store, hub)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return new
+
+    async def swap(new: Runtime, new_overrides: dict[str, Any]) -> None:
+        old: Runtime = app.state.runtime
+        await old.stop()
+        if any(
+            getattr(old.settings, name) != getattr(new.settings, name)
+            for name in _GRILL_FIELDS
+        ):
+            hub.current = None
+        configure_logging(new.settings.log_level)
+        use_runtime(new, new_overrides)
+        await new.start()
+
+    @app.get("/api/settings")
+    async def get_settings() -> dict[str, Any]:
+        return current_settings_payload()
+
+    @app.put("/api/settings")
+    async def put_settings(body: overrides.SettingsUpdate) -> dict[str, Any]:
+        require_editable()
+        changes = body.changes()
+        if not changes:
+            return current_settings_payload()
+        async with apply_lock:
+            new_overrides = {**app.state.overrides, **changes}
+            new = build_runtime(new_overrides, changes)
+            store.save_settings(changes)
+            await swap(new, new_overrides)
+        return current_settings_payload()
+
+    @app.delete("/api/settings/{name}")
+    async def reset_setting(name: str) -> dict[str, Any]:
+        require_editable()
+        if name not in EDITABLE_FIELDS:
+            raise HTTPException(status_code=404, detail="not an editable setting")
+        async with apply_lock:
+            if name in app.state.overrides:
+                new_overrides = {
+                    key: value
+                    for key, value in app.state.overrides.items()
+                    if key != name
+                }
+                new = build_runtime(new_overrides, {name: None})
+                store.delete_setting(name)
+                await swap(new, new_overrides)
+        return current_settings_payload()
 
     @app.get("/api/state")
     async def state_endpoint() -> dict[str, Any]:
@@ -316,9 +308,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             while True:
                 snapshot = await queue.get()
                 await websocket.send_json(
-                    snapshot.to_api_dict(
-                        stale_after_seconds=app_settings.stale_after_seconds
-                    )
+                    snapshot.to_api_dict(stale_after_seconds=hub.stale_after_seconds)
                 )
         except WebSocketDisconnect:
             pass
