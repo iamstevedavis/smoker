@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Smoker",
-  "short_name": "Smoker",
-  "description": "Live grill and probe temperatures from the Pit Boss bridge.",
+  "name": "Smokestack",
+  "short_name": "Smokestack",
+  "description": "Live grill and probe temperatures from your Pit Boss grill.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

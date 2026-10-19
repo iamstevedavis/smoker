@@ -19,7 +19,7 @@ mkdir -p reports
 OUT="reports/report-$(date +%Y%m%d-%H%M%S).txt"
 
 {
-  echo "# Pit Boss bridge test report ($(date -Is))"
+  echo "# Smokestack test report ($(date -Is))"
   echo
   echo "## System"
   grep -h '^PRETTY_NAME=' /etc/os-release 2>/dev/null | cut -d= -f2- | tr -d '"' || true

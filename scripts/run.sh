@@ -25,7 +25,7 @@ LOG="logs/bridge-$(date +%Y%m%d-%H%M%S).log"
 
 cmd=(.venv/bin/uvicorn pitboss_bridge.api:create_app --factory --host 0.0.0.0 --port "$PORT")
 # Stop the laptop suspending from inactivity mid-cook.
-inhibit=(systemd-inhibit --what=sleep:idle --who="Pit Boss bridge" --why="Recording a grill test")
+inhibit=(systemd-inhibit --what=sleep:idle --who="Smokestack" --why="Recording a grill test")
 if command -v systemd-inhibit >/dev/null 2>&1 && "${inhibit[@]}" true 2>/dev/null; then
   cmd=("${inhibit[@]}" "${cmd[@]}")
   awake="Sleep is blocked while the bridge runs."
@@ -35,7 +35,7 @@ fi
 
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 cat <<MSG
-Pit Boss bridge -> ${PITBOSS_DEVICE_NAME:-?} (source: ${PITBOSS_SOURCE:-fake})
+Smokestack -> ${PITBOSS_DEVICE_NAME:-?} (source: ${PITBOSS_SOURCE:-fake})
   State:   http://${ip:-localhost}:$PORT/api/state
   Health:  http://${ip:-localhost}:$PORT/api/health
   Docs:    http://${ip:-localhost}:$PORT/docs

@@ -1,7 +1,9 @@
 [project]
-name = "pitboss-bridge"
+name = "smokestack-bridge"
 version = "0.1.0"
-description = "Local monitoring bridge for Pit Boss grills"
+description = "Smokestack: self-hosted dashboard and alerts for Pit Boss pellet grills"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.115,<1",
@@ -32,11 +34,16 @@ test = [
   "pytest-asyncio>=0.24,<1",
 ]
 
+[project.urls]
+Source = "https://github.com/iamstevedavis/smoker"
+
 [project.scripts]
+smokestack = "pitboss_bridge.__main__:main"
 pitboss-bridge = "pitboss_bridge.__main__:main"
 
 [build-system]
-requires = ["setuptools>=70"]
+# 77 is the first release that reads the SPDX `license` string.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

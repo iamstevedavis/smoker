@@ -1,4 +1,4 @@
-"""FastAPI app for the Pit Boss bridge."""
+"""FastAPI app for Smokestack."""
 
 from __future__ import annotations
 
@@ -87,7 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             max_age_seconds=base_settings.session_days * 86400,
         )
 
-    app = FastAPI(title="Pit Boss Bridge", lifespan=lifespan)
+    app = FastAPI(title="Smokestack", lifespan=lifespan)
     if signer is not None:
         app.add_middleware(auth.AuthGate, signer=signer)
     app.state.store = store

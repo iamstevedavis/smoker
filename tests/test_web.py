@@ -23,7 +23,7 @@ def test_root_serves_dashboard_html(tmp_path):
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "<title>Smoker</title>" in response.text
+    assert "<title>Smokestack</title>" in response.text
     assert 'rel="manifest"' in response.text
     assert "static/app.js" in response.text
 

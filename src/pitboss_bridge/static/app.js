@@ -1,4 +1,4 @@
-/* Smoker dashboard: live view over /api/live, /api/history and /api/health,
+/* Smokestack dashboard: live view over /api/live, /api/history and /api/health,
    plus the bridge settings panel (/api/settings). Nothing here writes to the grill. */
 "use strict";
 
