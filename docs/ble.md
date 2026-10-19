@@ -2,6 +2,36 @@
 
 The WiFi source is simpler; use BLE only if your grill has no local HTTP server.
 
+## Docker
+
+```bash
+docker compose -f docker-compose.ble.yml up -d --build
+```
+
+Needs a Linux host with a Bluetooth adapter and `bluetoothd` running. Docker
+Desktop on macOS or Windows can't reach the host's Bluetooth.
+
+The container talks to the host's BlueZ through the host's D-Bus socket, which
+is the only host resource it gets: no host networking, so `PITBOSS_PORT` works
+as usual. The bridge runs unprivileged as `nobody` (uid 65534). The entrypoint
+starts as root only to hand the data volume to that user, then drops root.
+
+Why `nobody` and not the image's own `pitboss` user (uid 10001): the host's
+D-Bus refuses connections from uids it has no user for. `nobody` exists on
+every Linux host, and BlueZ as shipped by Debian 12+ (the base of Raspberry Pi
+OS) and Ubuntu 24.04 lets any local user talk to it.
+
+If the bridge reports `AccessDenied` from `org.bluez`, your distro limits
+BlueZ to the `bluetooth` group. Set `PITBOSS_RUN_AS` in `.env` to a host
+`uid:gid` that is allowed, for example your own user if it's in that group:
+
+```bash
+PITBOSS_RUN_AS=1000:1000
+```
+
+Upgrading from the earlier root-run setup needs nothing extra: the first start
+hands the existing data volume to the new user.
+
 ## Linux laptop test
 
 Written for Linux Mint 22 / Ubuntu 24.04. Mint 21 ships Python 3.10, which is

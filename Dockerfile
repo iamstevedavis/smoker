@@ -23,6 +23,7 @@ RUN python -m pip install --no-cache-dir ".[${EXTRAS},mqtt]"
 RUN useradd --system --uid 10001 --create-home pitboss \
     && mkdir /data \
     && chown pitboss /data
+COPY --chmod=0755 docker/entrypoint.sh /usr/local/bin/pitboss-entrypoint
 USER pitboss
 
 ENV PITBOSS_DB=/data/pitboss.sqlite
@@ -32,4 +33,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD ["python", "-m", "pitboss_bridge.healthcheck"]
 
+ENTRYPOINT ["pitboss-entrypoint"]
 CMD ["uvicorn", "pitboss_bridge.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
