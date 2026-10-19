@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from pydantic import BaseModel, Field
 
 from pitboss_bridge.config import Settings
+from pitboss_bridge.services.mqtt import MqttConfig, MqttPublisher
 from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
 from pitboss_bridge.sources.fake import FakeGrillSource
 from pitboss_bridge.store import Database
@@ -101,17 +102,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         retention_days=app_settings.retention_days,
     )
 
+    mqtt: MqttPublisher | None = None
+    if app_settings.mqtt_host:
+        mqtt = MqttPublisher(
+            MqttConfig(
+                host=app_settings.mqtt_host,
+                port=app_settings.mqtt_port,
+                user=app_settings.mqtt_user,
+                password=app_settings.mqtt_password,
+                prefix=app_settings.mqtt_prefix,
+                model=app_settings.model,
+            ),
+            hub=hub,
+            health=health,
+        )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        task: asyncio.Task[None] | None = None
+        tasks: list[asyncio.Task[None]] = []
         if app_settings.start_collector:
-            task = asyncio.create_task(collector.run())
+            tasks.append(asyncio.create_task(collector.run()))
+        if mqtt is not None:
+            tasks.append(asyncio.create_task(mqtt.run()))
         try:
             yield
         finally:
             collector.stop()
-            if task is not None:
+            for task in tasks:
                 task.cancel()
+            for task in tasks:
                 try:
                     await task
                 except asyncio.CancelledError:

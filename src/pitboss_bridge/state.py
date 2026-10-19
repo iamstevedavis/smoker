@@ -53,6 +53,19 @@ UNSET_DEFAULTS: dict[str, dict[str, Any]] = {
     "PB850PS2": {"p1Target": 50},
 }
 
+# Flags that count as a problem for aggregate "something is wrong" consumers.
+ERROR_FLAGS_FOR_PROBLEM = (
+    "err1",
+    "err2",
+    "err3",
+    "highTempErr",
+    "fanErr",
+    "hotErr",
+    "motorErr",
+    "noPellets",
+    "erL",
+)
+
 
 def utc_now() -> datetime:
     """Return a timezone-aware UTC timestamp."""

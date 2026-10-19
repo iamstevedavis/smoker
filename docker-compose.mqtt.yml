@@ -1,0 +1,12 @@
+# Optional Mosquitto broker for local MQTT / Home Assistant testing.
+#   docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt up
+# Point the bridge at it with PITBOSS_MQTT_HOST=localhost (host networking) or
+# PITBOSS_MQTT_HOST=mosquitto (bridge networking).
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    profiles: ["mqtt"]
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
