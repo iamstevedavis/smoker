@@ -1,4 +1,4 @@
-"""Command-line entrypoint for the Pit Boss bridge."""
+"""Command-line entrypoint for Smokestack."""
 
 import uvicorn
 

@@ -1,6 +1,6 @@
-# Pit Boss Bridge
+# Smokestack
 
-A local, read-only bridge for Pit Boss pellet grills (built for the `PB850PS2`). It polls the grill over WiFi or Bluetooth, stores the history in SQLite, and serves a live dashboard and a JSON API. It never sends commands to the grill.
+A self-hosted, read-only dashboard and alert service for Pit Boss pellet grills (built for the `PB850PS2`). It polls the grill over WiFi or Bluetooth, stores the history in SQLite, and serves a live dashboard and a JSON API. It never sends commands to the grill.
 
 ![Dashboard](docs/images/dashboard-desktop.png)
 
@@ -79,3 +79,18 @@ PITBOSS_SOURCE=fake uvicorn pitboss_bridge.api:create_app --factory --reload
 ```
 
 On Windows, run this inside WSL2 (Ubuntu). The dashboard is plain HTML/CSS/JS in `src/pitboss_bridge/static/` with no build step.
+
+## License
+
+[AGPL-3.0-or-later](LICENSE). You can use, change and share it freely. If you
+run a modified version as a service for other people, you must offer them its
+source.
+
+## Credits
+
+Grill communication comes from [pytboss](https://github.com/dknowles2/pytboss)
+(Apache-2.0) by David Knowles.
+
+Smokestack is an independent project, not affiliated with or endorsed by
+Dansons or Pit Boss. Pit Boss is a trademark of its owner, used here only to
+say which grills this works with.
