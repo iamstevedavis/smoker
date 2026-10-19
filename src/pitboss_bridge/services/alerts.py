@@ -154,7 +154,7 @@ class AlertEngine:
             drift = self._rule("grill_drift")
             drift.since = None
             drift.armed = True
-            return self._fire(
+            fired = self._fire(
                 key,
                 Notification(
                     "Grill data lost",
@@ -165,17 +165,23 @@ class AlertEngine:
                     key=key,
                 ),
             )
+            if fired:
+                # Each disconnect alert earns one recovery alert, which goes
+                # through _fire so the cooldown applies to it too.
+                self._rule("recovered").armed = True
+            return fired
         if not rule.armed:
             rule.armed = True
-            return [
+            return self._fire(
+                "recovered",
                 Notification(
                     "Grill data recovered",
                     "Readings are flowing again.",
                     priority=3,
                     tags=("white_check_mark",),
                     key="recovered",
-                )
-            ]
+                ),
+            )
         return []
 
     def _probe_rules(self, values: dict[str, Any]) -> list[Notification]:
@@ -198,7 +204,7 @@ class AlertEngine:
                         key=key,
                     ),
                 )
-            elif temp < target - PROBE_HYSTERESIS:
+            elif temp <= target - PROBE_HYSTERESIS:
                 rule.armed = True
         return out
 

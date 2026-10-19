@@ -41,6 +41,14 @@ def test_probe_target_fires_once_and_rearms_with_hysteresis():
     assert keys(engine.on_snapshot(snap(p1Temp=200))) == ["probe1_target"]
 
 
+def test_probe_rearms_exactly_at_the_hysteresis_boundary():
+    engine = AlertEngine(AlertConfig(probe1_target=200))
+
+    assert keys(engine.on_snapshot(snap(p1Temp=200))) == ["probe1_target"]
+    assert engine.on_snapshot(snap(p1Temp=195)) == []
+    assert keys(engine.on_snapshot(snap(p1Temp=200))) == ["probe1_target"]
+
+
 def test_probe_rule_needs_a_target_and_a_reading():
     engine = AlertEngine(AlertConfig(probe1_target=200))
 
@@ -94,6 +102,22 @@ def test_disconnect_and_recovery_notifications():
     assert keys(engine.on_health({"last_update_age_seconds": 2})) == ["recovered"]
     assert engine.on_health({"last_update_age_seconds": 2}) == []
     assert keys(engine.on_health({"last_update_age_seconds": 90})) == ["disconnected"]
+
+
+def test_cooldown_applies_to_recovery_alerts():
+    clock = Clock()
+    engine = AlertEngine(AlertConfig(stale_seconds=60, cooldown_seconds=300), clock)
+
+    assert keys(engine.on_health({"last_update_age_seconds": 61})) == ["disconnected"]
+    clock.now = 200
+    assert keys(engine.on_health({"last_update_age_seconds": 1})) == ["recovered"]
+    clock.now = 301
+    assert keys(engine.on_health({"last_update_age_seconds": 61})) == ["disconnected"]
+    clock.now = 302
+    assert engine.on_health({"last_update_age_seconds": 1}) == []  # within cooldown
+    clock.now = 700
+    assert keys(engine.on_health({"last_update_age_seconds": 61})) == ["disconnected"]
+    assert keys(engine.on_health({"last_update_age_seconds": 1})) == ["recovered"]
 
 
 def test_disconnect_fires_when_no_reading_ever_arrives():
