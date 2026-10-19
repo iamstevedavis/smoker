@@ -28,6 +28,7 @@ class Settings:
     stale_after_seconds: int = 30
     start_collector: bool = True
     log_level: str = "INFO"
+    retention_days: float = 0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -42,4 +43,5 @@ class Settings:
             stale_after_seconds=int(os.getenv("PITBOSS_STALE_AFTER_SECONDS", "30")),
             start_collector=_bool_env("PITBOSS_START_COLLECTOR", True),
             log_level=os.getenv("PITBOSS_LOG_LEVEL", "INFO").upper(),
+            retention_days=float(os.getenv("PITBOSS_RETENTION_DAYS", "0")),
         )

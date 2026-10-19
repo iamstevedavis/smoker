@@ -65,3 +65,43 @@ def test_live_websocket_streams_current_and_next_state(tmp_path):
     assert first["fields"]["grillSetTemp"]["value"] == 225
     assert second["fields"]["grillSetTemp"]["value"] == 225
     assert second["fields"]["grillTemp"]["value"] != first["fields"]["grillTemp"]["value"]
+
+
+def test_history_order_until_and_bucket_params(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    settings = Settings(
+        source="fake",
+        db_path=tmp_path / "pitboss.sqlite",
+        poll_seconds=0,
+        start_collector=False,
+    )
+    app = create_app(settings)
+    start = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
+    with app.state.store.connect() as conn:
+        conn.executemany(
+            "INSERT INTO readings (observed_at, received_at, source, fields_json,"
+            " unknown_json, raw_json) VALUES (?, ?, 'fake', ?, '{}', '{}')",
+            [
+                (
+                    (start + timedelta(seconds=10 * i)).isoformat(),
+                    (start + timedelta(seconds=10 * i)).isoformat(),
+                    f'{{"grillTemp": {i}}}',
+                )
+                for i in range(12)
+            ],
+        )
+
+    with TestClient(app) as client:
+        newest = client.get("/api/history?order=desc&limit=2").json()
+        until = client.get(
+            "/api/history?until=2026-06-02T12:00:20%2B00:00"
+        ).json()
+        bucketed = client.get("/api/history?bucket_seconds=60").json()
+        bad = client.get("/api/history?order=sideways")
+
+    assert [i["fields"]["grillTemp"] for i in newest["items"]] == [11, 10]
+    assert until["count"] == 3
+    assert bucketed["count"] == 2
+    assert bucketed["items"][0]["fields"]["grillTemp"] == 2.5
+    assert bad.status_code == 422

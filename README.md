@@ -9,6 +9,19 @@ Milestone 1 uses a fake source for local development and exposes:
 - `GET /api/history`
 - `WS /api/live`
 
+`GET /api/history` query parameters (all optional; the response is always
+`{"count": n, "items": [...]}`):
+
+- `since` / `until`: ISO time window on `observed_at` (both inclusive)
+- `limit`: max items, 1-10000 (default 1000)
+- `order`: `asc` (default, oldest first) or `desc`. With `desc` the *latest*
+  `limit` items are returned, newest first
+- `bucket_seconds`: downsample to one item per bucket (1-86400). Numeric fields
+  are averaged, booleans and strings take the last value in the bucket. Items
+  carry the bucket start as `observed_at`, a `samples` count, and empty
+  `unknown`/`raw`. `limit` then counts buckets, e.g. a 14-hour cook at
+  `bucket_seconds=60` is 840 points
+
 Real BLE validation should happen on a Linux host near the grill.
 
 ## Local Development
@@ -144,6 +157,8 @@ Keep the grill on an isolated or IoT network. See
 - `PITBOSS_DB`: SQLite path, default `data/pitboss.sqlite`
 - `PITBOSS_POLL_SECONDS`: source polling interval, default `2`
 - `PITBOSS_STALE_AFTER_SECONDS`: age threshold for stale data, default `30`
+- `PITBOSS_RETENTION_DAYS`: delete readings and health events older than this many
+  days, at startup and then daily; default `0` keeps everything
 - `PITBOSS_LOG_LEVEL`: bridge log level, default `INFO` (use `DEBUG` when
   troubleshooting BLE)
 

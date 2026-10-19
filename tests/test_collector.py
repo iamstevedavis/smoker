@@ -190,3 +190,30 @@ async def test_stopping_collector_closes_source_session(tmp_path):
     await run_until(collector, lambda: health.connected)
 
     assert source.closed == 1
+
+
+def test_prune_once_respects_retention_days(tmp_path):
+    from datetime import timedelta
+
+    from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
+    from pitboss_bridge.sources.fake import FakeGrillSource
+    from pitboss_bridge.state import utc_now
+    from pitboss_bridge.store import Database
+
+    db = Database(tmp_path / "p.sqlite")
+    db.initialize()
+    db.insert_health_event("old", "x", at=utc_now() - timedelta(days=10))
+    db.insert_health_event("new", "y")
+
+    def make(days):
+        return Collector(
+            source=FakeGrillSource(interval_seconds=0),
+            store=db,
+            hub=StateHub(stale_after_seconds=30),
+            health=CollectorHealth(source="fake", stale_after_seconds=30),
+            retention_days=days,
+        )
+
+    assert make(0).prune_once() == {"readings": 0, "health_events": 0}
+    assert make(7).prune_once()["health_events"] == 1
+    assert [e["event_type"] for e in db.list_health_events()] == ["new"]
