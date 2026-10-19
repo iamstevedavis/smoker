@@ -51,10 +51,17 @@ clears its status cache, so the next state frame comes back blank.
   shorter than 16 characters, the bridge refuses to start. Compared in constant
   time; the token is never logged.
 - **Bounds.** `PITBOSS_CONTROL_MIN_TEMP` (default 180) and
-  `PITBOSS_CONTROL_MAX_TEMP` (default **300**, hard-capped at the model's 500).
-  Requests outside the bounds are rejected, not clamped. Values inside are
-  snapped to the board's accepted setpoints and the snapped value is reported
-  back. Raising the max is an explicit owner decision.
+  `PITBOSS_CONTROL_MAX_TEMP` (default **300**, hard-capped at the model's 500)
+  are always in **Fahrenheit**, whatever unit the grill is set to. A request is
+  in the grill's current unit (as `pytboss` expects), so it is first snapped to
+  the board's accepted setpoints, then the *snapped* target is converted to F
+  (using `isFahrenheit`) and compared with the bounds. Checking after snapping
+  means a bound that is not itself a setpoint (say 320) can never let a request
+  through that snaps past it (to 325); converting means a Celsius grill cannot
+  use 260 to get 500 F under a 300 cap. Out-of-bounds requests are rejected,
+  not clamped, and the snapped value is reported back. If the grill's unit is
+  unknown, set-temperature is rejected. Raising the max is an explicit owner
+  decision.
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise), a minimum
@@ -69,7 +76,8 @@ clears its status cache, so the next state frame comes back blank.
 
 A command is not "done" because the RPC returned. Flow:
 
-1. Validate (auth, bounds, rate limit, source health), then take the command lock.
+1. Validate (auth, snap then bounds, rate limit, source health), then take the
+   command lock.
 2. **Idempotence check** against the current state: `turn-off` when `moduleIsOn`
    is already false, or `set-temperature` when `grillSetTemp` already equals the
    snapped target, returns `already_applied` without sending anything. Both
@@ -121,8 +129,10 @@ enabled. The token is typed by the user and kept in `sessionStorage`, never in
 the page or URL. Each action opens a confirmation dialog stating exactly what
 will happen ("Turn the grill off. The fan will run for about 10 minutes."; "Set
 grill to 250 F, currently 225 F"). After sending, the panel shows the last
-command, its time, and its result (`confirmed`, `unconfirmed`, `failed`) until
-replaced, with a spinner while confirming. The control buttons are disabled
+command, its time, and its result until replaced, with a spinner while
+confirming. Every result state has its own wording: `confirmed`, `unconfirmed`,
+`failed`, and `already_applied` ("The grill was already off" / "already set to
+250 F"; nothing was sent), which also clears the spinner. The control buttons are disabled
 while the source is stale.
 
 ## Testing without a live fire
@@ -131,8 +141,9 @@ while the source is stale.
   and winds the simulated temperature down, `set-temperature` updates
   `grillSetTemp`. It also supports failure injection (RPC error, ignored command
   so the state never changes, blank frame after a command, `Unauthorized` once).
-- Unit tests cover auth, bounds and snapping, rate limiting, the command lock,
-  idempotence, each result state, the blank-frame handling, and the audit rows,
+- Unit tests cover auth, bounds and snapping (including a non-setpoint max and
+  a Celsius grill), rate limiting, the command lock, idempotence, each result
+  state (in the API and in the dashboard, including `already_applied`), the blank-frame handling, and the audit rows,
   using `FakeBoss` objects in the style of `tests/test_ble_poll_state.py`.
 - CI never talks to a real grill. The one hardware step is a manual
   checklist, run by the owner standing at the grill: `turn-off` first, then a
