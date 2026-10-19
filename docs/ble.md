@@ -29,6 +29,12 @@ BlueZ to the `bluetooth` group. Set `PITBOSS_RUN_AS` in `.env` to a host
 PITBOSS_RUN_AS=1000:1000
 ```
 
+The container runs without Docker's AppArmor profile (`apparmor=unconfined`).
+That profile has no D-Bus rules, so on AppArmor hosts such as Ubuntu, Mint
+and Debian the host bus answers every call with `AccessDenied ... An AppArmor
+policy prevents this sender`. The rest of the hardening stays: no root, no
+capabilities, `no-new-privs`, Docker's seccomp filter, no host networking.
+
 Upgrading from the earlier root-run setup needs nothing extra: the first start
 hands the existing data volume to the new user.
 

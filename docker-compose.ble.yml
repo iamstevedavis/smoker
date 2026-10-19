@@ -12,6 +12,11 @@ services:
     # it then drops root before the bridge starts. The host's D-Bus only
     # accepts uids that exist on the host, and `nobody` (65534) always does.
     user: root
+    # Docker's default AppArmor profile has no D-Bus rules, so on AppArmor
+    # hosts (Ubuntu, Mint, Debian) the host bus rejects every message from
+    # the container. No effect on hosts without AppArmor.
+    security_opt:
+      - apparmor=unconfined
     env_file:
       - path: .env
         required: false
