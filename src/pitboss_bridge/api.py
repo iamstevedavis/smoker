@@ -14,6 +14,7 @@ from pitboss_bridge.config import Settings
 from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
 from pitboss_bridge.sources.fake import FakeGrillSource
 from pitboss_bridge.store import Database
+from pitboss_bridge.web import mount_dashboard
 
 
 def _parse_since(value: str | None) -> datetime | None:
@@ -142,5 +143,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             pass
         finally:
             hub.unsubscribe(queue)
+
+    mount_dashboard(app)
 
     return app
