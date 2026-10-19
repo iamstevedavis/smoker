@@ -45,6 +45,7 @@
     source: null,
     lastObserved: null, // server ms of the newest reading
     clockOffset: 0, // server clock minus local clock, ms
+    clockKnown: false,
     staleAfter: 30,
     health: null,
     healthOk: null,
@@ -96,10 +97,26 @@
 
   // Points ---------------------------------------------------------------
 
+  // Points are stored in Fahrenheit so a unit change mid-cook can't mix
+  // units on the chart; they are converted to the display unit when drawn.
   function pointFromValues(t, values) {
+    const celsius = values.isFahrenheit === false;
     const point = { t };
-    for (const s of SERIES) point[s.key] = num(values[s.field]);
+    for (const s of SERIES) {
+      const v = num(values[s.field]);
+      point[s.key] = v !== null && celsius ? v * 9 / 5 + 32 : v;
+    }
     return point;
+  }
+
+  function toDisplay(point) {
+    if (unitSymbol() === "°F") return point;
+    const out = { t: point.t };
+    for (const s of SERIES) {
+      const v = point[s.key];
+      out[s.key] = v === null ? null : (v - 32) * 5 / 9;
+    }
+    return out;
   }
 
   function addPoint(point) {
@@ -143,6 +160,12 @@
     // clock offset without trusting the device clock to match the bridge.
     const age = num(msg.age_seconds) ?? 0;
     state.clockOffset = observed + age * 1000 - Date.now();
+    // If history was loaded before the offset was known and the device clock
+    // is well off, reload it so the window matches the bridge's time.
+    if (!state.clockKnown) {
+      state.clockKnown = true;
+      if (state.historyToken > 0 && Math.abs(state.clockOffset) > 60e3) loadHistory();
+    }
     if (state.lastObserved !== null && observed < state.lastObserved) return;
     const values = {};
     for (const [name, reading] of Object.entries(msg.fields || {})) {
@@ -531,7 +554,7 @@
     const ph = Math.max(height - pad.t - pad.b, 10);
 
     const visible = state.points.slice(lowerBound(state.points, start));
-    const pts = downsample(visible, start, end, pw);
+    const pts = downsample(visible, start, end, pw).map(toDisplay);
     const series = SERIES.filter((s) => !state.hidden.has(s.key));
 
     let lo = Infinity;
@@ -707,7 +730,7 @@
 
   function renderTable() {
     const body = $("table-body");
-    const rows = state.points.slice(-TABLE_ROWS).reverse().map((p) => {
+    const rows = state.points.slice(-TABLE_ROWS).reverse().map(toDisplay).map((p) => {
       const tr = document.createElement("tr");
       const cells = [fmtTimeSeconds(p.t), ...SERIES.map((s) => fmtTemp(p[s.key]))];
       for (const text of cells) {
@@ -799,8 +822,9 @@
     setupControls();
     renderReadings();
     renderStatus();
-    loadInitialState();
-    loadHistory();
+    // History's time window is based on the bridge clock, so learn the clock
+    // offset from the current state first.
+    loadInitialState().finally(loadHistory);
     connectLive();
     pollHealth();
     setInterval(pollHealth, HEALTH_POLL_MS);
