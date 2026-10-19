@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pitboss_bridge.sources.base import GrillSource
@@ -139,6 +139,8 @@ class Collector:
         health: CollectorHealth,
         retry_seconds: float = 5.0,
         max_retry_seconds: float = 60.0,
+        retention_days: float = 0,
+        prune_interval_seconds: float = 86400.0,
     ) -> None:
         self.source = source
         self.store = store
@@ -146,6 +148,8 @@ class Collector:
         self.health = health
         self.retry_seconds = retry_seconds
         self.max_retry_seconds = max_retry_seconds
+        self.retention_days = retention_days
+        self.prune_interval_seconds = prune_interval_seconds
         self._stream = source.readings()
         self._stop = asyncio.Event()
 
@@ -183,7 +187,36 @@ class Collector:
         except Exception:
             logger.debug("Error while closing source stream", exc_info=True)
 
+    def prune_once(self) -> dict[str, int]:
+        """Delete history older than the retention window (no-op when 0)."""
+        if self.retention_days <= 0:
+            return {"readings": 0, "health_events": 0}
+        cutoff = utc_now() - timedelta(days=self.retention_days)
+        deleted = self.store.prune(cutoff)
+        if deleted["readings"] or deleted["health_events"]:
+            logger.info(
+                "Pruned %s readings and %s health events older than %s days",
+                deleted["readings"],
+                deleted["health_events"],
+                self.retention_days,
+            )
+        return deleted
+
+    async def _prune_loop(self) -> None:
+        # At startup, then once per interval.
+        while True:
+            try:
+                await asyncio.to_thread(self.prune_once)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning("History prune failed", exc_info=True)
+            await asyncio.sleep(self.prune_interval_seconds)
+
     async def run(self) -> None:
+        prune_task = (
+            asyncio.create_task(self._prune_loop()) if self.retention_days > 0 else None
+        )
         self.health.mark_started()
         logger.info("Collector started with %s source", self.source.name)
         self.store.insert_health_event(
@@ -220,6 +253,8 @@ class Collector:
                     await asyncio.sleep(delay)
                     self._stream = self.source.readings()
         finally:
+            if prune_task is not None:
+                prune_task.cancel()
             await self._close_stream()
             logger.info("Collector stopped")
 

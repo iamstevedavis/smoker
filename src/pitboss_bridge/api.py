@@ -6,7 +6,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 
@@ -17,7 +17,7 @@ from pitboss_bridge.store import Database
 from pitboss_bridge.web import mount_dashboard
 
 
-def _parse_since(value: str | None) -> datetime | None:
+def _parse_time(value: str | None) -> datetime | None:
     if value is None:
         return None
     try:
@@ -79,7 +79,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         source=source.name,
         stale_after_seconds=app_settings.stale_after_seconds,
     )
-    collector = Collector(source=source, store=store, hub=hub, health=health)
+    collector = Collector(
+        source=source,
+        store=store,
+        hub=hub,
+        health=health,
+        retention_days=app_settings.retention_days,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -120,9 +126,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/history")
     async def history_endpoint(
         since: str | None = Query(default=None),
+        until: str | None = Query(default=None),
         limit: int = Query(default=1000, ge=1, le=10000),
+        order: Literal["asc", "desc"] = Query(default="asc"),
+        bucket_seconds: int | None = Query(default=None, ge=1, le=86400),
     ) -> dict[str, Any]:
-        rows = store.list_history(since=_parse_since(since), limit=limit)
+        rows = store.list_history(
+            since=_parse_time(since),
+            until=_parse_time(until),
+            limit=limit,
+            newest_first=order == "desc",
+            bucket_seconds=bucket_seconds,
+        )
         return {"count": len(rows), "items": rows}
 
     @app.websocket("/api/live")
