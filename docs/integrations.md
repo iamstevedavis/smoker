@@ -1,5 +1,14 @@
 # Home Assistant and alerts
 
+## Settings
+
+- `PITBOSS_MQTT_HOST`, `PITBOSS_MQTT_PORT` (default `1883`), `PITBOSS_MQTT_USER`, `PITBOSS_MQTT_PASSWORD`, `PITBOSS_MQTT_PREFIX` (default `pitboss`): MQTT publishing, disabled when the host is unset
+- `PITBOSS_NTFY_URL`, `PITBOSS_NTFY_TOKEN`: ntfy topic URL and optional access token; alerts are off when the URL is unset
+- `PITBOSS_ALERT_PROBE1_TARGET`, `PITBOSS_ALERT_PROBE2_TARGET`: probe alert temperatures, in the grill's unit; unset disables that alert
+- `PITBOSS_ALERT_DRIFT_DEGREES` (default `25`), `PITBOSS_ALERT_DRIFT_MINUTES` (default `10`): grill-vs-set-temp drift alert
+- `PITBOSS_ALERT_STALE_SECONDS` (default `60`): seconds without data before a disconnect alert
+- `PITBOSS_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
+
 ## Home Assistant (MQTT)
 
 The bridge can publish to MQTT with Home Assistant discovery, so the grill shows
