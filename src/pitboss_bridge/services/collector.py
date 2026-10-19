@@ -158,13 +158,15 @@ class Collector:
     async def collect_next(self) -> StateSnapshot:
         self.health.mark_started()
         try:
-            raw = await anext(self._stream)
-        except StopAsyncIteration:
-            self._stream = self.source.readings()
-            raw = await anext(self._stream)
-        stats = getattr(self.source, "stats", None)
-        if stats is not None:
-            self.health.unauthorized_retries = stats.unauthorized_retries
+            try:
+                raw = await anext(self._stream)
+            except StopAsyncIteration:
+                self._stream = self.source.readings()
+                raw = await anext(self._stream)
+        finally:
+            # Sync even when the read fails, so retries made before a
+            # failed poll still show up in /api/health during backoff.
+            self._sync_source_stats()
         snapshot = normalize_state(
             raw,
             source=self.source.name,
@@ -183,6 +185,11 @@ class Collector:
                 },
             )
         return snapshot
+
+    def _sync_source_stats(self) -> None:
+        stats = getattr(self.source, "stats", None)
+        if stats is not None:
+            self.health.unauthorized_retries = stats.unauthorized_retries
 
     def retry_delay(self) -> float:
         """Exponential backoff based on consecutive failures."""
