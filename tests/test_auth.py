@@ -198,3 +198,22 @@ def test_settings_read_auth_env(monkeypatch):
 
     assert settings.ui_password == "secret"
     assert settings.session_days == 2
+
+
+async def test_concurrent_failed_logins_are_serialized(tmp_path, monkeypatch):
+    import asyncio
+    import time
+
+    import httpx
+
+    monkeypatch.setattr(auth, "LOGIN_FAILURE_DELAY_SECONDS", 0.1)
+    transport = httpx.ASGITransport(app=_app(tmp_path))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        started = time.monotonic()
+        responses = await asyncio.gather(
+            *(client.post("/api/login", json={"password": "guess"}) for _ in range(5))
+        )
+        elapsed = time.monotonic() - started
+
+    assert all(response.status_code == 401 for response in responses)
+    assert elapsed >= 0.5
