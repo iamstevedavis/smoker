@@ -192,6 +192,35 @@ async def test_reconnects_with_backoff_after_broker_failure():
     assert client.published
 
 
+async def test_backoff_resets_after_each_successful_connection():
+    class DroppingClient(FakeClient):
+        async def publish(self, topic, payload, retain=False):
+            raise ConnectionError("dropped")
+
+    connects = []
+
+    @asynccontextmanager
+    async def factory(config):
+        connects.append(1)
+        yield DroppingClient()
+
+    publisher, hub, health = make_publisher(factory)
+    task = asyncio.create_task(publisher.run())
+    await asyncio.sleep(0.2)
+    task.cancel()
+
+    assert len(connects) > 3
+    assert publisher.retry_delay() == publisher.retry_seconds
+
+
+def test_retry_delay_caps_and_never_overflows():
+    publisher, _, _ = make_publisher(None)
+
+    publisher._failures = 5000
+
+    assert publisher.retry_delay() == publisher.max_retry_seconds
+
+
 async def test_dead_broker_never_backs_up_the_hub():
     @asynccontextmanager
     async def factory(config):
