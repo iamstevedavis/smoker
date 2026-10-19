@@ -168,18 +168,23 @@ class MqttPublisher:
         self.check_interval_seconds = check_interval_seconds
         self.retry_seconds = retry_seconds
         self.max_retry_seconds = max_retry_seconds
+        self._failures = 0
+
+    def retry_delay(self) -> float:
+        """Exponential backoff on consecutive failed sessions."""
+        # Cap the exponent so a broker that stays down cannot overflow it.
+        exponent = min(max(self._failures, 1) - 1, 16)
+        return min(self.retry_seconds * 2**exponent, self.max_retry_seconds)
 
     async def run(self) -> None:
-        failures = 0
         while True:
             try:
                 await self._session()
-                failures = 0
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                failures += 1
-                delay = min(self.retry_seconds * 2 ** (failures - 1), self.max_retry_seconds)
+                self._failures += 1
+                delay = self.retry_delay()
                 logger.warning(
                     "MQTT unavailable (%s); retrying in %.0fs", exc or type(exc).__name__, delay
                 )
@@ -189,6 +194,8 @@ class MqttPublisher:
         availability = f"{self.config.prefix}/availability"
         async with self.client_factory(self.config) as client:
             logger.info("Connected to MQTT broker %s", self.config.host)
+            # _session only ever ends by raising, so reset the backoff here.
+            self._failures = 0
             fahrenheit = True
             current = self.hub.current
             if current is not None:
