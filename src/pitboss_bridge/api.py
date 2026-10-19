@@ -145,12 +145,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         tasks: list[asyncio.Task[None]] = []
-        if app_settings.start_collector:
-            tasks.append(asyncio.create_task(collector.run()))
-        if mqtt is not None:
-            tasks.append(asyncio.create_task(mqtt.run()))
+        # Alerts first, so they subscribe before the collector's first reading.
         if alerts is not None:
             tasks.append(asyncio.create_task(alerts.run()))
+        if mqtt is not None:
+            tasks.append(asyncio.create_task(mqtt.run()))
+        if app_settings.start_collector:
+            tasks.append(asyncio.create_task(collector.run()))
         try:
             yield
         finally:

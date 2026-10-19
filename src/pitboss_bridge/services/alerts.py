@@ -149,8 +149,11 @@ class AlertEngine:
         rule = self._rule(key)
         if age > self.config.stale_seconds:
             # The temperature was not observed during the outage, so it must
-            # not count towards a sustained drift once readings resume.
-            self._rule("grill_drift").since = None
+            # not count towards a sustained drift once readings resume, and
+            # drift after recovery is a new incident.
+            drift = self._rule("grill_drift")
+            drift.since = None
+            drift.armed = True
             return self._fire(
                 key,
                 Notification(
@@ -268,6 +271,9 @@ class AlertService:
 
     async def run(self) -> None:
         queue = self.hub.subscribe()
+        # A snapshot published before we subscribed is not in the queue.
+        if self.hub.current is not None:
+            self.dispatch(self.engine.on_snapshot(self.hub.current))
         try:
             while True:
                 try:

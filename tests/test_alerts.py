@@ -123,6 +123,22 @@ def test_drift_timer_resets_during_a_disconnect():
     assert keys(engine.on_snapshot(drifting)) == ["grill_drift"]
 
 
+def test_outage_rearms_drift_that_already_fired():
+    clock = Clock()
+    engine = AlertEngine(AlertConfig(drift_seconds=600, stale_seconds=60), clock)
+    drifting = snap(moduleIsOn=True, grillTemp=300, grillSetTemp=225)
+
+    engine.on_snapshot(drifting)
+    clock.now = 600
+    assert keys(engine.on_snapshot(drifting)) == ["grill_drift"]
+    engine.on_health({"last_update_age_seconds": 100})
+    clock.now = 1000
+    engine.on_health({"last_update_age_seconds": 1})
+    engine.on_snapshot(drifting)
+    clock.now = 1600
+    assert keys(engine.on_snapshot(drifting)) == ["grill_drift"]
+
+
 def test_turning_the_grill_off_rearms_drift():
     clock = Clock()
     engine = AlertEngine(AlertConfig(drift_seconds=60), clock)
@@ -209,6 +225,18 @@ async def test_service_sends_alerts_from_hub_snapshots(tmp_path):
 
     assert [n.key for n in sender.sent] == ["probe1_target"]
     assert store.list_health_events()[0]["event_type"] == "alert_sent"
+
+
+async def test_service_evaluates_a_snapshot_published_before_it_started(tmp_path):
+    sender = FakeSender()
+    service, hub, _ = make_service(tmp_path, sender)
+    await hub.publish(snap(p1Temp=160))
+
+    task = asyncio.create_task(service.run())
+    await asyncio.sleep(0.05)
+    task.cancel()
+
+    assert keys(sender.sent) == ["probe1_target"]
 
 
 async def test_sender_failure_is_logged_as_health_event_and_does_not_raise(tmp_path):
