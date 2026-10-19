@@ -285,23 +285,63 @@ After a source error the collector waits 5s, then doubles the wait on each
 consecutive failure up to 60s, and resets after a good reading. Connects,
 errors, and retries are also logged and recorded as health events in SQLite.
 
-## Docker Direction
+## Run at home (Docker)
 
-The target server deployment is Linux with BlueZ. Start with the fake source:
+The recommended deployment is the WiFi (`http`) source in a container on any
+always-on machine (NAS, mini-PC, Raspberry Pi). It needs no Bluetooth adapter,
+host networking or D-Bus.
+
+1. **Find the grill's IP** in your router's DHCP client list (or `wifi.sta_ip`
+   from `Sys.GetInfo` over BLE) and give it a **DHCP reservation**.
+2. **Configure:**
+
+   ```bash
+   cp .env.example .env     # then edit PITBOSS_HOST (and PITBOSS_PASSWORD)
+   ```
+
+   ```ini
+   PITBOSS_SOURCE=http
+   PITBOSS_HOST=192.168.1.50
+   PITBOSS_MODEL=PB850PS2
+   PITBOSS_PASSWORD=
+   ```
+
+3. **Start:** `docker compose up -d --build`, then open
+   `http://<server>:8000/` or `curl http://<server>:8000/api/health`.
+   To try it without a grill: `PITBOSS_SOURCE=fake docker compose up --build`.
+
+The container runs as a non-root user, keeps the SQLite database on the
+`pitboss-data` volume (`PITBOSS_DB=/data/pitboss.sqlite`), restarts
+automatically, and has a healthcheck on `/api/health`: healthy once the source
+is delivering readings, with a 2 minute startup grace period
+(`PITBOSS_HEALTH_GRACE_SECONDS`).
+
+Multi-arch images (amd64 and arm64, so a Raspberry Pi works) are published to
+`ghcr.io/iamstevedavis/smoker` when a `v*` tag is pushed, so you can also run
+the published image instead of building: `docker compose pull && docker compose up -d`.
+
+**Upgrade:** `git pull && docker compose up -d --build` (or `pull` for the
+published image). The database lives on the volume and survives upgrades.
+
+**Back up** the database volume:
 
 ```bash
-docker compose up --build
-curl http://localhost:8000/api/health
+docker run --rm -v smoker_pitboss-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/pitboss-data.tgz -C /data .
 ```
 
-After the Python BLE probe works on the Linux host, switch:
+(The volume name is `<project>_pitboss-data`; check `docker volume ls`.)
 
-```yaml
-environment:
-  PITBOSS_SOURCE: ble
-  PITBOSS_MODEL: PB850PS2
-  PITBOSS_DEVICE_NAME: PBL-EC6260C77A8C
-```
+**Bluetooth variant:** `docker compose -f docker-compose.ble.yml up -d --build`.
+It builds with the `ble` extra, uses host networking and read-only D-Bus mounts
+so `bleak` can reach the host's BlueZ, and runs as root for D-Bus access. Set
+`PITBOSS_DEVICE_NAME` in `.env`.
 
-The compose file uses host networking and read-only D-Bus mounts so `bleak`
-can talk to the host Bluetooth stack.
+### Security
+
+- **The bridge API has no authentication.** Do not expose port 8000 to the
+  internet. For remote access put it behind a VPN (WireGuard, Tailscale) or an
+  authenticating reverse proxy.
+- The grill's local HTTP RPC leaks its configuration, including stored **WiFi
+  credentials**, to anyone on the network. Isolate the grill on an IoT VLAN and
+  allow only the bridge host to reach it. See `docs/testing/2026-10-18-cook-test.md`.

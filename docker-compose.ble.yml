@@ -1,0 +1,31 @@
+# Bluetooth variant: host networking and read-only D-Bus mounts so bleak can
+# reach the host's BlueZ. Needs a Linux host with a Bluetooth adapter.
+#   docker compose -f docker-compose.ble.yml up --build
+services:
+  pitboss-bridge:
+    build:
+      context: .
+      args:
+        EXTRAS: ble
+    restart: unless-stopped
+    network_mode: host
+    # D-Bus access needs root inside the container.
+    user: root
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PITBOSS_SOURCE: ble
+      PITBOSS_MODEL: ${PITBOSS_MODEL:-PB850PS2}
+      PITBOSS_DEVICE_NAME: ${PITBOSS_DEVICE_NAME:-}
+      PITBOSS_PASSWORD: ${PITBOSS_PASSWORD:-}
+      PITBOSS_DB: /data/pitboss.sqlite
+      PITBOSS_POLL_SECONDS: ${PITBOSS_POLL_SECONDS:-2}
+      PITBOSS_STALE_AFTER_SECONDS: ${PITBOSS_STALE_AFTER_SECONDS:-30}
+    volumes:
+      - pitboss-data:/data
+      - /run/dbus:/run/dbus:ro
+      - /var/run/dbus:/var/run/dbus:ro
+
+volumes:
+  pitboss-data:
