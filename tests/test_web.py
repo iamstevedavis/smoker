@@ -1,24 +1,25 @@
 import json
 
+import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from pitboss_bridge.api import create_app
 from pitboss_bridge.config import Settings
 
 
-def _app(tmp_path):
+@pytest.fixture
+def app(tmp_path, make_app):
     settings = Settings(
         source="fake",
         db_path=tmp_path / "pitboss.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
-    return create_app(settings)
+    return make_app(settings)
 
 
-def test_root_serves_dashboard_html(tmp_path):
-    with TestClient(_app(tmp_path)) as client:
+def test_root_serves_dashboard_html(app):
+    with TestClient(app) as client:
         response = client.get("/")
 
     assert response.status_code == 200
@@ -28,8 +29,8 @@ def test_root_serves_dashboard_html(tmp_path):
     assert "static/app.js" in response.text
 
 
-def test_static_assets_are_served(tmp_path):
-    with TestClient(_app(tmp_path)) as client:
+def test_static_assets_are_served(app):
+    with TestClient(app) as client:
         js = client.get("/static/app.js")
         css = client.get("/static/app.css")
         sw = client.get("/sw.js")
@@ -43,8 +44,8 @@ def test_static_assets_are_served(tmp_path):
     assert "javascript" in sw.headers["content-type"]
 
 
-def test_manifest_is_installable_and_icons_exist(tmp_path):
-    with TestClient(_app(tmp_path)) as client:
+def test_manifest_is_installable_and_icons_exist(app):
+    with TestClient(app) as client:
         response = client.get("/manifest.webmanifest")
         manifest = json.loads(response.text)
         icons = {
@@ -60,16 +61,15 @@ def test_manifest_is_installable_and_icons_exist(tmp_path):
         assert icon_response.status_code == 200, src
 
 
-def test_service_worker_never_caches_api(tmp_path):
-    with TestClient(_app(tmp_path)) as client:
+def test_service_worker_never_caches_api(app):
+    with TestClient(app) as client:
         sw = client.get("/sw.js").text
 
     shell = sw.split("const SHELL = [", 1)[1].split("];", 1)[0]
     assert "api" not in shell
 
 
-def test_api_and_docs_still_work_with_dashboard(tmp_path):
-    app = _app(tmp_path)
+def test_api_and_docs_still_work_with_dashboard(app):
     with TestClient(app) as client:
         app.state.collector_sync_collect_next()
         assert client.get("/api/state").json()["available"] is True
@@ -77,10 +77,9 @@ def test_api_and_docs_still_work_with_dashboard(tmp_path):
         assert client.get("/openapi.json").status_code == 200
 
 
-def test_bridge_exposes_no_write_endpoints(tmp_path):
-    app = _app(tmp_path)
-    # Only cook sessions and bridge settings may write, both in the bridge's
-    # own database; nothing reaches the grill.
+def test_bridge_exposes_no_write_endpoints(app):
+    # Only cook sessions, bridge settings and the login may write, all in the
+    # bridge's own database; nothing reaches the grill.
     write_paths = set()
     for route in app.routes:
         if isinstance(route, APIRoute) and route.methods - {"GET", "HEAD"}:
@@ -88,11 +87,14 @@ def test_bridge_exposes_no_write_endpoints(tmp_path):
 
     assert write_paths
     assert all(
-        path.startswith(("/api/cooks", "/api/settings")) for path in write_paths
+        path.startswith(
+            ("/api/cooks", "/api/settings", "/api/setup", "/api/login", "/api/logout", "/api/auth")
+        )
+        for path in write_paths
     )
 
 
-def test_dashboard_answers_head_requests(tmp_path):
-    with TestClient(_app(tmp_path)) as client:
+def test_dashboard_answers_head_requests(app):
+    with TestClient(app) as client:
         assert client.head("/").status_code == 200
         assert client.head("/manifest.webmanifest").status_code == 200

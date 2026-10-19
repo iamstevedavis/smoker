@@ -1,17 +1,16 @@
 from fastapi.testclient import TestClient
 
-from pitboss_bridge.api import create_app
 from pitboss_bridge.config import Settings
 
 
-def test_health_state_and_history_endpoints(tmp_path):
+def test_health_state_and_history_endpoints(tmp_path, make_app):
     settings = Settings(
         source="fake",
         db_path=tmp_path / "pitboss.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
-    app = create_app(settings)
+    app = make_app(settings)
 
     with TestClient(app) as client:
         app.state.collector_sync_collect_next()
@@ -28,14 +27,14 @@ def test_health_state_and_history_endpoints(tmp_path):
     assert history["items"][0]["fields"]["grillSetTemp"] == 225
 
 
-def test_history_since_filter(tmp_path):
+def test_history_since_filter(tmp_path, make_app):
     settings = Settings(
         source="fake",
         db_path=tmp_path / "pitboss.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
-    app = create_app(settings)
+    app = make_app(settings)
 
     with TestClient(app) as client:
         app.state.collector_sync_collect_next()
@@ -46,14 +45,14 @@ def test_history_since_filter(tmp_path):
     assert filtered["count"] == 1
 
 
-def test_live_websocket_streams_current_and_next_state(tmp_path):
+def test_live_websocket_streams_current_and_next_state(tmp_path, make_app):
     settings = Settings(
         source="fake",
         db_path=tmp_path / "pitboss.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
-    app = create_app(settings)
+    app = make_app(settings)
 
     with TestClient(app) as client:
         app.state.collector_sync_collect_next()
@@ -67,7 +66,7 @@ def test_live_websocket_streams_current_and_next_state(tmp_path):
     assert second["fields"]["grillTemp"]["value"] != first["fields"]["grillTemp"]["value"]
 
 
-def test_history_order_until_and_bucket_params(tmp_path):
+def test_history_order_until_and_bucket_params(tmp_path, make_app):
     from datetime import UTC, datetime, timedelta
 
     settings = Settings(
@@ -76,7 +75,7 @@ def test_history_order_until_and_bucket_params(tmp_path):
         poll_seconds=0,
         start_collector=False,
     )
-    app = create_app(settings)
+    app = make_app(settings)
     start = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
     with app.state.store.connect() as conn:
         conn.executemany(

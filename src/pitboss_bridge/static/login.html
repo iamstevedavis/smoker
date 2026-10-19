@@ -24,23 +24,65 @@
         <img src="static/icons/icon.svg" alt="" width="28" height="28">
         <span>Smokestack</span>
       </div>
+      <p id="setup-intro" class="login-intro" hidden>Welcome. Create a password for this bridge. You'll use it to sign in, and you can turn it off later in Settings.</p>
       <label for="password">Password</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <div id="confirm-row" class="login-field" hidden>
+        <label for="confirm">Confirm password</label>
+        <input id="confirm" name="confirm" type="password" autocomplete="new-password">
+      </div>
       <p id="login-error" class="login-error" role="alert" hidden></p>
-      <button type="submit" class="login-btn">Sign in</button>
+      <button id="submit" type="submit" class="login-btn">Sign in</button>
     </form>
   </main>
   <script>
     "use strict";
     const form = document.getElementById("login");
     const error = document.getElementById("login-error");
+    const MIN_LENGTH = 8;
+    let setup = false;
+
+    // First run: no password exists yet, so this page creates one.
+    function showSetup() {
+      setup = true;
+      document.title = "Smokestack: set up";
+      document.getElementById("setup-intro").hidden = false;
+      document.getElementById("confirm-row").hidden = false;
+      document.getElementById("submit").textContent = "Create password";
+      form.password.autocomplete = "new-password";
+      form.confirm.required = true;
+    }
+
+    fetch("api/session", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((session) => {
+        if (!session) return;
+        if (session.setup_required) showSetup();
+        else if (!session.auth_enabled || session.authenticated) location.replace("./");
+      })
+      .catch(() => { /* bridge unreachable: the submit will say so */ });
+
+    function fail(message) {
+      error.textContent = message;
+      error.hidden = false;
+      form.password.select();
+    }
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      error.hidden = true;
+      if (setup && form.password.value.length < MIN_LENGTH) {
+        fail("Use at least " + MIN_LENGTH + " characters.");
+        return;
+      }
+      if (setup && form.password.value !== form.confirm.value) {
+        fail("The passwords don't match.");
+        return;
+      }
       const button = form.querySelector("button");
       button.disabled = true;
-      error.hidden = true;
       try {
-        const res = await fetch("api/login", {
+        const res = await fetch(setup ? "api/setup" : "api/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ password: form.password.value }),
@@ -49,13 +91,16 @@
           location.replace("./");
           return;
         }
-        error.textContent = res.status === 401 ? "Wrong password." : "Sign in failed (HTTP " + res.status + ").";
+        if (res.status === 409) {
+          // Setup finished elsewhere (or was reset) since this page loaded.
+          location.reload();
+          return;
+        }
+        fail(res.status === 401 ? "Wrong password." : (setup ? "Setup" : "Sign in") + " failed (HTTP " + res.status + ").");
       } catch (e) {
-        error.textContent = "Can't reach the bridge.";
+        fail("Can't reach the bridge.");
       }
-      error.hidden = false;
       button.disabled = false;
-      form.password.select();
     });
   </script>
 </body>

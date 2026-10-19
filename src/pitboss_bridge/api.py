@@ -7,7 +7,15 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query, Response, WebSocket, WebSocketDisconnect
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel, Field
 
 from pitboss_bridge import auth, overrides
@@ -47,6 +55,21 @@ class LoginBody(BaseModel):
     password: str
 
 
+class NewPassword(BaseModel):
+    password: str = Field(min_length=auth.PASSWORD_MIN_LENGTH)
+
+
+class PasswordChange(BaseModel):
+    current: str
+    new: str = Field(min_length=auth.PASSWORD_MIN_LENGTH)
+
+
+class AuthUpdate(BaseModel):
+    required: bool
+    # Needed to turn the password back on, so the caller can be signed in.
+    password: str | None = None
+
+
 # Re-exported under its old name; tests import it from here.
 _make_source = make_source
 
@@ -79,18 +102,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await app.state.runtime.stop()
 
-    signer: auth.SessionSigner | None = None
-    if base_settings.ui_password:
-        signer = auth.SessionSigner(
-            auth.load_or_create_key(base_settings.db_path.parent / auth.KEY_FILENAME),
-            password=base_settings.ui_password,
-            max_age_seconds=base_settings.session_days * 86400,
-        )
+    auth_state = auth.AuthState(
+        store,
+        auth.load_or_create_key(base_settings.db_path.parent / auth.KEY_FILENAME),
+    )
 
     app = FastAPI(title="Smokestack", lifespan=lifespan)
-    if signer is not None:
-        app.add_middleware(auth.AuthGate, signer=signer)
+    app.add_middleware(auth.AuthGate, state=auth_state)
     app.state.store = store
+    app.state.auth = auth_state
     app.state.hub = hub
     use_runtime(runtime, saved)
 
@@ -103,42 +123,86 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health_endpoint() -> dict[str, Any]:
         return app.state.health.to_api_dict()
 
+    def session_payload(request: Request) -> dict[str, Any]:
+        return {
+            "setup_required": auth_state.setup_required,
+            "auth_enabled": auth_state.required,
+            "authenticated": auth_state.session_valid(
+                request.cookies.get(auth.COOKIE_NAME)
+            ),
+        }
+
+    def signed_in(response: Response) -> Response:
+        # No `Secure`: the bridge serves plain HTTP on the LAN.
+        response.set_cookie(
+            auth.COOKIE_NAME,
+            auth_state.issue(),
+            max_age=auth_state.max_age_seconds,
+            path="/",
+            httponly=True,
+            samesite="strict",
+        )
+        return response
+
+    # Attempts are checked one at a time and a failure holds the lock through
+    # its delay, so concurrent guesses can't share one wait.
+    login_lock = asyncio.Lock()
+
+    async def require_password(password: str, status_code: int) -> None:
+        """Raise unless `password` is right; call with `login_lock` held."""
+        if not await asyncio.to_thread(auth_state.check_password, password):
+            await asyncio.sleep(auth.LOGIN_FAILURE_DELAY_SECONDS)
+            raise HTTPException(status_code=status_code, detail="wrong password")
+
     @app.get("/api/session")
-    async def session_endpoint() -> dict[str, Any]:
-        return {"auth_enabled": signer is not None}
+    async def session_endpoint(request: Request) -> dict[str, Any]:
+        return session_payload(request)
 
-    if signer is not None:
-        # Registered only with a password set, so auth-off deployments keep
-        # exactly the routes they had before.
-        # Attempts are checked one at a time and a failure holds the lock
-        # through its delay, so concurrent guesses can't share one wait.
-        login_lock = asyncio.Lock()
+    @app.post("/api/setup", status_code=204)
+    async def setup_endpoint(body: NewPassword) -> Response:
+        async with login_lock:
+            if not auth_state.setup_required:
+                raise HTTPException(status_code=409, detail="a password is already set")
+            await asyncio.to_thread(auth_state.set_password, body.password)
+        return signed_in(Response(status_code=204))
 
-        @app.post("/api/login", status_code=204)
-        async def login_endpoint(body: LoginBody) -> Response:
-            async with login_lock:
-                if not auth.password_matches(body.password, base_settings.ui_password):
-                    await asyncio.sleep(auth.LOGIN_FAILURE_DELAY_SECONDS)
-                    raise HTTPException(status_code=401, detail="wrong password")
-            response = Response(status_code=204)
-            # No `Secure`: the bridge serves plain HTTP on the LAN.
-            response.set_cookie(
-                auth.COOKIE_NAME,
-                signer.issue(),
-                max_age=signer.max_age_seconds,
-                path="/",
-                httponly=True,
-                samesite="strict",
-            )
-            return response
+    @app.post("/api/login", status_code=204)
+    async def login_endpoint(body: LoginBody) -> Response:
+        if auth_state.setup_required:
+            raise HTTPException(status_code=409, detail="setup required")
+        async with login_lock:
+            await require_password(body.password, 401)
+        return signed_in(Response(status_code=204))
 
-        @app.post("/api/logout", status_code=204)
-        async def logout_endpoint() -> Response:
-            response = Response(status_code=204)
-            response.delete_cookie(
-                auth.COOKIE_NAME, path="/", httponly=True, samesite="strict"
-            )
-            return response
+    @app.post("/api/logout", status_code=204)
+    async def logout_endpoint() -> Response:
+        response = Response(status_code=204)
+        response.delete_cookie(
+            auth.COOKIE_NAME, path="/", httponly=True, samesite="strict"
+        )
+        return response
+
+    # Behind the gate. Wrong passwords answer 403, not 401, so the dashboard
+    # doesn't take them as a signed-out session.
+    @app.put("/api/auth")
+    async def update_auth(body: AuthUpdate) -> Response:
+        response = Response(status_code=204)
+        async with login_lock:
+            if body.required and not auth_state.required:
+                await require_password(body.password or "", 403)
+                auth_state.set_required(True)
+                signed_in(response)
+            elif not body.required:
+                auth_state.set_required(False)
+        return response
+
+    @app.post("/api/auth/password", status_code=204)
+    async def change_password(body: PasswordChange) -> Response:
+        async with login_lock:
+            await require_password(body.current, 403)
+            await asyncio.to_thread(auth_state.set_password, body.new)
+        # Every other session ends; keep this one signed in.
+        return signed_in(Response(status_code=204))
 
     apply_lock = asyncio.Lock()
 
@@ -146,19 +210,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return overrides.settings_payload(
             base_settings, app.state.overrides, app.state.settings
         )
-
-    def require_editable() -> None:
-        reason = base_settings.settings_read_only()
-        if reason == "disabled":
-            raise HTTPException(
-                status_code=403,
-                detail="settings are read-only (PITBOSS_SETTINGS_EDITABLE=false)",
-            )
-        if reason == "no_login":
-            raise HTTPException(
-                status_code=403,
-                detail="set PITBOSS_UI_PASSWORD to edit settings from the dashboard",
-            )
 
     def build_runtime(new_overrides: dict[str, Any], changes: dict[str, Any]) -> Runtime:
         """Build (but don't start) the runtime for `new_overrides`.
@@ -192,7 +243,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.put("/api/settings")
     async def put_settings(body: overrides.SettingsUpdate) -> dict[str, Any]:
-        require_editable()
         changes = body.changes()
         if not changes:
             return current_settings_payload()
@@ -205,7 +255,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.delete("/api/settings/{name}")
     async def reset_setting(name: str) -> dict[str, Any]:
-        require_editable()
         if name not in EDITABLE_FIELDS:
             raise HTTPException(status_code=404, detail="not an editable setting")
         async with apply_lock:
@@ -311,6 +360,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             hub.unsubscribe(queue)
 
-    mount_dashboard(app, login_page=signer is not None)
+    mount_dashboard(app)
 
     return app

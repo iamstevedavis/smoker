@@ -6,11 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from pitboss_bridge import overrides, runtime
-from pitboss_bridge.api import create_app
+from pitboss_bridge import api
 from pitboss_bridge.config import EDITABLE_FIELDS, Settings
 from pitboss_bridge.sources.fake import FakeGrillSource
 from pitboss_bridge.state import normalize_state
 from pitboss_bridge.store import Database
+from conftest import finish_setup
 
 
 @pytest.fixture(autouse=True)
@@ -35,11 +36,17 @@ def _settings(tmp_path, **kwargs) -> Settings:
         "db_path": tmp_path / "pitboss.sqlite",
         "poll_seconds": 0,
         "start_collector": False,
-        # Editing needs a login by default; most tests are about editing.
-        "settings_editable": True,
     }
     values.update(kwargs)
     return Settings(**values)
+
+
+def create_app(settings: Settings | None = None):
+    """An app past first-run setup with the password off; these tests are
+    about settings, not logging in."""
+    settings = settings or Settings.from_env()
+    finish_setup(settings, required=False)
+    return api.create_app(settings)
 
 
 def _fields(payload) -> dict:
@@ -52,7 +59,6 @@ def _env_app(tmp_path, monkeypatch, **env):
     monkeypatch.setenv("PITBOSS_SOURCE", "fake")
     monkeypatch.setenv("PITBOSS_DB", str(tmp_path / "pitboss.sqlite"))
     monkeypatch.setenv("PITBOSS_START_COLLECTOR", "false")
-    monkeypatch.setenv("PITBOSS_SETTINGS_EDITABLE", "true")
     for name, value in env.items():
         monkeypatch.setenv(name, value)
     return create_app()
@@ -71,9 +77,9 @@ def test_lists_every_editable_field_once(tmp_path):
         "data",
         "logging",
     ]
-    assert payload["editable"] is True
     assert "fake" in payload["sources"]
-    assert "PITBOSS_UI_PASSWORD" in payload["env_only"]
+    assert "PITBOSS_DB" in payload["env_only"]
+    assert "editable" not in payload
     assert _fields(payload)["poll_seconds"]["env"] == "PITBOSS_POLL_SECONDS"
 
 
@@ -329,64 +335,10 @@ def test_bad_saved_values_fall_back_to_env(tmp_path):
     assert app.state.settings.db_path == tmp_path / "pitboss.sqlite"
 
 
-@pytest.mark.parametrize(
-    ("editable", "ui_password", "reason"),
-    [
-        (False, "", "disabled"),
-        (False, "pw", "disabled"),
-        # Without a login anyone on the LAN could re-point MQTT/ntfy at their
-        # own server and collect the saved secrets.
-        (None, "", "no_login"),
-    ],
-)
-def test_settings_can_be_read_only(tmp_path, editable, ui_password, reason):
-    app = create_app(
-        _settings(tmp_path, settings_editable=editable, ui_password=ui_password)
-    )
-    with TestClient(app) as client:
-        if ui_password:
-            client.post("/api/login", json={"password": ui_password})
-        payload = client.get("/api/settings").json()
-        put = client.put("/api/settings", json={"poll_seconds": 3})
-        delete = client.delete("/api/settings/poll_seconds")
-
-    assert (payload["editable"], payload["read_only_reason"]) == (False, reason)
-    assert put.status_code == 403
-    assert delete.status_code == 403
-    assert app.state.store.load_settings() == {}
-
-
-@pytest.mark.parametrize(
-    ("editable", "ui_password"),
-    [(None, "pw"), (True, ""), (True, "pw")],
-)
-def test_settings_are_editable_with_a_login_or_when_enabled(
-    tmp_path, editable, ui_password
-):
-    app = create_app(
-        _settings(tmp_path, settings_editable=editable, ui_password=ui_password)
-    )
-    with TestClient(app) as client:
-        if ui_password:
-            client.post("/api/login", json={"password": ui_password})
-        payload = client.get("/api/settings").json()
-        put = client.put("/api/settings", json={"poll_seconds": 3})
-
-    assert (payload["editable"], payload["read_only_reason"]) == (True, None)
-    assert put.status_code == 200
-
-
-@pytest.mark.parametrize(
-    ("raw", "expected"), [(None, None), ("", None), ("false", False), ("true", True)]
-)
-def test_editable_switch_reads_env(monkeypatch, raw, expected):
-    if raw is not None:
-        monkeypatch.setenv("PITBOSS_SETTINGS_EDITABLE", raw)
-    assert Settings.from_env().settings_editable is expected
-
-
 def test_settings_endpoints_require_login(tmp_path):
-    app = create_app(_settings(tmp_path, ui_password="pw", settings_editable=None))
+    settings = _settings(tmp_path)
+    finish_setup(settings, password="pw")
+    app = api.create_app(settings)
     with TestClient(app) as client:
         assert client.get("/api/settings").status_code == 401
         assert client.put("/api/settings", json={"poll_seconds": 3}).status_code == 401
