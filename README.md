@@ -60,7 +60,7 @@ The gear button opens a settings panel. **Save & apply** restarts the grill conn
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
 - Editing needs a login, since otherwise anyone on the LAN could point MQTT or ntfy at their own server and receive the saved secrets. Without `PITBOSS_UI_PASSWORD` the panel is read-only unless you set `PITBOSS_SETTINGS_EDITABLE=true`.
 - **Env only:** `PITBOSS_DB`, `PITBOSS_PORT`, `PITBOSS_START_COLLECTOR`, `PITBOSS_UI_PASSWORD`, `PITBOSS_SESSION_DAYS` and `PITBOSS_SETTINGS_EDITABLE`.
-- The source list only offers what the image has: `fake`, plus `http` or `ble` depending on how it was built. Switching between WiFi and Bluetooth also needs the matching image and compose file ([docs/ble.md](docs/ble.md)).
+- The source list only offers what can actually run: `fake` always, `http` (WiFi) in every image, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
 
 ## More
 

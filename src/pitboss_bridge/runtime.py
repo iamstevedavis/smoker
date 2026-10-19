@@ -10,6 +10,10 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+import os
+import stat
+import sys
+from collections.abc import Mapping
 from functools import cache
 from typing import Any
 
@@ -39,15 +43,49 @@ _SOURCE_MODULES = {
 }
 
 
+DEFAULT_SYSTEM_BUS = "/run/dbus/system_bus_socket"
+
+
+def system_bus_reachable(
+    platform: str | None = None, env: Mapping[str, str] | None = None
+) -> bool:
+    """Whether bleak can reach BlueZ: on Linux, the system D-Bus socket exists.
+
+    pytboss always installs bleak, so imports alone would offer Bluetooth in
+    the WiFi image, which has no D-Bus. Other platforms don't use D-Bus.
+    """
+    platform = sys.platform if platform is None else platform
+    env = os.environ if env is None else env
+    if not platform.startswith("linux"):
+        return True
+    address = env.get("DBUS_SYSTEM_BUS_ADDRESS") or f"unix:path={DEFAULT_SYSTEM_BUS}"
+    for entry in address.split(";"):
+        transport, _, params = entry.partition(":")
+        if transport != "unix":
+            return True  # not a socket file we can check; let bleak try
+        options = dict(part.split("=", 1) for part in params.split(",") if "=" in part)
+        if "path" not in options:
+            return True  # abstract socket: nothing on disk to check
+        try:
+            if stat.S_ISSOCK(os.stat(options["path"]).st_mode):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 @cache
 def available_sources() -> tuple[str, ...]:
-    """Sources whose dependencies import in this install; `fake` always does."""
+    """Sources this install can run: their modules import and, for Bluetooth,
+    the host's BlueZ is reachable. `fake` is always available."""
     available = []
     for name, modules in _SOURCE_MODULES.items():
         try:
             for module in modules:
                 importlib.import_module(module)
         except Exception:
+            continue
+        if name == "ble" and not system_bus_reachable():
             continue
         available.append(name)
     return tuple(available)

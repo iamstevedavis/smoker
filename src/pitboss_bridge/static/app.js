@@ -880,7 +880,7 @@
 
   // type: text | number | int | optnumber (blank = none) | secret | source | log
   const SETTING_META = {
-    source: { label: "Source", type: "source" },
+    source: { label: "Source", type: "source", hint: "Bluetooth is listed only when the bridge can reach the host's Bluetooth (docker-compose.ble.yml)." },
     model: { label: "Grill model", type: "text" },
     host: { label: "Grill address", type: "text", hint: "WiFi source: IP or host:port." },
     device_name: { label: "Bluetooth name", type: "text", hint: "Bluetooth source only." },
