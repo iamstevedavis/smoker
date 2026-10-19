@@ -11,5 +11,6 @@ __pycache__/
 data/
 .tmp-pytboss/
 .env
+!.env.example
 logs/
 reports/
