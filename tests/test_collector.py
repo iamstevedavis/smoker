@@ -251,3 +251,18 @@ def test_prune_once_respects_retention_days(tmp_path):
     assert make(0).prune_once() == {"readings": 0, "health_events": 0}
     assert make(7).prune_once()["health_events"] == 1
     assert [e["event_type"] for e in db.list_health_events()] == ["new"]
+
+
+async def test_state_hub_drops_oldest_snapshot_for_a_full_subscriber():
+    hub = StateHub(stale_after_seconds=30)
+    queue = hub.subscribe()
+    source = FakeGrillSource(interval_seconds=0)
+    stream = source.readings()
+    snapshots = [
+        await hub.publish_raw(await anext(stream), source="fake")
+        for _ in range(queue.maxsize + 1)
+    ]
+
+    assert queue.qsize() == queue.maxsize
+    assert queue.get_nowait() is snapshots[1]
+    hub.unsubscribe(queue)

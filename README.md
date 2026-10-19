@@ -226,10 +226,11 @@ automation:
           message: "Probe 1 is at {{ states('sensor.pit_boss_grill_probe_1') }}"
 ```
 
-To try it locally with a throwaway broker:
+To try it locally with a throwaway broker (the overlay also points the bridge
+at it, and the image includes the `mqtt` extra):
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt up
+docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt up --build
 ```
 
 ## Health Reporting
