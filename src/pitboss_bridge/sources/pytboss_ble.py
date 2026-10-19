@@ -9,10 +9,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from pitboss_bridge.sources._pytboss import poll_state
+from pitboss_bridge.sources._pytboss import PollStats, UptimeRefresher, poll_state
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,8 @@ class PytbossBleSource:
     password: str
     poll_seconds: float = 2.0
     name: str = "ble"
+    uptime_refresh_seconds: float = 20.0
+    stats: PollStats = field(default_factory=PollStats)
 
     def validate(self) -> None:
         if not self.device_name:
@@ -51,12 +53,13 @@ class PytbossBleSource:
 
         logger.info("Found %s (%s); connecting", self.device_name, device.address)
         boss = PitBoss(BleConnection(device), self.model, password=self.password)
+        refresher = UptimeRefresher(self.uptime_refresh_seconds)
         try:
             # Inside the try so a failed connect still releases the BLE client.
             await boss.start()
             logger.info("Connected to %s", self.device_name)
             while True:
-                yield dict(await poll_state(boss))
+                yield dict(await poll_state(boss, self.stats, refresher))
                 await asyncio.sleep(self.poll_seconds)
         finally:
             logger.info("Disconnecting from %s", self.device_name)
