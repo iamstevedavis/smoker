@@ -652,8 +652,15 @@ main.login {
 .icon-btn {
   display: inline-grid;
   place-items: center;
+  flex: none;
   width: 36px;
   padding: 0;
+}
+
+/* Phones: the header holds the logo, status and three buttons. */
+@media (max-width: 440px) {
+  .top { gap: 8px; }
+  .brand span { display: none; }
 }
 
 .icon-btn svg {
@@ -772,7 +779,8 @@ main.login {
   font-size: 14px;
 }
 
-.setting-head label { font-weight: 650; color: var(--text-2); }
+.setting-head label,
+.setting > label { font-weight: 650; color: var(--text-2); font-size: 14px; }
 
 .setting-head .link-btn { margin-left: auto; font-size: 13px; }
 
