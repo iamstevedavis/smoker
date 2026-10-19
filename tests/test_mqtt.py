@@ -236,7 +236,7 @@ async def test_dead_broker_never_backs_up_the_hub():
     task.cancel()
 
 
-def test_broker_outage_does_not_affect_api(tmp_path):
+def test_broker_outage_does_not_affect_api(tmp_path, make_app):
     settings = Settings(
         source="fake",
         db_path=tmp_path / "p.sqlite",
@@ -245,7 +245,7 @@ def test_broker_outage_does_not_affect_api(tmp_path):
         mqtt_host="127.0.0.1",
         mqtt_port=1,
     )
-    app = create_app(settings)
+    app = make_app(settings)
     with TestClient(app) as client:
         app.state.collector_sync_collect_next()
         assert client.get("/api/health").status_code == 200

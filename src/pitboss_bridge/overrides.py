@@ -128,10 +128,7 @@ def settings_payload(
                 }
             )
         groups.append({"name": group, "fields": items})
-    read_only = effective.settings_read_only()
     return {
-        "editable": read_only is None,
-        "read_only_reason": read_only,
         "sources": list(available_sources()),
         "groups": groups,
         "env_only": list(ENV_ONLY),

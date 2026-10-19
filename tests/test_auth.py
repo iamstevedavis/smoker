@@ -4,16 +4,19 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from conftest import finish_setup
+from pitboss_bridge import __main__ as cli
 from pitboss_bridge import auth
 from pitboss_bridge.api import create_app
 from pitboss_bridge.config import Settings
+from pitboss_bridge.store import Database
 
-PASSWORD = "brisket"
+PASSWORD = "brisket!"
 PROTECTED = [
     "/api/state",
     "/api/history",
     "/api/cooks",
-    "/api/session",
+    "/api/settings",
     "/docs",
     "/redoc",
     "/openapi.json",
@@ -25,15 +28,19 @@ def no_login_delay(monkeypatch):
     monkeypatch.setattr(auth, "LOGIN_FAILURE_DELAY_SECONDS", 0)
 
 
-def _app(tmp_path, password=PASSWORD, **overrides):
-    settings = Settings(
+def _settings(tmp_path) -> Settings:
+    return Settings(
         source="fake",
         db_path=tmp_path / "pitboss.sqlite",
         poll_seconds=0,
         start_collector=False,
-        ui_password=password,
-        **overrides,
     )
+
+
+def _app(tmp_path, password=PASSWORD, required=True):
+    settings = _settings(tmp_path)
+    if password is not None:
+        finish_setup(settings, password=password, required=required)
     return create_app(settings)
 
 
@@ -41,9 +48,64 @@ def _login(client, password=PASSWORD):
     return client.post("/api/login", json={"password": password})
 
 
-def _signer(tmp_path, password=PASSWORD):
+def _signer(tmp_path):
     key = (tmp_path / auth.KEY_FILENAME).read_bytes()
-    return auth.SessionSigner(key, password=password, max_age_seconds=3600)
+    stored = Database(tmp_path / "pitboss.sqlite").load_auth()["password_hash"]
+    return auth.SessionSigner(key, stored, max_age_seconds=3600)
+
+
+# First run ---------------------------------------------------------------
+
+
+def test_first_run_blocks_everything_until_a_password_is_set(tmp_path):
+    with TestClient(_app(tmp_path, password=None)) as client:
+        assert client.get("/api/session").json() == {
+            "setup_required": True,
+            "auth_enabled": True,
+            "authenticated": False,
+        }
+        for path in PROTECTED:
+            response = client.get(path)
+            assert response.status_code == 401, path
+            assert response.json() == {"detail": "setup required"}
+        root = client.get("/", follow_redirects=False)
+        assert (root.status_code, root.headers["location"]) == (303, "login")
+        assert _login(client).status_code == 409
+
+
+def test_setup_stores_a_hash_and_signs_in(tmp_path):
+    app = _app(tmp_path, password=None)
+    with TestClient(app) as client:
+        response = client.post("/api/setup", json={"password": PASSWORD})
+        assert response.status_code == 204
+        assert auth.COOKIE_NAME in response.cookies
+        assert client.get("/api/state").status_code == 200
+        assert client.get("/api/session").json() == {
+            "setup_required": False,
+            "auth_enabled": True,
+            "authenticated": True,
+        }
+
+    stored = app.state.store.load_auth()
+    assert stored["required"] is True
+    assert PASSWORD not in stored["password_hash"]
+    assert auth.verify_password(PASSWORD, stored["password_hash"])
+
+
+def test_setup_runs_only_once(tmp_path):
+    with TestClient(_app(tmp_path)) as client:
+        response = client.post("/api/setup", json={"password": "taking over"})
+        assert response.status_code == 409
+        assert _login(client, "taking over").status_code == 401
+
+
+def test_setup_rejects_short_passwords(tmp_path):
+    with TestClient(_app(tmp_path, password=None)) as client:
+        assert client.post("/api/setup", json={"password": "short"}).status_code == 422
+        assert client.get("/api/session").json()["setup_required"] is True
+
+
+# Signing in ----------------------------------------------------------------
 
 
 def test_protected_routes_need_a_session(tmp_path):
@@ -65,12 +127,14 @@ def test_dashboard_redirects_to_login_when_signed_out(tmp_path):
         assert client.get("/").status_code == 200
 
 
-def test_health_login_page_and_assets_stay_open(tmp_path):
+def test_health_session_login_page_and_assets_stay_open(tmp_path):
     with TestClient(_app(tmp_path)) as client:
         assert client.get("/api/health").status_code == 200
+        assert client.get("/api/session").json()["authenticated"] is False
         login = client.get("/login")
         assert login.status_code == 200
         assert "api/login" in login.text
+        assert "api/setup" in login.text
         assert login.headers["cache-control"] == "no-store"
         for path in ["/sw.js", "/manifest.webmanifest", "/static/app.css", "/static/icons/icon.svg"]:
             assert client.get(path).status_code == 200, path
@@ -85,7 +149,7 @@ def test_wrong_password_is_rejected(tmp_path):
 
 
 def test_right_password_sets_session_cookie(tmp_path):
-    with TestClient(_app(tmp_path, session_days=7)) as client:
+    with TestClient(_app(tmp_path)) as client:
         response = _login(client)
 
     assert response.status_code == 204
@@ -95,7 +159,7 @@ def test_right_password_sets_session_cookie(tmp_path):
     assert "SameSite=strict" in cookie
     assert "Path=/" in cookie
     assert "Secure" not in cookie
-    assert f"Max-Age={7 * 86400}" in cookie
+    assert f"Max-Age={30 * 86400}" in cookie
 
 
 def test_logout_clears_cookie(tmp_path):
@@ -126,17 +190,6 @@ def test_expired_and_tampered_cookies_are_rejected(tmp_path):
         assert client.get("/api/state").status_code == 200
 
 
-def test_changing_password_ends_sessions(tmp_path):
-    token = None
-    with TestClient(_app(tmp_path)) as client:
-        _login(client)
-        token = client.cookies.get(auth.COOKIE_NAME)
-
-    with TestClient(_app(tmp_path, password="new one")) as client:
-        client.cookies.set(auth.COOKIE_NAME, token)
-        assert client.get("/api/state").status_code == 401
-
-
 def test_websocket_needs_a_session(tmp_path):
     app = _app(tmp_path)
     with TestClient(app) as client:
@@ -158,7 +211,7 @@ def test_session_survives_restart(tmp_path):
         _login(client)
         token = client.cookies.get(auth.COOKIE_NAME)
 
-    with TestClient(_app(tmp_path)) as client:
+    with TestClient(create_app(_settings(tmp_path))) as client:
         client.cookies.set(auth.COOKIE_NAME, token)
         assert client.get("/api/state").status_code == 200
 
@@ -172,32 +225,15 @@ def test_signing_key_is_created_once_owner_only(tmp_path):
     assert auth.load_or_create_key(path) == key
 
 
-def test_auth_off_needs_no_cookie_and_has_no_login(tmp_path):
-    with TestClient(_app(tmp_path, password="")) as client:
-        assert client.get("/").status_code == 200
-        assert client.get("/api/state").status_code == 200
-        assert client.get("/api/session").json() == {"auth_enabled": False}
-        assert client.get("/login").status_code == 404
-        assert _login(client).status_code in (404, 405)
-        with client.websocket_connect("/api/live"):
-            pass
+def test_password_hashes_are_salted_and_checked():
+    first, second = auth.hash_password(PASSWORD), auth.hash_password(PASSWORD)
 
-    assert not (tmp_path / auth.KEY_FILENAME).exists()
-
-
-def test_session_reports_auth_enabled(tmp_path):
-    with TestClient(_app(tmp_path)) as client:
-        _login(client)
-        assert client.get("/api/session").json() == {"auth_enabled": True}
-
-
-def test_settings_read_auth_env(monkeypatch):
-    monkeypatch.setenv("PITBOSS_UI_PASSWORD", "secret")
-    monkeypatch.setenv("PITBOSS_SESSION_DAYS", "2")
-    settings = Settings.from_env()
-
-    assert settings.ui_password == "secret"
-    assert settings.session_days == 2
+    assert first != second
+    assert first.startswith("scrypt$")
+    assert auth.verify_password(PASSWORD, first)
+    assert not auth.verify_password("pulled pork", first)
+    assert not auth.verify_password(PASSWORD, "garbage")
+    assert not auth.verify_password(PASSWORD, "")
 
 
 async def test_concurrent_failed_logins_are_serialized(tmp_path, monkeypatch):
@@ -217,3 +253,115 @@ async def test_concurrent_failed_logins_are_serialized(tmp_path, monkeypatch):
 
     assert all(response.status_code == 401 for response in responses)
     assert elapsed >= 0.5
+
+
+# Turning the password off and on -------------------------------------------
+
+
+def test_password_off_needs_no_cookie(tmp_path):
+    with TestClient(_app(tmp_path, required=False)) as client:
+        assert client.get("/").status_code == 200
+        assert client.get("/api/state").status_code == 200
+        assert client.put("/api/settings", json={"poll_seconds": 3}).status_code == 200
+        assert client.get("/api/session").json() == {
+            "setup_required": False,
+            "auth_enabled": False,
+            "authenticated": False,
+        }
+        with client.websocket_connect("/api/live"):
+            pass
+
+
+def test_turning_the_password_off_takes_effect_at_once(tmp_path):
+    app = _app(tmp_path)
+    with TestClient(app) as client:
+        assert client.put("/api/auth", json={"required": False}).status_code == 401
+        _login(client)
+        assert client.put("/api/auth", json={"required": False}).status_code == 204
+        client.cookies.clear()
+        assert client.get("/api/state").status_code == 200
+
+    assert app.state.store.load_auth()["required"] is False
+
+
+def test_turning_the_password_on_needs_it_and_signs_in(tmp_path):
+    app = _app(tmp_path, required=False)
+    with TestClient(app) as client:
+        wrong = client.put("/api/auth", json={"required": True, "password": "guess"})
+        missing = client.put("/api/auth", json={"required": True})
+        assert (wrong.status_code, missing.status_code) == (403, 403)
+        assert client.get("/api/session").json()["auth_enabled"] is False
+
+        response = client.put("/api/auth", json={"required": True, "password": PASSWORD})
+        assert response.status_code == 204
+        assert client.get("/api/state").status_code == 200
+        client.cookies.clear()
+        assert client.get("/api/state").status_code == 401
+
+    assert app.state.store.load_auth()["required"] is True
+
+
+def test_turning_on_when_already_on_is_a_no_op(tmp_path):
+    with TestClient(_app(tmp_path)) as client:
+        _login(client)
+        response = client.put("/api/auth", json={"required": True})
+        assert response.status_code == 204
+        assert "set-cookie" not in response.headers
+
+
+# Changing the password -----------------------------------------------------
+
+
+def test_changing_the_password_signs_out_other_sessions(tmp_path):
+    app = _app(tmp_path)
+    with TestClient(app) as other, TestClient(app) as client:
+        _login(other)
+        _login(client)
+        response = client.post(
+            "/api/auth/password", json={"current": PASSWORD, "new": "new password"}
+        )
+        assert response.status_code == 204
+        assert client.get("/api/state").status_code == 200
+        assert other.get("/api/state").status_code == 401
+        assert _login(other).status_code == 401
+        assert _login(other, "new password").status_code == 204
+
+
+def test_changing_the_password_needs_the_current_one(tmp_path):
+    with TestClient(_app(tmp_path)) as client:
+        _login(client)
+        wrong = client.post(
+            "/api/auth/password", json={"current": "guess", "new": "new password"}
+        )
+        short = client.post("/api/auth/password", json={"current": PASSWORD, "new": "short"})
+        assert (wrong.status_code, short.status_code) == (403, 422)
+        assert _login(client).status_code == 204
+
+
+def test_changing_the_password_needs_a_session(tmp_path):
+    with TestClient(_app(tmp_path)) as client:
+        response = client.post(
+            "/api/auth/password", json={"current": PASSWORD, "new": "new password"}
+        )
+        assert response.status_code == 401
+
+
+# Lockout recovery ----------------------------------------------------------
+
+
+def test_reset_password_command_returns_to_first_run(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("PITBOSS_DB", str(tmp_path / "pitboss.sqlite"))
+    finish_setup(_settings(tmp_path), password=PASSWORD)
+
+    cli.main(["reset-password"])
+    assert "Password cleared" in capsys.readouterr().out
+    cli.main(["reset-password"])
+    assert "No password was set" in capsys.readouterr().out
+
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        assert client.get("/api/session").json()["setup_required"] is True
+
+
+def test_cli_rejects_unknown_commands():
+    with pytest.raises(SystemExit):
+        cli.main(["bogus"])

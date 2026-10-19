@@ -4,18 +4,37 @@ Endpoints: `GET /api/health`, `GET /api/state`, `GET /api/history`, `WS /api/liv
 
 ## Login
 
-Only when `PITBOSS_UI_PASSWORD` is set. Every route except `/api/health`, the
-login page and static files then needs the `smoker_session` cookie: `/` redirects
-to `/login`, other routes answer 401 and `WS /api/live` is refused (close code
-1008). A wrong password answers 401 after a short delay.
+The password is stored as a scrypt hash in the database. Until it has been
+created, every route except `/api/health`, `/api/session`, `/api/setup`, the
+login page and static files answers 401 `{"detail": "setup required"}` (`/`
+redirects to `/login`, which shows the setup form).
+
+With the password on, the same routes need the `smoker_session` cookie: `/`
+redirects to `/login`, other routes answer 401 and `WS /api/live` is refused
+(close code 1008). With it turned off, everything is open. A wrong password
+answers after a short delay.
 
 ```bash
+curl localhost:8000/api/session
+# {"setup_required": false, "auth_enabled": true, "authenticated": false}
+curl -c jar -X POST localhost:8000/api/setup -H 'content-type: application/json' \
+  -d '{"password": "..."}'                 # first run only (409 after); 204, signs in
 curl -c jar -X POST localhost:8000/api/login -H 'content-type: application/json' \
-  -d '{"password": "..."}'                 # 204, sets the cookie
+  -d '{"password": "..."}'                 # 204, sets the cookie; 401 if wrong
 curl -b jar localhost:8000/api/state
 curl -b jar -X POST localhost:8000/api/logout
-curl localhost:8000/api/session          # {"auth_enabled": true|false}
 ```
+
+Managing it (behind the login when it is on; a wrong password answers 403):
+
+- `PUT /api/auth` `{"required": false}` turns the password off.
+  `{"required": true, "password": "..."}` turns it back on and signs the caller in.
+- `POST /api/auth/password` `{"current": "...", "new": "..."}` changes it (at
+  least 8 characters). Every other session is signed out.
+
+Locked out? `python -m pitboss_bridge reset-password` (in Docker:
+`docker compose exec pitboss-bridge smokestack reset-password`) forgets the
+password; restart the bridge and the next visit shows the setup form again.
 
 ## History
 
@@ -59,13 +78,12 @@ Real BLE validation should happen on a Linux host near the grill.
 ## Settings
 
 Bridge settings (not grill settings: nothing here writes to the grill). All
-three endpoints sit behind the login when `PITBOSS_UI_PASSWORD` is set.
+three endpoints sit behind the login.
 
 - `GET /api/settings`: every editable field, grouped, with `value`, `origin`
   (`default`, `env` or `ui`) and `secret`. Secrets come back as
-  `{"set": true|false}`, never the value. Also `editable`,
-  `read_only_reason` (`no_login`, `disabled` or null), the `sources` this
-  image supports and the `env_only` variables.
+  `{"set": true|false}`, never the value. Also the `sources` this image
+  supports and the `env_only` variables.
 - `PUT /api/settings`: partial update, e.g. `{"poll_seconds": 5, "mqtt_host": "192.168.1.10"}`.
   Field names are the variable names without `PITBOSS_`, lower case. The
   whole update is validated first; any bad field returns 422 and nothing
@@ -74,9 +92,6 @@ three endpoints sit behind the login when `PITBOSS_UI_PASSWORD` is set.
   target; an empty `mqtt_host` or `ntfy_url` turns that service off.
 - `DELETE /api/settings/{name}`: drop the saved value so the field falls back
   to the environment or default, and apply.
-
-`PUT` and `DELETE` return 403 when editing is off: by default without a UI
-password, or always with `PITBOSS_SETTINGS_EDITABLE=false`.
 
 After applying, `GET /api/health` reports the new source, starting from
 `connected: false` until its first reading.

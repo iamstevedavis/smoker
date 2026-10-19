@@ -15,11 +15,6 @@ def _bool_env(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
-def _opt_bool_env(name: str) -> bool | None:
-    raw = os.getenv(name)
-    return _bool_env(name, False) if raw else None
-
-
 def _opt_float_env(name: str) -> float | None:
     raw = os.getenv(name)
     return float(raw) if raw else None
@@ -53,10 +48,6 @@ class Settings:
     alert_stale_seconds: float = 60.0
     alert_cooldown_seconds: float = 0.0
     retention_days: float = 0
-    ui_password: str = ""
-    session_days: float = 30.0
-    # None means "only when a UI password is set"; see settings_read_only().
-    settings_editable: bool | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -87,23 +78,7 @@ class Settings:
                 os.getenv("PITBOSS_ALERT_COOLDOWN_SECONDS", "0")
             ),
             retention_days=float(os.getenv("PITBOSS_RETENTION_DAYS", "0")),
-            ui_password=os.getenv("PITBOSS_UI_PASSWORD", ""),
-            session_days=float(os.getenv("PITBOSS_SESSION_DAYS", "30")),
-            settings_editable=_opt_bool_env("PITBOSS_SETTINGS_EDITABLE"),
         )
-
-    def settings_read_only(self) -> str | None:
-        """Why the dashboard can't edit settings, or None if it can.
-
-        Without a login, anyone on the LAN could point MQTT or ntfy at their
-        own server and receive the saved secrets, so editing needs either a
-        UI password or an explicit PITBOSS_SETTINGS_EDITABLE=true.
-        """
-        if self.settings_editable is False:
-            return "disabled"
-        if self.settings_editable is None and not self.ui_password:
-            return "no_login"
-        return None
 
     def with_overrides(self, overrides: dict[str, Any]) -> "Settings":
         """Return these settings with UI-saved values layered on top."""
@@ -111,7 +86,8 @@ class Settings:
 
 
 # Fields the dashboard may change, by group, in display order. Everything
-# else (DB path, port, collector switch, UI login, the kill switch) is env only.
+# else (DB path, port, collector switch) is env only. The dashboard login lives
+# in its own table; see auth.py.
 EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
     "grill": (
         "source",
@@ -143,9 +119,6 @@ ENV_ONLY = (
     "PITBOSS_DB",
     "PITBOSS_PORT",
     "PITBOSS_START_COLLECTOR",
-    "PITBOSS_UI_PASSWORD",
-    "PITBOSS_SESSION_DAYS",
-    "PITBOSS_SETTINGS_EDITABLE",
 )
 _DEFAULTS = {f.name: f.default for f in fields(Settings)}
 

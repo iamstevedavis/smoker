@@ -629,6 +629,11 @@ main.login {
 
 .login-error { margin: 0; color: var(--critical); font-size: 14px; }
 
+.login-intro { margin: 0 0 4px; color: var(--text-2); font-size: 14px; line-height: 1.45; }
+
+.login-field { display: flex; flex-direction: column; gap: 10px; }
+.login-field[hidden] { display: none; }
+
 .login-btn {
   margin-top: 6px;
   min-height: 44px;
@@ -712,14 +717,31 @@ main.login {
 
 .settings-note:empty { display: none; }
 
-.settings-readonly {
+.setting-group[hidden] { display: none; }
+
+.auth-state { margin: 0; font-size: 14px; color: var(--text-2); }
+
+.auth-state[data-on="false"] {
   padding: 10px 12px;
   border-radius: 10px;
   background: var(--surface-2);
   color: var(--text);
 }
 
-.settings-readonly[hidden] { display: none; }
+.auth-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.auth-form { display: grid; gap: 10px; }
+
+.auth-form[hidden] { display: none; }
+
+.auth-form .login-btn { justify-self: start; margin: 0; padding: 0 20px; }
+
+.auth-status { margin: 0; font-size: 14px; color: var(--muted); }
+
+.auth-status:empty { display: none; }
+
+.auth-status[data-kind="ok"] { color: var(--good); font-weight: 600; }
+.auth-status[data-kind="error"] { color: var(--critical); font-weight: 600; }
 
 #settings-groups { display: grid; gap: 12px; }
 

@@ -1,7 +1,7 @@
 /* Service worker: caches the app shell only. API responses are never cached. */
 "use strict";
 
-const CACHE = "smoker-shell-v3";
+const CACHE = "smoker-shell-v4";
 const SHELL = [
   "./",
   "static/app.css",
@@ -15,7 +15,7 @@ const SHELL = [
 
 const shellUrls = () => SHELL.map((path) => new URL(path, self.registration.scope).href);
 
-// With auth on, a signed-out request for the shell is redirected to the login
+// With the password on, a signed-out request for the shell is redirected to the login
 // page (or answered 401). Such responses must never be cached as the shell.
 const cacheable = (response) => response.ok && !response.redirected;
 // Navigations fetch with redirect: "manual", so their redirect is opaque.

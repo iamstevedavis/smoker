@@ -25,7 +25,9 @@ No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up --bu
 
 ## Security
 
-- **Auth is off by default**, so anyone on the LAN can use the dashboard and API. Set `PITBOSS_UI_PASSWORD` to require a shared password for the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. Sessions are signed cookies; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
+- **The first visit asks you to create a password.** Until then the dashboard and API are locked. After that the password protects the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. It is stored as a scrypt hash in the database, and you can turn it off, back on or change it under **Settings → Login**. Sessions are signed cookies that last 30 days; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
+- **Turning the password off opens everything to the LAN**, including the settings panel, so anyone there could point MQTT or ntfy at their own server and collect the saved secrets.
+- **Locked out?** Run `docker compose exec pitboss-bridge smokestack reset-password`, then `docker compose restart`. The next visit shows the setup screen again. Do this right after first start too if someone else might have reached the setup screen before you.
 - **On plain HTTP the password and session cookie cross the LAN unencrypted.** That's fine for home use, but don't expose port 8000 to the internet: use a VPN (WireGuard, Tailscale), or put a TLS reverse proxy such as Caddy in front.
 - The grill's local HTTP RPC exposes its configuration, including stored **WiFi credentials**, to anyone on the network. Keep the grill on an IoT VLAN that only the bridge host can reach. Details: [docs/testing/2026-10-18-cook-test.md](docs/testing/2026-10-18-cook-test.md).
 
@@ -45,21 +47,18 @@ Set these in `.env` (Docker) or the environment.
 | `PITBOSS_STALE_AFTER_SECONDS` | `30` | Age at which a reading counts as stale |
 | `PITBOSS_RETENTION_DAYS` | `0` | Delete data older than this; `0` keeps everything |
 | `PITBOSS_LOG_LEVEL` | `INFO` | Use `DEBUG` when troubleshooting |
-| `PITBOSS_UI_PASSWORD` | | Shared password for the dashboard and API; unset means no login |
-| `PITBOSS_SESSION_DAYS` | `30` | How long a login lasts |
-| `PITBOSS_SETTINGS_EDITABLE` | on with a UI password | `false` makes the settings panel read-only; `true` allows editing without a login |
 
 Home Assistant (`PITBOSS_MQTT_*`) and ntfy alerts (`PITBOSS_NTFY_*`, `PITBOSS_ALERT_*`) are optional and off by default. Every variable and its default is listed in [docs/integrations.md](docs/integrations.md#settings).
 
 ### Changing settings from the dashboard
 
-The gear button opens a settings panel. **Save & apply** restarts the grill connection, MQTT and alerts inside the bridge, so there's no container restart and the page stays up.
+The wrench button opens a settings panel. **Save & apply** restarts the grill connection, MQTT and alerts inside the bridge, so there's no container restart and the page stays up.
 
 - **Precedence:** built-in default, then `.env`/environment, then values saved in the panel. Saved values win.
 - Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Each field shows where its value comes from (Default, .env or UI); **Reset** drops the saved value and falls back to `.env` or the default.
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
-- Editing needs a login, since otherwise anyone on the LAN could point MQTT or ntfy at their own server and receive the saved secrets. Without `PITBOSS_UI_PASSWORD` the panel is read-only unless you set `PITBOSS_SETTINGS_EDITABLE=true`.
-- **Env only:** `PITBOSS_DB`, `PITBOSS_PORT`, `PITBOSS_START_COLLECTOR`, `PITBOSS_UI_PASSWORD`, `PITBOSS_SESSION_DAYS` and `PITBOSS_SETTINGS_EDITABLE`.
+- The **Login** section turns the dashboard password off or on and changes it. That takes effect at once, with no restart.
+- **Env only:** `PITBOSS_DB`, `PITBOSS_PORT` and `PITBOSS_START_COLLECTOR`.
 - The source list only offers what can actually run: `fake` always, `http` (WiFi) in every image, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
 
 ## More

@@ -67,7 +67,7 @@
 
   const serverNow = () => Date.now() + state.clockOffset;
 
-  // Auth (only when the bridge has PITBOSS_UI_PASSWORD set) ---------------
+  // Auth (the password can be turned off in Settings) --------------------
 
   async function clearShellCache() {
     if (!("caches" in window)) return;
@@ -93,16 +93,33 @@
     return res;
   }
 
+  // /api/session is open to everyone, so it says whether we're signed in
+  // rather than answering 401. Returns null if the bridge is unreachable.
+  async function getSession() {
+    try {
+      const res = await fetch("api/session", { cache: "no-store" });
+      return res.ok ? await res.json() : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function checkSession() {
+    const session = await getSession();
+    if (session && (session.setup_required || (session.auth_enabled && !session.authenticated))) {
+      toLogin();
+    }
+    return session;
+  }
+
   async function setupLogout() {
     const btn = $("logout");
     btn.addEventListener("click", async () => {
       try { await fetch("api/logout", { method: "POST" }); } catch (e) { /* still leave */ }
       toLogin();
     });
-    try {
-      const res = await apiFetch("api/session", { cache: "no-store" });
-      if (res.ok && (await res.json()).auth_enabled) btn.hidden = false;
-    } catch (e) { /* unreachable bridge: keep the button hidden */ }
+    const session = await checkSession();
+    if (session && session.auth_enabled) btn.hidden = false;
   }
 
   function num(value) {
@@ -251,7 +268,7 @@
     ws.onclose = () => {
       if (state.ws !== ws) return;
       // Browsers hide why a handshake failed, so ask whether the session ended.
-      if (!opened) apiFetch("api/session", { cache: "no-store" }).catch(() => {});
+      if (!opened) checkSession();
       if (state.wsOpen) state.wsDownSince = Date.now();
       state.wsOpen = false;
       state.ws = null;
@@ -873,10 +890,7 @@
   const LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"];
   const ORIGIN_LABELS = { default: "Default", env: ".env", ui: "UI" };
   const APPLY_WATCH_MS = 30000;
-  const READ_ONLY_REASONS = {
-    no_login: "Read-only until the bridge has a login: set PITBOSS_UI_PASSWORD in .env (or PITBOSS_SETTINGS_EDITABLE=true).",
-    disabled: "Read-only: PITBOSS_SETTINGS_EDITABLE=false is set on the bridge.",
-  };
+  const PASSWORD_MIN_LENGTH = 8;
 
   // type: text | number | int | optnumber (blank = none) | secret | source | log
   const SETTING_META = {
@@ -925,21 +939,20 @@
     status.dataset.kind = kind || "";
   }
 
-  function settingInput(field, meta, disabled) {
+  function settingInput(field, meta) {
     const id = "set-" + field.name;
     const value = field.value;
     if (meta.type === "source" || meta.type === "log") {
       const options = meta.type === "log" ? LOG_LEVELS : settings.payload.sources.slice();
       // Keep a current value the image no longer offers visible.
       if (!options.includes(value)) options.push(value);
-      return el("select", { id, name: field.name, disabled }, options.map((option) =>
+      return el("select", { id, name: field.name }, options.map((option) =>
         el("option", { value: option, textContent: SOURCE_LABELS[option] && meta.type === "source" ? SOURCE_LABELS[option] : option, selected: option === value })));
     }
     const numeric = meta.type === "number" || meta.type === "int" || meta.type === "optnumber";
     const input = el("input", {
       id,
       name: field.name,
-      disabled,
       type: numeric ? "number" : meta.type === "secret" ? "password" : "text",
       value: value === null || value === undefined ? "" : String(value),
       autocomplete: meta.type === "secret" ? "new-password" : "off",
@@ -957,7 +970,7 @@
     return input;
   }
 
-  function renderSettingField(field, editable) {
+  function renderSettingField(field) {
     const meta = SETTING_META[field.name] || { label: field.name, type: field.secret ? "secret" : "text" };
     const row = el("div", { className: "setting" });
     row.dataset.name = field.name;
@@ -968,7 +981,7 @@
       el("label", { htmlFor: "set-" + field.name, textContent: meta.label }),
       badge,
     ]);
-    if (field.origin === "ui" && editable) {
+    if (field.origin === "ui") {
       const reset = el("button", { type: "button", className: "link-btn", textContent: "Reset" });
       reset.setAttribute("aria-label", "Reset " + meta.label + " to .env or default");
       reset.addEventListener("click", () => resetSetting(field.name));
@@ -982,19 +995,17 @@
       control = el("div", { className: "secret" }, [
         el("span", { id: "set-" + field.name, textContent: isSet ? "••• set" : "Not set" }),
       ]);
-      if (editable) {
-        const change = el("button", { type: "button", className: "link-btn", textContent: isSet ? "Change" : "Set" });
-        change.setAttribute("aria-label", (isSet ? "Change " : "Set ") + meta.label);
-        change.addEventListener("click", () => {
-          settings.changing.add(field.name);
-          row.replaceWith(renderSettingField(field, editable));
-          const input = $("set-" + field.name);
-          if (input) input.focus();
-        });
-        control.append(change);
-      }
+      const change = el("button", { type: "button", className: "link-btn", textContent: isSet ? "Change" : "Set" });
+      change.setAttribute("aria-label", (isSet ? "Change " : "Set ") + meta.label);
+      change.addEventListener("click", () => {
+        settings.changing.add(field.name);
+        row.replaceWith(renderSettingField(field));
+        const input = $("set-" + field.name);
+        if (input) input.focus();
+      });
+      control.append(change);
     } else {
-      const input = settingInput({ ...field, value: meta.type === "secret" ? "" : field.value }, meta, !editable);
+      const input = settingInput({ ...field, value: meta.type === "secret" ? "" : field.value }, meta);
       if (meta.type === "secret") input.placeholder = "New value (blank clears it)";
       control = meta.unit
         ? el("div", { className: "with-unit" }, [input, el("span", { className: "unit-label", textContent: meta.unit })])
@@ -1012,7 +1023,6 @@
     settings.payload = payload;
     settings.fields = {};
     settings.changing.clear();
-    const editable = payload.editable !== false;
     const groups = $("settings-groups");
     groups.replaceChildren();
     for (const group of payload.groups) {
@@ -1021,13 +1031,10 @@
       ]);
       for (const field of group.fields) {
         settings.fields[field.name] = field;
-        fieldset.append(renderSettingField(field, editable));
+        fieldset.append(renderSettingField(field));
       }
       groups.append(fieldset);
     }
-    $("settings-readonly").textContent = READ_ONLY_REASONS[payload.read_only_reason] || "Read-only.";
-    $("settings-readonly").hidden = editable;
-    $("settings-save").hidden = !editable;
     $("settings-envonly").textContent = payload.env_only && payload.env_only.length
       ? "Set only in .env: " + payload.env_only.join(", ") + "."
       : "";
@@ -1168,11 +1175,141 @@
     }
   }
 
+  // Login section: turn the password off/on and change it -----------------
+
+  const authUi = { busy: false };
+
+  function authStatus(text, kind) {
+    const status = $("auth-status");
+    if (!status) return;
+    status.textContent = text;
+    status.dataset.kind = kind || "";
+  }
+
+  // A small password form inside the settings form; Enter runs `submit`
+  // instead of saving the other settings.
+  function authForm(inputs, label, submit) {
+    const fields = inputs.map(([id, , autocomplete]) => el("input", { id, type: "password", autocomplete }));
+    const go = () => submit(fields.map((input) => input.value));
+    for (const input of fields) {
+      input.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        go();
+      });
+    }
+    const button = el("button", { type: "button", className: "login-btn", textContent: label });
+    button.addEventListener("click", go);
+    const rows = inputs.map(([id, text], i) => el("div", { className: "setting" }, [
+      el("label", { htmlFor: id, textContent: text }),
+      fields[i],
+    ]));
+    return el("div", { className: "auth-form", hidden: true }, [...rows, button]);
+  }
+
+  async function sendAuth(path, method, body, done) {
+    if (authUi.busy) return;
+    authUi.busy = true;
+    authStatus("Saving…", "");
+    try {
+      const res = await apiFetch(path, {
+        method,
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        await loadAuth();
+        authStatus(done, "ok");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      const message = res.status === 403 ? "Wrong password."
+        : res.status === 422 ? "Use at least " + PASSWORD_MIN_LENGTH + " characters."
+        : data.detail ? String(data.detail) : "Failed (HTTP " + res.status + ").";
+      authStatus(message, "error");
+    } catch (e) {
+      if (e.message !== "not authenticated") authStatus("Can't reach the bridge.", "error");
+    } finally {
+      authUi.busy = false;
+    }
+  }
+
+  function renderAuth(session) {
+    const on = Boolean(session.auth_enabled);
+    const summary = el("p", {
+      className: "auth-state",
+      textContent: on
+        ? "A password is needed to open the dashboard."
+        : "Off: anyone on your network can view the grill and change these settings.",
+    });
+    summary.dataset.on = String(on);
+
+    // Turning it back on asks for the password, so this browser stays signed in.
+    const enableForm = authForm(
+      [["auth-enable", "Password", "current-password"]],
+      "Turn on",
+      ([password]) => sendAuth("api/auth", "PUT", { required: true, password }, "Password turned on."),
+    );
+    const changeForm = authForm(
+      [
+        ["auth-current", "Current password", "current-password"],
+        ["auth-new", "New password", "new-password"],
+        ["auth-confirm", "Confirm new password", "new-password"],
+      ],
+      "Change password",
+      ([current, next, confirmed]) => {
+        if (next.length < PASSWORD_MIN_LENGTH) authStatus("Use at least " + PASSWORD_MIN_LENGTH + " characters.", "error");
+        else if (next !== confirmed) authStatus("The new passwords don't match.", "error");
+        else sendAuth("api/auth/password", "POST", { current, new: next }, "Password changed. Other devices are signed out.");
+      },
+    );
+    const reveal = (form, other) => {
+      other.hidden = true;
+      form.hidden = !form.hidden;
+      authStatus("", "");
+      if (!form.hidden) form.querySelector("input").focus();
+    };
+
+    const toggle = el("button", { type: "button", className: "theme-btn", textContent: on ? "Turn off password" : "Turn on password" });
+    toggle.addEventListener("click", () => {
+      if (!on) {
+        reveal(enableForm, changeForm);
+        return;
+      }
+      if (confirm("Turn off the password? Anyone on your network will be able to open the dashboard and change settings.")) {
+        sendAuth("api/auth", "PUT", { required: false }, "Password turned off.");
+      }
+    });
+    const change = el("button", { type: "button", className: "theme-btn", textContent: "Change password" });
+    change.addEventListener("click", () => reveal(changeForm, enableForm));
+
+    const status = el("p", { id: "auth-status", className: "auth-status" });
+    status.setAttribute("role", "status");
+    const box = $("settings-auth");
+    box.replaceChildren(
+      el("legend", { textContent: "Login" }),
+      summary,
+      el("div", { className: "auth-actions" }, [toggle, change]),
+      enableForm,
+      changeForm,
+      status,
+    );
+    box.hidden = false;
+    $("logout").hidden = !on;
+  }
+
+  async function loadAuth() {
+    const session = await checkSession();
+    if (session) renderAuth(session);
+  }
+
   async function openSettings() {
     const dialog = $("settings");
     settingStatus("", "");
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.setAttribute("open", "");
+    loadAuth();
     try {
       const res = await apiFetch("api/settings", { cache: "no-store" });
       if (!res.ok) throw new Error("HTTP " + res.status);

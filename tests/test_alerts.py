@@ -336,10 +336,9 @@ def test_ntfy_sender_builds_request(monkeypatch):
     assert seen["timeout"] == 3
 
 
-def test_app_starts_with_alerts_configured(tmp_path):
+def test_app_starts_with_alerts_configured(tmp_path, make_app):
     from fastapi.testclient import TestClient
 
-    from pitboss_bridge.api import create_app
     from pitboss_bridge.config import Settings
 
     settings = Settings(
@@ -349,5 +348,5 @@ def test_app_starts_with_alerts_configured(tmp_path):
         start_collector=False,
         ntfy_url="http://127.0.0.1:9/unreachable",
     )
-    with TestClient(create_app(settings)) as client:
+    with TestClient(make_app(settings)) as client:
         assert client.get("/api/health").status_code == 200

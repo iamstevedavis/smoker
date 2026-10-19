@@ -79,6 +79,16 @@ class Database:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS auth (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    password_hash TEXT NOT NULL,
+                    required INTEGER NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
 
     def _create_cooks_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(
@@ -120,6 +130,36 @@ class Database:
     def delete_setting(self, name: str) -> bool:
         with self.connect() as conn:
             cursor = conn.execute("DELETE FROM settings WHERE name = ?", (name,))
+        return cursor.rowcount > 0
+
+    def load_auth(self) -> dict[str, Any] | None:
+        """Return the dashboard login (`password_hash`, `required`), or None
+        before first-run setup."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT password_hash, required FROM auth WHERE id = 1"
+            ).fetchone()
+        if row is None:
+            return None
+        return {"password_hash": row["password_hash"], "required": bool(row["required"])}
+
+    def save_auth(self, password_hash: str, required: bool) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO auth (id, password_hash, required, updated_at)
+                VALUES (1, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    password_hash = excluded.password_hash,
+                    required = excluded.required,
+                    updated_at = excluded.updated_at
+                """,
+                (password_hash, int(required), _iso(utc_now())),
+            )
+
+    def delete_auth(self) -> bool:
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM auth")
         return cursor.rowcount > 0
 
     def insert_reading(self, snapshot: StateSnapshot) -> None:

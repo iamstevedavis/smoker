@@ -69,14 +69,14 @@ def test_cook_summary_stats_cover_only_the_cook_window(tmp_path):
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, make_app):
     settings = Settings(
         source="fake",
         db_path=tmp_path / "pitboss.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
-    app = create_app(settings)
+    app = make_app(settings)
     with TestClient(app) as test_client:
         test_client.app_state = app.state
         yield test_client
