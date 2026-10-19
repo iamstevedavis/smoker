@@ -21,6 +21,7 @@ class Settings:
     source: str = "fake"
     model: str = "PB850PS2"
     device_name: str = ""
+    host: str = ""
     password: str = ""
     db_path: Path = Path("data/pitboss.sqlite")
     poll_seconds: float = 2.0
@@ -34,6 +35,7 @@ class Settings:
             source=os.getenv("PITBOSS_SOURCE", "fake"),
             model=os.getenv("PITBOSS_MODEL", "PB850PS2"),
             device_name=os.getenv("PITBOSS_DEVICE_NAME", ""),
+            host=os.getenv("PITBOSS_HOST", ""),
             password=os.getenv("PITBOSS_PASSWORD", ""),
             db_path=Path(os.getenv("PITBOSS_DB", "data/pitboss.sqlite")),
             poll_seconds=float(os.getenv("PITBOSS_POLL_SECONDS", "2")),

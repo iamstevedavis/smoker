@@ -86,11 +86,41 @@ curl http://127.0.0.1:8000/api/state
 
 If `PITBOSS_DEVICE_NAME` does not match what `bluetoothctl` shows, the BLE source will not connect.
 
+## WiFi Source (Local HTTP)
+
+The `http` source polls the grill over your home network instead of BLE. It
+avoids BLE's range limits and single-connection restriction, needs no
+BlueZ/D-Bus, and in testing never hit the spurious `Unauthorized` errors BLE
+does. It is read-only, like the other sources.
+
+```bash
+python -m pip install -e ".[http,test]"
+PITBOSS_SOURCE=http \
+PITBOSS_HOST=192.168.1.50 \
+PITBOSS_MODEL=PB850PS2 \
+PITBOSS_PASSWORD='...' \
+uvicorn pitboss_bridge.api:create_app --factory
+```
+
+Find the grill's IP in your router's DHCP client list, or read `wifi.sta_ip`
+from `Sys.GetInfo` over BLE. Give the grill a DHCP reservation so the address
+does not change.
+
+Not every grill serves local HTTP. ESP-IDF boards (`PBL2`, `PBC2`, ...) have
+no HTTP server, and on Mongoose boards it is a per-unit setting. If the bridge
+reports that the grill may not serve local HTTP, use the `ble` source.
+
+**Security:** the grill's local HTTP RPC is unauthenticated for config calls,
+and those calls expose its configuration, including stored WiFi credentials.
+Keep the grill on an isolated or IoT network. See
+`docs/testing/2026-10-18-cook-test.md`.
+
 ## Configuration
 
-- `PITBOSS_SOURCE`: `fake` or `ble`
+- `PITBOSS_SOURCE`: `fake`, `ble` or `http`
 - `PITBOSS_MODEL`: grill model, default `PB850PS2`
-- `PITBOSS_DEVICE_NAME`: BLE device name for real source
+- `PITBOSS_DEVICE_NAME`: BLE device name for the `ble` source
+- `PITBOSS_HOST`: grill LAN address for the `http` source, a bare host or `host:port`
 - `PITBOSS_PASSWORD`: optional grill password
 - `PITBOSS_DB`: SQLite path, default `data/pitboss.sqlite`
 - `PITBOSS_POLL_SECONDS`: source polling interval, default `2`
