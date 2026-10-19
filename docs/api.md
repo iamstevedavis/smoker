@@ -56,6 +56,31 @@ cook's window.
 
 Real BLE validation should happen on a Linux host near the grill.
 
+## Settings
+
+Bridge settings (not grill settings: nothing here writes to the grill). All
+three endpoints sit behind the login when `PITBOSS_UI_PASSWORD` is set.
+
+- `GET /api/settings`: every editable field, grouped, with `value`, `origin`
+  (`default`, `env` or `ui`) and `secret`. Secrets come back as
+  `{"set": true|false}`, never the value. Also `editable`,
+  `read_only_reason` (`no_login`, `disabled` or null), the `sources` this
+  image supports and the `env_only` variables.
+- `PUT /api/settings`: partial update, e.g. `{"poll_seconds": 5, "mqtt_host": "192.168.1.10"}`.
+  Field names are the variable names without `PITBOSS_`, lower case. The
+  whole update is validated first; any bad field returns 422 and nothing
+  changes. Otherwise the values are saved and the source, MQTT and alerts are
+  restarted with them. Returns the same shape as `GET`. `null` clears a probe
+  target; an empty `mqtt_host` or `ntfy_url` turns that service off.
+- `DELETE /api/settings/{name}`: drop the saved value so the field falls back
+  to the environment or default, and apply.
+
+`PUT` and `DELETE` return 403 when editing is off: by default without a UI
+password, or always with `PITBOSS_SETTINGS_EDITABLE=false`.
+
+After applying, `GET /api/health` reports the new source, starting from
+`connected: false` until its first reading.
+
 ## Health
 
 `GET /api/health` reports the source state:
@@ -71,6 +96,6 @@ errors, and retries are also logged and recorded as health events in SQLite.
 
 ## Dashboard
 
-The dashboard at `/` is read-only and updates live over `WS /api/live`. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `PITBOSS_STALE_AFTER_SECONDS`.
+The dashboard at `/` updates live over `WS /api/live` and never writes to the grill; its settings panel edits bridge settings only. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `PITBOSS_STALE_AFTER_SECONDS`.
 
 It works as an installable app (PWA), but browsers only offer install on `localhost` or HTTPS. Over plain `http://<host>:8000/` it works in the browser and iOS "Add to Home Screen" still gives a full-screen icon; Android/Chrome's install prompt needs HTTPS (for example behind a reverse proxy). The service worker caches only the page shell, never API data.

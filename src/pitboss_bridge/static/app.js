@@ -1,4 +1,5 @@
-/* Smoker dashboard: read-only live view over /api/live, /api/history and /api/health. */
+/* Smoker dashboard: live view over /api/live, /api/history and /api/health,
+   plus the bridge settings panel (/api/settings). Nothing here writes to the grill. */
 "use strict";
 
 (() => {
@@ -858,11 +859,354 @@
     }
   }
 
+  // Settings -------------------------------------------------------------
+
+  const SETTING_GROUPS = {
+    grill: "Grill",
+    mqtt: "Home Assistant (MQTT)",
+    alerts: "Alerts (ntfy)",
+    data: "Data",
+    logging: "Logging",
+  };
+
+  const SOURCE_LABELS = { http: "WiFi (http)", ble: "Bluetooth (ble)", fake: "Fake (demo data)" };
+  const LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"];
+  const ORIGIN_LABELS = { default: "Default", env: ".env", ui: "UI" };
+  const APPLY_WATCH_MS = 30000;
+  const READ_ONLY_REASONS = {
+    no_login: "Read-only until the bridge has a login: set PITBOSS_UI_PASSWORD in .env (or PITBOSS_SETTINGS_EDITABLE=true).",
+    disabled: "Read-only: PITBOSS_SETTINGS_EDITABLE=false is set on the bridge.",
+  };
+
+  // type: text | number | int | optnumber (blank = none) | secret | source | log
+  const SETTING_META = {
+    source: { label: "Source", type: "source" },
+    model: { label: "Grill model", type: "text" },
+    host: { label: "Grill address", type: "text", hint: "WiFi source: IP or host:port." },
+    device_name: { label: "Bluetooth name", type: "text", hint: "Bluetooth source only." },
+    password: { label: "Grill password", type: "secret" },
+    poll_seconds: { label: "Poll every", type: "number", unit: "s", min: 0.1 },
+    stale_after_seconds: { label: "Stale after", type: "int", unit: "s", min: 1 },
+    mqtt_host: { label: "Broker host", type: "text", hint: "Blank turns MQTT off." },
+    mqtt_port: { label: "Broker port", type: "int", min: 1, max: 65535 },
+    mqtt_user: { label: "User", type: "text" },
+    mqtt_password: { label: "Password", type: "secret" },
+    mqtt_prefix: { label: "Topic prefix", type: "text" },
+    ntfy_url: { label: "ntfy topic URL", type: "text", inputmode: "url", hint: "Blank turns alerts off." },
+    ntfy_token: { label: "Access token", type: "secret" },
+    alert_probe1_target: { label: "Probe 1 target", type: "optnumber", unit: "°", hint: "Blank: no alert." },
+    alert_probe2_target: { label: "Probe 2 target", type: "optnumber", unit: "°", hint: "Blank: no alert." },
+    alert_drift_degrees: { label: "Drift alert at", type: "number", unit: "°", min: 0 },
+    alert_drift_minutes: { label: "…sustained for", type: "number", unit: "min", min: 0 },
+    alert_stale_seconds: { label: "No-data alert after", type: "number", unit: "s", min: 0 },
+    alert_cooldown_seconds: { label: "Repeat cooldown", type: "number", unit: "s", min: 0 },
+    retention_days: { label: "Keep history", type: "number", unit: "days", min: 0, hint: "0 keeps everything." },
+    log_level: { label: "Log level", type: "log" },
+  };
+
+  const settings = {
+    payload: null,
+    fields: {}, // name -> field from the API
+    changing: new Set(), // secrets the user chose to change
+    busy: false,
+    watchToken: 0,
+  };
+
+  function el(tag, props, children) {
+    const node = document.createElement(tag);
+    Object.assign(node, props || {});
+    for (const child of children || []) if (child !== null) node.append(child);
+    return node;
+  }
+
+  function settingStatus(text, kind) {
+    const status = $("settings-status");
+    status.textContent = text;
+    status.dataset.kind = kind || "";
+  }
+
+  function settingInput(field, meta, disabled) {
+    const id = "set-" + field.name;
+    const value = field.value;
+    if (meta.type === "source" || meta.type === "log") {
+      const options = meta.type === "log" ? LOG_LEVELS : settings.payload.sources.slice();
+      // Keep a current value the image no longer offers visible.
+      if (!options.includes(value)) options.push(value);
+      return el("select", { id, name: field.name, disabled }, options.map((option) =>
+        el("option", { value: option, textContent: SOURCE_LABELS[option] && meta.type === "source" ? SOURCE_LABELS[option] : option, selected: option === value })));
+    }
+    const numeric = meta.type === "number" || meta.type === "int" || meta.type === "optnumber";
+    const input = el("input", {
+      id,
+      name: field.name,
+      disabled,
+      type: numeric ? "number" : meta.type === "secret" ? "password" : "text",
+      value: value === null || value === undefined ? "" : String(value),
+      autocomplete: meta.type === "secret" ? "new-password" : "off",
+    });
+    if (numeric) {
+      input.step = meta.type === "int" ? "1" : "any";
+      input.inputMode = meta.type === "int" ? "numeric" : "decimal";
+      if (meta.min !== undefined) input.min = String(meta.min);
+      if (meta.max !== undefined) input.max = String(meta.max);
+    } else {
+      input.spellcheck = false;
+      input.autocapitalize = "off";
+      if (meta.inputmode) input.inputMode = meta.inputmode;
+    }
+    return input;
+  }
+
+  function renderSettingField(field, editable) {
+    const meta = SETTING_META[field.name] || { label: field.name, type: field.secret ? "secret" : "text" };
+    const row = el("div", { className: "setting" });
+    row.dataset.name = field.name;
+    const badge = el("span", { className: "origin", textContent: ORIGIN_LABELS[field.origin] || field.origin });
+    badge.dataset.origin = field.origin;
+    badge.title = field.origin === "ui" ? "Saved from this page" : field.origin === "env" ? "From " + field.env : "Built-in default";
+    const head = el("div", { className: "setting-head" }, [
+      el("label", { htmlFor: "set-" + field.name, textContent: meta.label }),
+      badge,
+    ]);
+    if (field.origin === "ui" && editable) {
+      const reset = el("button", { type: "button", className: "link-btn", textContent: "Reset" });
+      reset.setAttribute("aria-label", "Reset " + meta.label + " to .env or default");
+      reset.addEventListener("click", () => resetSetting(field.name));
+      head.append(reset);
+    }
+    row.append(head);
+
+    let control;
+    if (meta.type === "secret" && !settings.changing.has(field.name)) {
+      const isSet = field.value && field.value.set;
+      control = el("div", { className: "secret" }, [
+        el("span", { id: "set-" + field.name, textContent: isSet ? "••• set" : "Not set" }),
+      ]);
+      if (editable) {
+        const change = el("button", { type: "button", className: "link-btn", textContent: isSet ? "Change" : "Set" });
+        change.setAttribute("aria-label", (isSet ? "Change " : "Set ") + meta.label);
+        change.addEventListener("click", () => {
+          settings.changing.add(field.name);
+          row.replaceWith(renderSettingField(field, editable));
+          const input = $("set-" + field.name);
+          if (input) input.focus();
+        });
+        control.append(change);
+      }
+    } else {
+      const input = settingInput({ ...field, value: meta.type === "secret" ? "" : field.value }, meta, !editable);
+      if (meta.type === "secret") input.placeholder = "New value (blank clears it)";
+      control = meta.unit
+        ? el("div", { className: "with-unit" }, [input, el("span", { className: "unit-label", textContent: meta.unit })])
+        : input;
+    }
+    row.append(control);
+    const hint = el("p", { className: "setting-hint", textContent: meta.hint || "" });
+    hint.hidden = !meta.hint;
+    row.append(hint);
+    row.append(el("p", { className: "setting-error", hidden: true }));
+    return row;
+  }
+
+  function renderSettings(payload) {
+    settings.payload = payload;
+    settings.fields = {};
+    settings.changing.clear();
+    const editable = payload.editable !== false;
+    const groups = $("settings-groups");
+    groups.replaceChildren();
+    for (const group of payload.groups) {
+      const fieldset = el("fieldset", { className: "setting-group" }, [
+        el("legend", { textContent: SETTING_GROUPS[group.name] || group.name }),
+      ]);
+      for (const field of group.fields) {
+        settings.fields[field.name] = field;
+        fieldset.append(renderSettingField(field, editable));
+      }
+      groups.append(fieldset);
+    }
+    $("settings-readonly").textContent = READ_ONLY_REASONS[payload.read_only_reason] || "Read-only.";
+    $("settings-readonly").hidden = editable;
+    $("settings-save").hidden = !editable;
+    $("settings-envonly").textContent = payload.env_only && payload.env_only.length
+      ? "Set only in .env: " + payload.env_only.join(", ") + "."
+      : "";
+  }
+
+  // The fields whose inputs differ from what the bridge reported.
+  function settingChanges() {
+    const changes = {};
+    const errors = {};
+    for (const [name, field] of Object.entries(settings.fields)) {
+      const meta = SETTING_META[name] || { type: field.secret ? "secret" : "text" };
+      const input = $("set-" + name);
+      if (!input || !("value" in input) || input.tagName === "SPAN") continue;
+      if (meta.type === "secret") {
+        if (settings.changing.has(name)) changes[name] = input.value;
+        continue;
+      }
+      const raw = input.value.trim();
+      let value = raw;
+      if (meta.type === "number" || meta.type === "int" || meta.type === "optnumber") {
+        if (raw === "" && meta.type === "optnumber") value = null;
+        else if (raw === "" || !Number.isFinite(Number(raw))) {
+          errors[name] = "Enter a number.";
+          continue;
+        } else value = Number(raw);
+      }
+      if (value !== field.value) changes[name] = value;
+    }
+    return { changes, errors };
+  }
+
+  function showSettingErrors(errors) {
+    document.querySelectorAll("#settings-groups .setting").forEach((row) => {
+      const message = errors[row.dataset.name];
+      const box = row.querySelector(".setting-error");
+      box.textContent = message || "";
+      box.hidden = !message;
+      row.classList.toggle("has-error", Boolean(message));
+    });
+    const first = document.querySelector("#settings-groups .has-error input, #settings-groups .has-error select");
+    if (first) first.focus();
+  }
+
+  // FastAPI's 422 detail is a list of {loc: ["body", field], msg}, or a string.
+  function errorsFrom(detail) {
+    const errors = {};
+    let general = "";
+    if (Array.isArray(detail)) {
+      for (const item of detail) {
+        const name = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null;
+        const msg = String(item.msg || "Invalid value").replace(/^Value error, /, "");
+        if (name && settings.fields[name]) errors[name] = msg;
+        else general = general || (name ? name + ": " : "") + msg;
+      }
+    } else if (detail) {
+      general = String(detail);
+    }
+    return { errors, general };
+  }
+
+  async function sendSettings(path, options) {
+    if (settings.busy) return;
+    settings.busy = true;
+    $("settings-save").disabled = true;
+    settingStatus("Applying…", "busy");
+    try {
+      const res = await apiFetch(path, { cache: "no-store", ...options });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 422) {
+        const { errors, general } = errorsFrom(body.detail);
+        showSettingErrors(errors);
+        settingStatus(general || "Fix the highlighted fields. Nothing was changed.", "error");
+        return;
+      }
+      if (!res.ok) {
+        settingStatus(body.detail ? String(body.detail) : "Save failed (HTTP " + res.status + ").", "error");
+        return;
+      }
+      renderSettings(body);
+      watchApply();
+    } catch (e) {
+      if (e.message !== "not authenticated") settingStatus("Can't reach the bridge.", "error");
+    } finally {
+      settings.busy = false;
+      $("settings-save").disabled = false;
+    }
+  }
+
+  function saveSettings() {
+    const { changes, errors } = settingChanges();
+    showSettingErrors(errors);
+    if (Object.keys(errors).length) {
+      settingStatus("Fix the highlighted fields. Nothing was changed.", "error");
+      return;
+    }
+    if (!Object.keys(changes).length) {
+      settingStatus("No changes to save.", "");
+      return;
+    }
+    sendSettings("api/settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+  }
+
+  function resetSetting(name) {
+    sendSettings("api/settings/" + encodeURIComponent(name), { method: "DELETE" });
+  }
+
+  // After applying, follow /api/health until the new runtime has a reading.
+  async function watchApply() {
+    const token = ++settings.watchToken;
+    const until = Date.now() + APPLY_WATCH_MS;
+    settingStatus("Saved. Reconnecting to the grill…", "busy");
+    while (token === settings.watchToken) {
+      let health = null;
+      try {
+        const res = await fetch("api/health", { cache: "no-store" });
+        if (res.ok) health = await res.json();
+      } catch (e) { /* keep waiting */ }
+      if (token !== settings.watchToken) return;
+      if (health) {
+        state.health = health;
+        state.healthOk = true;
+        renderStatus();
+        if (health.connected) {
+          settingStatus("Saved. Connected to the grill (" + health.source + ").", "ok");
+          return;
+        }
+      }
+      if (Date.now() > until) {
+        const error = health && health.last_error ? ": " + health.last_error : "";
+        settingStatus("Saved, but no reading from the grill yet" + error, "error");
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  async function openSettings() {
+    const dialog = $("settings");
+    settingStatus("", "");
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    try {
+      const res = await apiFetch("api/settings", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      renderSettings(await res.json());
+    } catch (e) {
+      if (e.message !== "not authenticated") {
+        $("settings-groups").replaceChildren(el("p", { className: "settings-note", textContent: "Can't load settings from the bridge." }));
+      }
+    }
+  }
+
+  function closeSettings() {
+    settings.watchToken++;
+    const dialog = $("settings");
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  }
+
+  function setupSettings() {
+    $("settings-open").addEventListener("click", openSettings);
+    $("settings-close").addEventListener("click", closeSettings);
+    $("settings").addEventListener("close", () => { settings.watchToken++; });
+    $("settings-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveSettings();
+    });
+  }
+
   // Start ----------------------------------------------------------------
 
   function start() {
     setupControls();
     setupLogout();
+    setupSettings();
     renderReadings();
     renderStatus();
     // History's time window is based on the bridge clock, so learn the clock

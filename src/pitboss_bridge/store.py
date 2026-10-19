@@ -70,6 +70,15 @@ class Database:
                 """
             )
             self._create_cooks_table(conn)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS settings (
+                    name TEXT PRIMARY KEY,
+                    value_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
 
     def _create_cooks_table(self, conn: sqlite3.Connection) -> None:
         conn.execute(
@@ -86,6 +95,32 @@ class Database:
             )
             """
         )
+
+    def load_settings(self) -> dict[str, Any]:
+        """Return the settings saved from the dashboard, by field name."""
+        with self.connect() as conn:
+            rows = conn.execute("SELECT name, value_json FROM settings").fetchall()
+        return {row["name"]: json.loads(row["value_json"]) for row in rows}
+
+    def save_settings(self, values: dict[str, Any]) -> None:
+        """Upsert several settings in one transaction."""
+        now = _iso(utc_now())
+        with self.connect() as conn:
+            conn.executemany(
+                """
+                INSERT INTO settings (name, value_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    value_json = excluded.value_json,
+                    updated_at = excluded.updated_at
+                """,
+                [(name, json.dumps(value), now) for name, value in values.items()],
+            )
+
+    def delete_setting(self, name: str) -> bool:
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM settings WHERE name = ?", (name,))
+        return cursor.rowcount > 0
 
     def insert_reading(self, snapshot: StateSnapshot) -> None:
         with self.connect() as conn:

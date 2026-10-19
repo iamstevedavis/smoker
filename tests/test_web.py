@@ -79,14 +79,17 @@ def test_api_and_docs_still_work_with_dashboard(tmp_path):
 
 def test_bridge_exposes_no_write_endpoints(tmp_path):
     app = _app(tmp_path)
-    # Only the bridge-database cook sessions may write; nothing reaches the grill.
+    # Only cook sessions and bridge settings may write, both in the bridge's
+    # own database; nothing reaches the grill.
     write_paths = set()
     for route in app.routes:
         if isinstance(route, APIRoute) and route.methods - {"GET", "HEAD"}:
             write_paths.add(route.path)
 
     assert write_paths
-    assert all(path.startswith("/api/cooks") for path in write_paths)
+    assert all(
+        path.startswith(("/api/cooks", "/api/settings")) for path in write_paths
+    )
 
 
 def test_dashboard_answers_head_requests(tmp_path):

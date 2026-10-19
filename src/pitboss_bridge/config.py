@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
+from typing import Any
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -12,6 +13,11 @@ def _bool_env(name: str, default: bool) -> bool:
     if raw is None:
         return default
     return raw.lower() in {"1", "true", "yes", "on"}
+
+
+def _opt_bool_env(name: str) -> bool | None:
+    raw = os.getenv(name)
+    return _bool_env(name, False) if raw else None
 
 
 def _opt_float_env(name: str) -> float | None:
@@ -49,6 +55,8 @@ class Settings:
     retention_days: float = 0
     ui_password: str = ""
     session_days: float = 30.0
+    # None means "only when a UI password is set"; see settings_read_only().
+    settings_editable: bool | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -81,4 +89,74 @@ class Settings:
             retention_days=float(os.getenv("PITBOSS_RETENTION_DAYS", "0")),
             ui_password=os.getenv("PITBOSS_UI_PASSWORD", ""),
             session_days=float(os.getenv("PITBOSS_SESSION_DAYS", "30")),
+            settings_editable=_opt_bool_env("PITBOSS_SETTINGS_EDITABLE"),
         )
+
+    def settings_read_only(self) -> str | None:
+        """Why the dashboard can't edit settings, or None if it can.
+
+        Without a login, anyone on the LAN could point MQTT or ntfy at their
+        own server and receive the saved secrets, so editing needs either a
+        UI password or an explicit PITBOSS_SETTINGS_EDITABLE=true.
+        """
+        if self.settings_editable is False:
+            return "disabled"
+        if self.settings_editable is None and not self.ui_password:
+            return "no_login"
+        return None
+
+    def with_overrides(self, overrides: dict[str, Any]) -> "Settings":
+        """Return these settings with UI-saved values layered on top."""
+        return replace(self, **overrides)
+
+
+# Fields the dashboard may change, by group, in display order. Everything
+# else (DB path, port, collector switch, UI login, the kill switch) is env only.
+EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
+    "grill": (
+        "source",
+        "model",
+        "host",
+        "device_name",
+        "password",
+        "poll_seconds",
+        "stale_after_seconds",
+    ),
+    "mqtt": ("mqtt_host", "mqtt_port", "mqtt_user", "mqtt_password", "mqtt_prefix"),
+    "alerts": (
+        "ntfy_url",
+        "ntfy_token",
+        "alert_probe1_target",
+        "alert_probe2_target",
+        "alert_drift_degrees",
+        "alert_drift_minutes",
+        "alert_stale_seconds",
+        "alert_cooldown_seconds",
+    ),
+    "data": ("retention_days",),
+    "logging": ("log_level",),
+}
+EDITABLE_FIELDS = frozenset(name for group in EDITABLE_GROUPS.values() for name in group)
+# Never sent back to the browser; the API only says whether they are set.
+SECRET_FIELDS = frozenset({"password", "mqtt_password", "ntfy_token"})
+ENV_ONLY = (
+    "PITBOSS_DB",
+    "PITBOSS_PORT",
+    "PITBOSS_START_COLLECTOR",
+    "PITBOSS_UI_PASSWORD",
+    "PITBOSS_SESSION_DAYS",
+    "PITBOSS_SETTINGS_EDITABLE",
+)
+_DEFAULTS = {f.name: f.default for f in fields(Settings)}
+
+
+def env_name(field_name: str) -> str:
+    return f"PITBOSS_{field_name.upper()}"
+
+
+def base_origin(settings: Settings, field_name: str) -> str:
+    """Where a value without a UI override came from: `env` or `default`."""
+    from_env = bool(os.getenv(env_name(field_name)))
+    if from_env or getattr(settings, field_name) != _DEFAULTS[field_name]:
+        return "env"
+    return "default"
