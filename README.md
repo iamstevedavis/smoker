@@ -23,6 +23,25 @@ PITBOSS_SOURCE=fake uvicorn pitboss_bridge.api:create_app --factory --reload
 
 On Windows with WSL2, run these commands inside Ubuntu so Python 3.10 is used.
 
+## Web Dashboard
+
+The bridge serves a read-only dashboard at `/` (for example
+`http://localhost:8000/`). It shows grill vs set temperature, both probes,
+power/fan/igniter/auger, error flags, and a chart of the last 1-12 hours that
+updates live over `WS /api/live`. A banner appears when the bridge can't be
+reached, the grill is disconnected, or readings are older than
+`PITBOSS_STALE_AFTER_SECONDS`. The API and `/docs` are unchanged.
+
+![Dashboard](docs/images/dashboard-desktop.png)
+
+It is plain HTML/CSS/JS in `src/pitboss_bridge/static/` with no build step,
+and works as an installable app (PWA). Browsers only allow installing from
+`localhost` or HTTPS: on a phone over plain `http://<laptop-ip>:8000/`, the
+dashboard works in the browser, and iOS "Add to Home Screen" still gives a
+full-screen icon, but Android/Chrome's install prompt needs HTTPS (for example
+behind a reverse proxy). The service worker caches only the page shell, never
+API data.
+
 ## Testing With A Real Grill (Linux Laptop)
 
 Written for Linux Mint 22 / Ubuntu 24.04. Mint 21 ships Python 3.10, which is
