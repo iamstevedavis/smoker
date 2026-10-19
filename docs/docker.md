@@ -10,7 +10,8 @@ before starting the new version:
 ```bash
 docker compose down
 docker compose up --no-start          # creates the pitboss-data volume
-docker run --rm -v smokestack_pitboss-data:/data -v "$PWD/data":/old:ro alpine \
+VOL=$(docker compose config | sed -n 's/^ *name: \(.*_pitboss-data\)$/\1/p')
+docker run --rm -v "$VOL":/data -v "$PWD/data":/old:ro alpine \
   sh -c 'cp -a /old/. /data/ && chown -R 10001:10001 /data'
 docker compose up -d
 ```
@@ -20,8 +21,12 @@ After checking the history is there, `./data` can be deleted.
 **Back up** the database volume:
 
 ```bash
-docker run --rm -v smokestack_pitboss-data:/data -v "$PWD":/backup alpine \
+VOL=$(docker compose config | sed -n 's/^ *name: \(.*_pitboss-data\)$/\1/p')
+docker run --rm -v "$VOL":/data -v "$PWD":/backup alpine \
   tar czf /backup/pitboss-data.tgz -C /data .
 ```
 
-(The volume name is `<project>_pitboss-data`, where the project is the clone's folder name: `smoker_pitboss-data` for clones from before the rename. Check `docker volume ls`.)
+The first line asks compose for the volume's real name, `<project>_pitboss-data`.
+The project defaults to the clone's folder name, so a clone from before the
+rename uses `smoker_pitboss-data` and a new one `smokestack_pitboss-data`. Run
+the commands from the clone's folder.
