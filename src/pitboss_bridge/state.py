@@ -39,6 +39,21 @@ KNOWN_STATE_FIELDS = frozenset(
 )
 
 
+DEFAULT_MODEL = "PB850PS2"
+
+# Per-model fields that are always empty or meaningless. They are kept in `raw`
+# but left out of `fields` (and `unknown`). See docs/fields.md.
+UNUSABLE_FIELDS: dict[str, frozenset[str]] = {
+    "PB850PS2": frozenset({"smokerActTemp", "p3Temp", "p4Temp"}),
+}
+
+# Per-model firmware defaults that mean "not set"; a field holding exactly this
+# value is treated like an unusable field.
+UNSET_DEFAULTS: dict[str, dict[str, Any]] = {
+    "PB850PS2": {"p1Target": 50},
+}
+
+
 def utc_now() -> datetime:
     """Return a timezone-aware UTC timestamp."""
     return datetime.now(UTC)
@@ -114,14 +129,19 @@ def normalize_state(
     source: str,
     observed_at: datetime | None = None,
     received_at: datetime | None = None,
+    model: str = DEFAULT_MODEL,
 ) -> StateSnapshot:
     """Normalize a raw source payload into timestamped field readings."""
     observed = observed_at or utc_now()
     received = received_at or utc_now()
+    unusable = UNUSABLE_FIELDS.get(model, frozenset())
+    unset = UNSET_DEFAULTS.get(model, {})
     fields = {
         name: FieldReading(value=value, observed_at=observed)
         for name, value in raw.items()
         if name in KNOWN_STATE_FIELDS
+        and name not in unusable
+        and not (name in unset and value == unset[name])
     }
     unknown = {
         name: value
