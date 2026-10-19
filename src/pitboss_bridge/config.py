@@ -14,6 +14,11 @@ def _bool_env(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
+def _opt_float_env(name: str) -> float | None:
+    raw = os.getenv(name)
+    return float(raw) if raw else None
+
+
 @dataclass(frozen=True)
 class Settings:
     """Runtime settings."""
@@ -33,6 +38,14 @@ class Settings:
     mqtt_user: str = ""
     mqtt_password: str = ""
     mqtt_prefix: str = "pitboss"
+    ntfy_url: str = ""
+    ntfy_token: str = ""
+    alert_probe1_target: float | None = None
+    alert_probe2_target: float | None = None
+    alert_drift_degrees: float = 25.0
+    alert_drift_minutes: float = 10.0
+    alert_stale_seconds: float = 60.0
+    alert_cooldown_seconds: float = 0.0
     retention_days: float = 0
 
     @classmethod
@@ -53,5 +66,15 @@ class Settings:
             mqtt_user=os.getenv("PITBOSS_MQTT_USER", ""),
             mqtt_password=os.getenv("PITBOSS_MQTT_PASSWORD", ""),
             mqtt_prefix=os.getenv("PITBOSS_MQTT_PREFIX", "pitboss"),
+            ntfy_url=os.getenv("PITBOSS_NTFY_URL", ""),
+            ntfy_token=os.getenv("PITBOSS_NTFY_TOKEN", ""),
+            alert_probe1_target=_opt_float_env("PITBOSS_ALERT_PROBE1_TARGET"),
+            alert_probe2_target=_opt_float_env("PITBOSS_ALERT_PROBE2_TARGET"),
+            alert_drift_degrees=float(os.getenv("PITBOSS_ALERT_DRIFT_DEGREES", "25")),
+            alert_drift_minutes=float(os.getenv("PITBOSS_ALERT_DRIFT_MINUTES", "10")),
+            alert_stale_seconds=float(os.getenv("PITBOSS_ALERT_STALE_SECONDS", "60")),
+            alert_cooldown_seconds=float(
+                os.getenv("PITBOSS_ALERT_COOLDOWN_SECONDS", "0")
+            ),
             retention_days=float(os.getenv("PITBOSS_RETENTION_DAYS", "0")),
         )
