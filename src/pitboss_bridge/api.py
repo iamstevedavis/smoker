@@ -50,10 +50,6 @@ class LoginBody(BaseModel):
 # Re-exported under its old name; tests import it from here.
 _make_source = make_source
 
-# Settings that point at a different grill; changing one drops the last
-# reading so the dashboard doesn't show the old grill's state as current.
-_GRILL_FIELDS = ("source", "model", "host", "device_name")
-
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the FastAPI app."""
@@ -181,10 +177,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def swap(new: Runtime, new_overrides: dict[str, Any]) -> None:
         old: Runtime = app.state.runtime
         await old.stop()
-        if any(
-            getattr(old.settings, name) != getattr(new.settings, name)
-            for name in _GRILL_FIELDS
-        ):
+        if new.same_grill(old):
+            new.take_over_from(old)
+        else:
+            # Don't show the old grill's last reading as the new one's state.
             hub.current = None
         configure_logging(new.settings.log_level)
         use_runtime(new, new_overrides)

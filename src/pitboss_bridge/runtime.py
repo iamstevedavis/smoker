@@ -27,6 +27,10 @@ from pitboss_bridge.store import Database
 
 logger = logging.getLogger(__name__)
 
+# Settings that point at a different grill. Changing one means earlier
+# readings and alert state belong to another grill.
+GRILL_FIELDS = ("source", "model", "host", "device_name")
+
 # The modules each source needs, so the UI only offers what the image has.
 _SOURCE_MODULES = {
     "fake": (),
@@ -139,6 +143,18 @@ class Runtime:
                 store=store,
             )
         self.tasks: list[asyncio.Task[None]] = []
+
+    def same_grill(self, other: Runtime) -> bool:
+        return all(
+            getattr(self.settings, name) == getattr(other.settings, name)
+            for name in GRILL_FIELDS
+        )
+
+    def take_over_from(self, previous: Runtime) -> None:
+        """Carry alert state over from the stopped runtime this one replaces
+        (same grill only; the caller checks)."""
+        if self.alerts is not None and previous.alerts is not None:
+            self.alerts.engine.inherit(previous.alerts.engine)
 
     async def start(self) -> None:
         # Alerts first, so they subscribe before the collector's first reading.
