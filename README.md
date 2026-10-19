@@ -45,7 +45,7 @@ Set these in `.env` (Docker) or the environment.
 | `PITBOSS_RETENTION_DAYS` | `0` | Delete data older than this; `0` keeps everything |
 | `PITBOSS_LOG_LEVEL` | `INFO` | Use `DEBUG` when troubleshooting |
 
-Home Assistant (`PITBOSS_MQTT_*`) and ntfy alerts (`PITBOSS_NTFY_*`, `PITBOSS_ALERT_*`) are optional and off by default; see [docs/integrations.md](docs/integrations.md).
+Home Assistant (`PITBOSS_MQTT_*`) and ntfy alerts (`PITBOSS_NTFY_*`, `PITBOSS_ALERT_*`) are optional and off by default. Every variable and its default is listed in [docs/integrations.md](docs/integrations.md#settings).
 
 ## More
 
