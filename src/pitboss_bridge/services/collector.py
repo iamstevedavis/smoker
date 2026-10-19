@@ -34,6 +34,7 @@ class CollectorHealth:
     last_error_at: datetime | None = None
     reconnect_count: int = 0
     consecutive_failures: int = 0
+    unauthorized_retries: int = 0
     _has_connected: bool = False
 
     def mark_started(self) -> None:
@@ -78,6 +79,7 @@ class CollectorHealth:
             "stale_after_seconds": self.stale_after_seconds,
             "reconnect_count": self.reconnect_count,
             "consecutive_failures": self.consecutive_failures,
+            "unauthorized_retries": self.unauthorized_retries,
             "last_error": self.last_error,
             "last_error_at": self.last_error_at.astimezone(UTC).isoformat()
             if self.last_error_at
@@ -160,6 +162,9 @@ class Collector:
         except StopAsyncIteration:
             self._stream = self.source.readings()
             raw = await anext(self._stream)
+        stats = getattr(self.source, "stats", None)
+        if stats is not None:
+            self.health.unauthorized_retries = stats.unauthorized_retries
         snapshot = normalize_state(
             raw,
             source=self.source.name,

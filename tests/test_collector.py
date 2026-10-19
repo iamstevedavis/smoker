@@ -192,6 +192,24 @@ async def test_stopping_collector_closes_source_session(tmp_path):
     assert source.closed == 1
 
 
+async def test_collector_copies_unauthorized_retries_into_health(tmp_path):
+    from pitboss_bridge.sources._pytboss import PollStats
+
+    db = Database(tmp_path / "p.sqlite")
+    db.initialize()
+    source = FakeGrillSource(interval_seconds=0)
+    source.stats = PollStats()
+    source.stats.unauthorized_retries = 3
+    health = CollectorHealth(source="fake", stale_after_seconds=30)
+    collector = Collector(
+        source=source, store=db, hub=StateHub(stale_after_seconds=30), health=health
+    )
+
+    await collector.collect_next()
+
+    assert health.to_api_dict()["unauthorized_retries"] == 3
+
+
 def test_prune_once_respects_retention_days(tmp_path):
     from datetime import timedelta
 
