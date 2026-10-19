@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
 from pitboss_bridge.sources.fake import FakeGrillSource
 from pitboss_bridge.store import Database
@@ -208,6 +210,20 @@ async def test_collector_copies_unauthorized_retries_into_health(tmp_path):
     await collector.collect_next()
 
     assert health.to_api_dict()["unauthorized_retries"] == 3
+
+
+async def test_collector_copies_unauthorized_retries_when_poll_fails(tmp_path):
+    from pitboss_bridge.sources._pytboss import PollStats
+
+    source = ScriptedSource([[RuntimeError("retry also failed")]])
+    source.stats = PollStats()
+    source.stats.unauthorized_retries = 2
+    collector, health, _ = make_collector(tmp_path, source)
+
+    with pytest.raises(RuntimeError):
+        await collector.collect_next()
+
+    assert health.to_api_dict()["unauthorized_retries"] == 2
 
 
 def test_prune_once_respects_retention_days(tmp_path):
