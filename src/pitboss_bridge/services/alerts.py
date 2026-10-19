@@ -274,6 +274,9 @@ class AlertService:
         # A snapshot published before we subscribed is not in the queue.
         if self.hub.current is not None:
             self.dispatch(self.engine.on_snapshot(self.hub.current))
+        # Check health now so the no-reading clock starts at startup, not one
+        # interval later.
+        self.dispatch(self.engine.on_health(self.health.to_api_dict()))
         try:
             while True:
                 try:

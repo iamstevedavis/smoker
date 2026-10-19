@@ -207,8 +207,7 @@ def make_service(tmp_path, sender, **kwargs):
         health=health,
         sender=sender,
         store=store,
-        check_interval_seconds=0.01,
-        **kwargs,
+        **{"check_interval_seconds": 0.01, **kwargs},
     )
     return service, hub, store
 
@@ -237,6 +236,21 @@ async def test_service_evaluates_a_snapshot_published_before_it_started(tmp_path
     task.cancel()
 
     assert keys(sender.sent) == ["probe1_target"]
+
+
+async def test_service_starts_the_no_reading_clock_immediately(tmp_path):
+    clock = Clock()
+    service, _, _ = make_service(tmp_path, FakeSender(), check_interval_seconds=3600)
+    service.engine = AlertEngine(AlertConfig(stale_seconds=60), clock)
+
+    task = asyncio.create_task(service.run())
+    await asyncio.sleep(0.01)
+    task.cancel()
+    clock.now = 61
+
+    assert keys(service.engine.on_health({"last_update_age_seconds": None})) == [
+        "disconnected"
+    ]
 
 
 async def test_sender_failure_is_logged_as_health_event_and_does_not_raise(tmp_path):
