@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pitboss_bridge.sources.base import GrillSource
-from pitboss_bridge.state import StateSnapshot, normalize_state, utc_now
+from pitboss_bridge.state import DEFAULT_MODEL, StateSnapshot, normalize_state, utc_now
 from pitboss_bridge.store import Database
 
 logger = logging.getLogger(__name__)
@@ -160,7 +160,11 @@ class Collector:
         except StopAsyncIteration:
             self._stream = self.source.readings()
             raw = await anext(self._stream)
-        snapshot = normalize_state(raw, source=self.source.name)
+        snapshot = normalize_state(
+            raw,
+            source=self.source.name,
+            model=getattr(self.source, "model", DEFAULT_MODEL),
+        )
         self.store.insert_reading(snapshot)
         await self.hub.publish(snapshot)
         if self.health.mark_update(snapshot.received_at):

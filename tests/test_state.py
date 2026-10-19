@@ -45,3 +45,47 @@ def test_snapshot_api_dict_marks_stale_by_age():
     assert payload["age_seconds"] == 45.0
     assert payload["fields"]["grillTemp"]["value"] == 220
     assert payload["fields"]["grillTemp"]["age_seconds"] == 45.0
+
+
+def test_unusable_fields_stay_in_raw_but_not_in_fields():
+    snapshot = normalize_state(
+        {
+            "grillTemp": 220,
+            "smokerActTemp": 220,
+            "p3Temp": None,
+            "p4Temp": None,
+            "p1Target": 50,
+            "p2Target": 50,
+        },
+        source="fake",
+    )
+
+    assert set(snapshot.fields) == {"grillTemp", "p2Target"}
+    assert snapshot.unknown == {}
+    assert snapshot.raw["smokerActTemp"] == 220
+    assert snapshot.raw["p1Target"] == 50
+    assert "p3Temp" in snapshot.raw
+
+
+def test_p1_target_other_than_firmware_default_is_kept():
+    snapshot = normalize_state({"p1Target": 165}, source="fake")
+
+    assert snapshot.fields["p1Target"].value == 165
+
+
+def test_fake_source_state_omits_unusable_fields():
+    from pitboss_bridge.sources.fake import FakeGrillSource
+
+    raw = FakeGrillSource(interval_seconds=0)._reading()
+    snapshot = normalize_state(raw, source="fake")
+
+    assert "smokerActTemp" in snapshot.raw
+    assert "smokerActTemp" not in snapshot.fields
+
+
+def test_unknown_model_keeps_every_known_field():
+    snapshot = normalize_state(
+        {"smokerActTemp": 200, "p1Target": 50}, source="x", model="OTHER"
+    )
+
+    assert set(snapshot.fields) == {"smokerActTemp", "p1Target"}
