@@ -25,7 +25,7 @@ No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up --bu
 
 ## Security
 
-- **The first visit asks you to create a password.** Until then the dashboard and API are locked. After that the password protects the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. It is stored as a scrypt hash in the database, and you can turn it off, back on or change it under **Settings → Login**. Sessions are signed cookies that last 30 days; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
+- **The first visit asks you to create a password.** Until then the dashboard and API are locked. After that the password protects the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. It is stored as a scrypt hash in the database, you can turn it off or back on under **Settings → Login**, and change it under **Profile** (the person button; needs the current password). Sessions are signed cookies that last 30 days; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
 - **Turning the password off opens everything to the LAN**, including the settings panel, so anyone there could point MQTT or ntfy at their own server and collect the saved secrets.
 - **Locked out?** Run `docker compose exec pitboss-bridge smokestack reset-password`, then `docker compose restart`. The next visit shows the setup screen again. Do this right after first start too if someone else might have reached the setup screen before you.
 - **On plain HTTP the password and session cookie cross the LAN unencrypted.** That's fine for home use, but don't expose port 8000 to the internet: use a VPN (WireGuard, Tailscale), or put a TLS reverse proxy such as Caddy in front.
@@ -57,7 +57,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - **Precedence:** built-in default, then `.env`/environment, then values saved in the panel. Saved values win.
 - Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Each field shows where its value comes from (Default, .env or UI); **Reset** drops the saved value and falls back to `.env` or the default.
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
-- The **Login** section turns the dashboard password off or on and changes it. That takes effect at once, with no restart.
+- The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
 - **Env only:** `PITBOSS_DB`, `PITBOSS_PORT` and `PITBOSS_START_COLLECTOR`.
 - The source list only offers what can actually run: `fake` always, `http` (WiFi) in every image, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
 

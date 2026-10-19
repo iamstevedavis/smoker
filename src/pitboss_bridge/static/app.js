@@ -1175,7 +1175,7 @@
     }
   }
 
-  // Login section: turn the password off/on and change it -----------------
+  // Login section: turn the password off and on --------------------------
 
   const authUi = { busy: false };
 
@@ -1225,7 +1225,6 @@
       }
       const data = await res.json().catch(() => ({}));
       const message = res.status === 403 ? "Wrong password."
-        : res.status === 422 ? "Use at least " + PASSWORD_MIN_LENGTH + " characters."
         : data.detail ? String(data.detail) : "Failed (HTTP " + res.status + ").";
       authStatus(message, "error");
     } catch (e) {
@@ -1251,38 +1250,19 @@
       "Turn on",
       ([password]) => sendAuth("api/auth", "PUT", { required: true, password }, "Password turned on."),
     );
-    const changeForm = authForm(
-      [
-        ["auth-current", "Current password", "current-password"],
-        ["auth-new", "New password", "new-password"],
-        ["auth-confirm", "Confirm new password", "new-password"],
-      ],
-      "Change password",
-      ([current, next, confirmed]) => {
-        if (next.length < PASSWORD_MIN_LENGTH) authStatus("Use at least " + PASSWORD_MIN_LENGTH + " characters.", "error");
-        else if (next !== confirmed) authStatus("The new passwords don't match.", "error");
-        else sendAuth("api/auth/password", "POST", { current, new: next }, "Password changed. Other devices are signed out.");
-      },
-    );
-    const reveal = (form, other) => {
-      other.hidden = true;
-      form.hidden = !form.hidden;
-      authStatus("", "");
-      if (!form.hidden) form.querySelector("input").focus();
-    };
 
     const toggle = el("button", { type: "button", className: "theme-btn", textContent: on ? "Turn off password" : "Turn on password" });
     toggle.addEventListener("click", () => {
       if (!on) {
-        reveal(enableForm, changeForm);
+        enableForm.hidden = !enableForm.hidden;
+        authStatus("", "");
+        if (!enableForm.hidden) enableForm.querySelector("input").focus();
         return;
       }
       if (confirm("Turn off the password? Anyone on your network will be able to open the dashboard and change settings.")) {
         sendAuth("api/auth", "PUT", { required: false }, "Password turned off.");
       }
     });
-    const change = el("button", { type: "button", className: "theme-btn", textContent: "Change password" });
-    change.addEventListener("click", () => reveal(changeForm, enableForm));
 
     const status = el("p", { id: "auth-status", className: "auth-status" });
     status.setAttribute("role", "status");
@@ -1290,9 +1270,9 @@
     box.replaceChildren(
       el("legend", { textContent: "Login" }),
       summary,
-      el("div", { className: "auth-actions" }, [toggle, change]),
+      el("div", { className: "auth-actions" }, [toggle]),
+      el("p", { className: "settings-note", textContent: "Change the password under Profile." }),
       enableForm,
-      changeForm,
       status,
     );
     box.hidden = false;
@@ -1328,6 +1308,65 @@
     else dialog.removeAttribute("open");
   }
 
+  // Profile: change the password ------------------------------------------
+
+  function profileStatus(text, kind) {
+    const status = $("profile-status");
+    status.textContent = text;
+    status.dataset.kind = kind || "";
+  }
+
+  async function changePassword() {
+    const form = $("profile-form");
+    const current = form.current.value;
+    const next = form.new.value;
+    if (!current) return profileStatus("Enter your current password.", "error");
+    if (next.length < PASSWORD_MIN_LENGTH) return profileStatus("Use at least " + PASSWORD_MIN_LENGTH + " characters.", "error");
+    if (next !== form.confirm.value) return profileStatus("The new passwords don't match.", "error");
+    const button = $("profile-save");
+    button.disabled = true;
+    profileStatus("Saving…", "busy");
+    try {
+      const res = await apiFetch("api/auth/password", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ current, new: next }),
+      });
+      if (res.ok) {
+        form.reset();
+        profileStatus("Password changed. Other devices are signed out.", "ok");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      profileStatus(res.status === 403 ? "Current password is wrong." : data.detail ? String(data.detail) : "Failed (HTTP " + res.status + ").", "error");
+      if (res.status === 403) form.current.select();
+    } catch (e) {
+      if (e.message !== "not authenticated") profileStatus("Can't reach the bridge.", "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function setupProfile() {
+    const dialog = $("profile");
+    $("profile-open").addEventListener("click", () => {
+      $("profile-form").reset();
+      profileStatus("", "");
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+      $("profile-current").focus();
+    });
+    $("profile-close").addEventListener("click", () => {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    });
+    $("profile-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      changePassword();
+    });
+  }
+
   function setupSettings() {
     $("settings-open").addEventListener("click", openSettings);
     $("settings-close").addEventListener("click", closeSettings);
@@ -1344,6 +1383,7 @@
     setupControls();
     setupLogout();
     setupSettings();
+    setupProfile();
     renderReadings();
     renderStatus();
     // History's time window is based on the bridge clock, so learn the clock
