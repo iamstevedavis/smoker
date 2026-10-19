@@ -12,8 +12,14 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from pydantic import BaseModel, Field
 
 from pitboss_bridge.config import Settings
-from pitboss_bridge.services.mqtt import MqttConfig, MqttPublisher
+from pitboss_bridge.services.alerts import (
+    AlertConfig,
+    AlertEngine,
+    AlertService,
+    NtfySender,
+)
 from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
+from pitboss_bridge.services.mqtt import MqttConfig, MqttPublisher
 from pitboss_bridge.sources.fake import FakeGrillSource
 from pitboss_bridge.store import Database
 from pitboss_bridge.web import mount_dashboard
@@ -117,6 +123,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             health=health,
         )
 
+    alerts: AlertService | None = None
+    if app_settings.ntfy_url:
+        alerts = AlertService(
+            engine=AlertEngine(
+                AlertConfig(
+                    probe1_target=app_settings.alert_probe1_target,
+                    probe2_target=app_settings.alert_probe2_target,
+                    drift_degrees=app_settings.alert_drift_degrees,
+                    drift_seconds=app_settings.alert_drift_minutes * 60,
+                    stale_seconds=app_settings.alert_stale_seconds,
+                    cooldown_seconds=app_settings.alert_cooldown_seconds,
+                )
+            ),
+            hub=hub,
+            health=health,
+            sender=NtfySender(app_settings.ntfy_url, app_settings.ntfy_token),
+            store=store,
+        )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         tasks: list[asyncio.Task[None]] = []
@@ -124,6 +149,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             tasks.append(asyncio.create_task(collector.run()))
         if mqtt is not None:
             tasks.append(asyncio.create_task(mqtt.run()))
+        if alerts is not None:
+            tasks.append(asyncio.create_task(alerts.run()))
         try:
             yield
         finally:

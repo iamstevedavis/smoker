@@ -185,6 +185,16 @@ Keep the grill on an isolated or IoT network. See
 - `PITBOSS_MQTT_HOST`, `PITBOSS_MQTT_PORT` (default `1883`), `PITBOSS_MQTT_USER`,
   `PITBOSS_MQTT_PASSWORD`, `PITBOSS_MQTT_PREFIX` (default `pitboss`): MQTT
   publishing, disabled when the host is unset (see Home Assistant)
+- `PITBOSS_NTFY_URL`, `PITBOSS_NTFY_TOKEN`: ntfy topic URL and optional access
+  token; alerts are off when the URL is unset (see Alerts)
+- `PITBOSS_ALERT_PROBE1_TARGET`, `PITBOSS_ALERT_PROBE2_TARGET`: probe alert
+  temperatures, in the grill's unit; unset disables that alert
+- `PITBOSS_ALERT_DRIFT_DEGREES` (default `25`), `PITBOSS_ALERT_DRIFT_MINUTES`
+  (default `10`): grill-vs-set-temp drift alert
+- `PITBOSS_ALERT_STALE_SECONDS`: seconds without data before a disconnect alert,
+  default `60`
+- `PITBOSS_ALERT_COOLDOWN_SECONDS`: minimum gap before the same alert can fire
+  again, default `0`
 - `PITBOSS_LOG_LEVEL`: bridge log level, default `INFO` (use `DEBUG` when
   troubleshooting BLE)
 
@@ -232,6 +242,35 @@ at it, and the image includes the `mqtt` extra):
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt up --build
 ```
+
+## Alerts
+
+The bridge can push notifications through [ntfy](https://ntfy.sh) with a plain
+HTTP POST, so any phone with the ntfy app gets them. Set `PITBOSS_NTFY_URL` to
+enable it:
+
+```bash
+# public ntfy.sh topic
+PITBOSS_NTFY_URL=https://ntfy.sh/my-long-random-topic-name
+# self-hosted, with an access token
+PITBOSS_NTFY_URL=http://ntfy.lan/smoker PITBOSS_NTFY_TOKEN=tk_...
+```
+
+Subscribe to the same topic in the ntfy app. **A public topic name is effectively
+a password**: anyone who guesses it can read your alerts, so pick a long random
+one or self-host.
+
+Alerts, each sent once per incident and re-armed when the condition clears:
+
+- a probe reaches its target (`PITBOSS_ALERT_PROBE1_TARGET` / `..._PROBE2_TARGET`;
+  the grill's own `p1Target` is not used). Re-arms 5 degrees below the target.
+- the grill is more than 25 degrees from its set temperature for 10 minutes while on
+- no data for 60 seconds, plus a "recovered" message
+- an error flag turns on (`noPellets` is sent as urgent)
+
+Sending happens in a background task with a timeout. A failed send is logged and
+recorded as an `alert_error` health event; sent alerts are recorded as
+`alert_sent`. The collector is never affected.
 
 ## Health Reporting
 
