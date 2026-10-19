@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field
 
 from pitboss_bridge.config import Settings
 from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
@@ -27,6 +28,19 @@ def _parse_time(value: str | None) -> datetime | None:
         if separator and tail.count(":") == 1 and tail[0].isdigit():
             return datetime.fromisoformat(f"{head}+{tail}")
         raise
+
+
+class CookCreate(BaseModel):
+    name: str = Field(min_length=1)
+    notes: str = ""
+    meat: str | None = None
+    weight: str | None = None
+    target_internal_temp: float | None = None
+
+
+class CookUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    notes: str | None = None
 
 
 def _make_source(settings: Settings) -> Any:
@@ -134,6 +148,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         rows = store.list_history(
             since=_parse_time(since),
             until=_parse_time(until),
+            limit=limit,
+            newest_first=order == "desc",
+            bucket_seconds=bucket_seconds,
+        )
+        return {"count": len(rows), "items": rows}
+
+    def _require_cook(cook_id: int) -> dict[str, Any]:
+        cook = store.get_cook(cook_id)
+        if cook is None:
+            raise HTTPException(status_code=404, detail="cook not found")
+        return cook
+
+    @app.post("/api/cooks", status_code=201)
+    async def start_cook(body: CookCreate) -> dict[str, Any]:
+        cook = store.start_cook(**body.model_dump())
+        if cook is None:
+            raise HTTPException(status_code=409, detail="a cook is already active")
+        return cook
+
+    @app.get("/api/cooks")
+    async def list_cooks(limit: int = Query(default=100, ge=1, le=1000)) -> dict[str, Any]:
+        cooks = store.list_cooks(limit=limit)
+        return {"count": len(cooks), "items": cooks}
+
+    @app.get("/api/cooks/{cook_id}")
+    async def get_cook(cook_id: int) -> dict[str, Any]:
+        cook = _require_cook(cook_id)
+        return {**cook, "summary": store.cook_summary(cook)}
+
+    @app.post("/api/cooks/{cook_id}/stop")
+    async def stop_cook(cook_id: int) -> dict[str, Any]:
+        _require_cook(cook_id)
+        cook = store.stop_cook(cook_id)
+        if cook is None:
+            raise HTTPException(status_code=409, detail="cook is already stopped")
+        return cook
+
+    @app.patch("/api/cooks/{cook_id}")
+    async def update_cook(cook_id: int, body: CookUpdate) -> dict[str, Any]:
+        _require_cook(cook_id)
+        return store.update_cook(cook_id, **body.model_dump(exclude_none=True))
+
+    @app.get("/api/cooks/{cook_id}/history")
+    async def cook_history(
+        cook_id: int,
+        limit: int = Query(default=1000, ge=1, le=10000),
+        order: Literal["asc", "desc"] = Query(default="asc"),
+        bucket_seconds: int | None = Query(default=None, ge=1, le=86400),
+    ) -> dict[str, Any]:
+        cook = _require_cook(cook_id)
+        rows = store.list_history(
+            since=_parse_time(cook["started_at"]),
+            until=_parse_time(cook["ended_at"]),
             limit=limit,
             newest_first=order == "desc",
             bucket_seconds=bucket_seconds,

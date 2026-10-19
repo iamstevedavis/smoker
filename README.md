@@ -8,6 +8,7 @@ Milestone 1 uses a fake source for local development and exposes:
 - `GET /api/state`
 - `GET /api/history`
 - `WS /api/live`
+- `/api/cooks` (cook sessions, see below)
 
 `GET /api/history` query parameters (all optional; the response is always
 `{"count": n, "items": [...]}`):
@@ -21,6 +22,28 @@ Milestone 1 uses a fake source for local development and exposes:
   carry the bucket start as `observed_at`, a `samples` count, and empty
   `unknown`/`raw`. `limit` then counts buckets, e.g. a 14-hour cook at
   `bucket_seconds=60` is 840 points
+
+## Cook sessions
+
+Name and review a cook. These endpoints write to the **bridge database only**,
+never to the grill. Only one cook can be active at a time.
+
+```bash
+# start (409 if a cook is already active)
+curl -X POST localhost:8000/api/cooks -H 'content-type: application/json' \
+  -d '{"name": "Brisket", "meat": "beef", "weight": "12 lb", "target_internal_temp": 203}'
+curl -X PATCH localhost:8000/api/cooks/1 -H 'content-type: application/json' \
+  -d '{"notes": "wrapped at 165"}'
+curl -X POST localhost:8000/api/cooks/1/stop
+curl localhost:8000/api/cooks            # newest first
+curl localhost:8000/api/cooks/1          # includes summary stats
+curl 'localhost:8000/api/cooks/1/history?bucket_seconds=60'
+```
+
+`GET /api/cooks/{id}` adds a `summary` (duration, reading count, min/max/avg
+grill temperature, max probe temperatures). `/history` takes the same `limit`,
+`order` and `bucket_seconds` parameters as `/api/history`, restricted to the
+cook's window.
 
 Real BLE validation should happen on a Linux host near the grill.
 
