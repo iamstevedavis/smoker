@@ -12,7 +12,7 @@ import logging
 import time
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 from pitboss_bridge.services.collector import CollectorHealth, StateHub
@@ -110,6 +110,20 @@ class AlertEngine:
 
     def _rule(self, key: str) -> _RuleState:
         return self._rules.setdefault(key, _RuleState())
+
+    def inherit(self, previous: AlertEngine) -> None:
+        """Take over the fired/armed state of the engine this one replaces,
+        so applying settings doesn't re-send alerts for ongoing conditions.
+
+        A probe whose target changed starts fresh: the new target is a new
+        alert. The no-reading clock is not carried, since it belongs to the
+        old collector's health.
+        """
+        self._rules = {key: replace(state) for key, state in previous._rules.items()}
+        for number in (1, 2):
+            attr = f"probe{number}_target"
+            if getattr(self.config, attr) != getattr(previous.config, attr):
+                self._rules.pop(attr, None)
 
     def _fire(self, key: str, notification: Notification) -> list[Notification]:
         """Fire once per incident, honouring the optional cooldown."""

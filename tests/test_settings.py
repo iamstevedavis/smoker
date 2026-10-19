@@ -1,12 +1,15 @@
 import logging
 import os
+import time
 
 import pytest
 from fastapi.testclient import TestClient
 
-from pitboss_bridge import overrides
+from pitboss_bridge import overrides, runtime
 from pitboss_bridge.api import create_app
 from pitboss_bridge.config import EDITABLE_FIELDS, Settings
+from pitboss_bridge.sources.fake import FakeGrillSource
+from pitboss_bridge.state import normalize_state
 from pitboss_bridge.store import Database
 
 
@@ -392,3 +395,42 @@ def test_settings_endpoints_require_login(tmp_path):
         client.post("/api/login", json={"password": "pw"})
         assert client.get("/api/settings").status_code == 200
         assert client.put("/api/settings", json={"poll_seconds": 3}).status_code == 200
+
+
+def test_saving_settings_does_not_resend_active_alerts(tmp_path, monkeypatch):
+    sent: list[str] = []
+
+    class RecordingSender:
+        def __init__(self, url, token=""):
+            pass
+
+        async def send(self, notification):
+            sent.append(notification.key)
+
+    def wait_for_sends(count):
+        deadline = time.monotonic() + 2
+        while len(sent) < count and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.05)  # room for a duplicate to show up
+        return sent
+
+    monkeypatch.setattr(runtime, "NtfySender", RecordingSender)
+    app = create_app(
+        _settings(tmp_path, ntfy_url="http://ntfy.test/t", alert_probe1_target=130)
+    )
+    with TestClient(app) as client:
+        # Probe 1 reads 140, past its 130 target. A new runtime's alert
+        # service checks the current reading as soon as it starts.
+        reading = FakeGrillSource(0)._reading()
+        app.state.hub.current = normalize_state(reading, source="fake")
+        client.put("/api/settings", json={"log_level": "DEBUG"})
+        assert wait_for_sends(1) == ["probe1_target"]
+
+        # Unrelated saves keep the fired state: no repeat.
+        client.put("/api/settings", json={"log_level": "INFO"})
+        client.put("/api/settings", json={"alert_drift_degrees": 30})
+        assert wait_for_sends(2) == ["probe1_target"]
+
+        # A new target is a new alert.
+        client.put("/api/settings", json={"alert_probe1_target": 135})
+        assert wait_for_sends(2) == ["probe1_target", "probe1_target"]
