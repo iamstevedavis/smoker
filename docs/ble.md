@@ -50,8 +50,8 @@ Written for Linux Mint 22 / Ubuntu 24.04. Mint 21 ships Python 3.10, which is
 too old; the setup script explains how to add a newer Python.
 
 ```bash
-git clone https://github.com/iamstevedavis/smoker.git
-cd smoker
+git clone https://github.com/iamstevedavis/smokestack.git
+cd smokestack
 ./scripts/setup.sh    # one time: packages, Bluetooth checks, venv, tests, grill scan
 ./scripts/run.sh      # start the bridge; logs go to logs/
 ./scripts/report.sh   # afterwards: writes reports/report-*.txt

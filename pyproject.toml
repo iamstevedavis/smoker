@@ -35,7 +35,7 @@ test = [
 ]
 
 [project.urls]
-Source = "https://github.com/iamstevedavis/smoker"
+Source = "https://github.com/iamstevedavis/smokestack"
 
 [project.scripts]
 smokestack = "pitboss_bridge.__main__:main"

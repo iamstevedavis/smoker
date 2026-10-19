@@ -7,7 +7,7 @@ services:
       context: .
       args:
         EXTRAS: http
-    image: ghcr.io/iamstevedavis/smoker:latest
+    image: ghcr.io/iamstevedavis/smokestack:latest
     restart: unless-stopped
     # Starts as root only so the entrypoint can hand /data back to `pitboss`
     # if docker-compose.ble.yml (which runs as `nobody`) used the volume last;
