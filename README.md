@@ -9,7 +9,7 @@ A self-hosted, read-only dashboard and alert service for Pit Boss pellet grills 
 Runs on any always-on machine (NAS, mini-PC, Raspberry Pi). No Bluetooth adapter needed.
 
 ```bash
-git clone https://github.com/iamstevedavis/smoker.git && cd smoker
+git clone https://github.com/iamstevedavis/smokestack.git && cd smokestack
 cp .env.example .env        # set PITBOSS_HOST to the grill's IP (and PITBOSS_PASSWORD)
 docker compose up -d --build
 ```
@@ -19,7 +19,7 @@ Open `http://<server>:8000/`, or check `curl http://<server>:8000/api/health`.
 No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up --build`.
 
 - Find the grill's IP in your router's DHCP list and give it a reservation.
-- Multi-arch images (amd64, arm64) are published to `ghcr.io/iamstevedavis/smoker` on each `v*` tag: `docker compose pull && docker compose up -d`.
+- Multi-arch images (amd64, arm64) are published to `ghcr.io/iamstevedavis/smokestack` on each `v*` tag: `docker compose pull && docker compose up -d`.
 - Data lives on the `pitboss-data` volume. Upgrading, backup and migration: [docs/docker.md](docs/docker.md).
 - Not every grill serves local HTTP (ESP-IDF boards such as `PBL2`/`PBC2` don't). If the bridge says so, use [Bluetooth](docs/ble.md): `docker compose -f docker-compose.ble.yml up -d --build`.
 
