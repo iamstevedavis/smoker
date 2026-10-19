@@ -69,6 +69,23 @@ class Database:
                 ON health_events (at)
                 """
             )
+            self._create_cooks_table(conn)
+
+    def _create_cooks_table(self, conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cooks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                notes TEXT NOT NULL DEFAULT '',
+                meat TEXT,
+                weight TEXT,
+                target_internal_temp REAL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT
+            )
+            """
+        )
 
     def insert_reading(self, snapshot: StateSnapshot) -> None:
         with self.connect() as conn:
@@ -252,4 +269,94 @@ class Database:
             "fields": json.loads(row["fields_json"]),
             "unknown": json.loads(row["unknown_json"]),
             "raw": json.loads(row["raw_json"]),
+        }
+
+    # Cooks: bridge-side sessions only, never written to the grill. ----------
+
+    def start_cook(
+        self,
+        name: str,
+        notes: str = "",
+        meat: str | None = None,
+        weight: str | None = None,
+        target_internal_temp: float | None = None,
+        at: datetime | None = None,
+    ) -> dict[str, Any] | None:
+        """Start a cook, or return None if one is already active."""
+        with self.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM cooks WHERE ended_at IS NULL").fetchone():
+                return None
+            cursor = conn.execute(
+                """
+                INSERT INTO cooks (name, notes, meat, weight, target_internal_temp,
+                                   started_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (name, notes, meat, weight, target_internal_temp, _iso(at or utc_now())),
+            )
+            cook_id = cursor.lastrowid
+        return self.get_cook(cook_id)
+
+    def stop_cook(self, cook_id: int, at: datetime | None = None) -> dict[str, Any] | None:
+        """End a cook. Returns None if it is missing or already stopped."""
+        with self.connect() as conn:
+            updated = conn.execute(
+                "UPDATE cooks SET ended_at = ? WHERE id = ? AND ended_at IS NULL",
+                (_iso(at or utc_now()), cook_id),
+            ).rowcount
+        return self.get_cook(cook_id) if updated else None
+
+    def update_cook(self, cook_id: int, **changes: str) -> dict[str, Any] | None:
+        columns = [name for name in changes if name in {"name", "notes"}]
+        if columns:
+            assignments = ", ".join(f"{name} = ?" for name in columns)
+            with self.connect() as conn:
+                conn.execute(
+                    f"UPDATE cooks SET {assignments} WHERE id = ?",
+                    [*(changes[name] for name in columns), cook_id],
+                )
+        return self.get_cook(cook_id)
+
+    def get_cook(self, cook_id: int) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM cooks WHERE id = ?", (cook_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_cooks(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM cooks ORDER BY started_at DESC, id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def cook_summary(self, cook: dict[str, Any]) -> dict[str, Any]:
+        """Duration and temperature stats over the cook's window."""
+        started = cook["started_at"]
+        ended = cook["ended_at"] or _iso(utc_now())
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS readings,
+                       MIN(json_extract(fields_json, '$.grillTemp')) AS grill_min,
+                       MAX(json_extract(fields_json, '$.grillTemp')) AS grill_max,
+                       AVG(json_extract(fields_json, '$.grillTemp')) AS grill_avg,
+                       MAX(json_extract(fields_json, '$.p1Temp')) AS probe1_max,
+                       MAX(json_extract(fields_json, '$.p2Temp')) AS probe2_max
+                FROM readings WHERE observed_at >= ? AND observed_at <= ?
+                """,
+                (started, ended),
+            ).fetchone()
+        grill_avg = row["grill_avg"]
+        return {
+            "duration_seconds": (_parse_dt(ended) - _parse_dt(started)).total_seconds(),
+            "readings": row["readings"],
+            "grill_temp": {
+                "min": row["grill_min"],
+                "max": row["grill_max"],
+                "avg": round(grill_avg, 1) if grill_avg is not None else None,
+            },
+            "probe1_max": row["probe1_max"],
+            "probe2_max": row["probe2_max"],
         }
