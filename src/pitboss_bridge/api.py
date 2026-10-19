@@ -40,6 +40,15 @@ def _make_source(settings: Settings) -> Any:
             password=settings.password,
             poll_seconds=settings.poll_seconds,
         )
+    if settings.source == "http":
+        from pitboss_bridge.sources.pytboss_http import PytbossHttpSource
+
+        return PytbossHttpSource(
+            model=settings.model,
+            host=settings.host,
+            password=settings.password,
+            poll_seconds=settings.poll_seconds,
+        )
     raise ValueError(f"Unsupported PITBOSS_SOURCE={settings.source!r}")
 
 
