@@ -164,11 +164,13 @@ class Runtime:
 
         self.alerts: AlertService | None = None
         if settings.ntfy_url:
+            # Probe targets are set from the dashboard, not from Settings.
+            targets = store.load_probe_targets()
             self.alerts = AlertService(
                 engine=AlertEngine(
                     AlertConfig(
-                        probe1_target=settings.alert_probe1_target,
-                        probe2_target=settings.alert_probe2_target,
+                        probe1_target=targets.get(1),
+                        probe2_target=targets.get(2),
                         drift_degrees=settings.alert_drift_degrees,
                         drift_seconds=settings.alert_drift_minutes * 60,
                         stale_seconds=settings.alert_stale_seconds,
@@ -193,6 +195,10 @@ class Runtime:
         (same grill only; the caller checks)."""
         if self.alerts is not None and previous.alerts is not None:
             self.alerts.engine.inherit(previous.alerts.engine)
+
+    def set_probe_targets(self, probe1: float | None, probe2: float | None) -> None:
+        if self.alerts is not None:
+            self.alerts.engine.set_probe_targets(probe1, probe2)
 
     async def start(self) -> None:
         # Alerts first, so they subscribe before the collector's first reading.

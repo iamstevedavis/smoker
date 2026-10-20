@@ -125,12 +125,50 @@
         <div class="mid reading"><span data-temp>--</span><span class="unit" data-unit>°F</span></div>
         <div class="probe-target" data-target>Not connected</div>
         <div class="meter thin" aria-hidden="true"><div class="meter-fill meter-p1" data-fill></div></div>
+        <div class="probe-alert" data-probe="1">
+          <button type="button" class="alert-btn" data-alert-open aria-expanded="false" aria-controls="alert-form-1">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span data-alert-label>Set alert</span>
+          </button>
+          <form id="alert-form-1" class="alert-form" data-alert-form novalidate hidden>
+            <label for="alert-input-1">Alert when probe 1 reaches</label>
+            <div class="with-unit">
+              <input id="alert-input-1" type="number" inputmode="decimal" step="any" min="1" max="1000" autocomplete="off">
+              <span class="unit-label" data-unit>°F</span>
+            </div>
+            <div class="alert-actions">
+              <button type="submit" class="alert-save">Set</button>
+              <button type="button" class="link-btn" data-alert-clear>Clear</button>
+              <button type="button" class="link-btn" data-alert-cancel>Cancel</button>
+            </div>
+            <p class="alert-note" data-alert-note role="status" aria-live="polite"></p>
+          </form>
+        </div>
       </article>
       <article class="card probe" id="probe-2">
         <div class="card-label"><span class="key key-p2" aria-hidden="true"></span>Probe 2</div>
         <div class="mid reading"><span data-temp>--</span><span class="unit" data-unit>°F</span></div>
         <div class="probe-target" data-target>Not connected</div>
         <div class="meter thin" aria-hidden="true"><div class="meter-fill meter-p2" data-fill></div></div>
+        <div class="probe-alert" data-probe="2">
+          <button type="button" class="alert-btn" data-alert-open aria-expanded="false" aria-controls="alert-form-2">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            <span data-alert-label>Set alert</span>
+          </button>
+          <form id="alert-form-2" class="alert-form" data-alert-form novalidate hidden>
+            <label for="alert-input-2">Alert when probe 2 reaches</label>
+            <div class="with-unit">
+              <input id="alert-input-2" type="number" inputmode="decimal" step="any" min="1" max="1000" autocomplete="off">
+              <span class="unit-label" data-unit>°F</span>
+            </div>
+            <div class="alert-actions">
+              <button type="submit" class="alert-save">Set</button>
+              <button type="button" class="link-btn" data-alert-clear>Clear</button>
+              <button type="button" class="link-btn" data-alert-cancel>Cancel</button>
+            </div>
+            <p class="alert-note" data-alert-note role="status" aria-live="polite"></p>
+          </form>
+        </div>
       </article>
     </section>
 

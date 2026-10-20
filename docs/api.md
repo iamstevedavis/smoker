@@ -92,13 +92,24 @@ three endpoints sit behind the login.
   Field names are the variable names without `PITBOSS_`, lower case. The
   whole update is validated first; any bad field returns 422 and nothing
   changes. Otherwise the values are saved and the source, MQTT and alerts are
-  restarted with them. Returns the same shape as `GET`. `null` clears a probe
-  target; an empty `mqtt_host` or `ntfy_url` turns that service off.
+  restarted with them. Returns the same shape as `GET`. An empty `mqtt_host`
+  or `ntfy_url` turns that service off.
 - `DELETE /api/settings/{name}`: drop the saved value so the field falls back
   to the environment or default, and apply.
 
 After applying, `GET /api/health` reports the new source, starting from
 `connected: false` until its first reading.
+
+## Probe alert targets
+
+The temperatures at which each probe sends an ntfy alert. Behind the login.
+
+- `GET /api/probe-targets`: `{"probe1": 203, "probe2": null, "alerts_enabled": true}`.
+  `alerts_enabled` is false while no ntfy URL is set; targets are kept either way.
+- `PUT /api/probe-targets`: partial update, e.g. `{"probe1": 203}`; `null`
+  clears a target. Values must be above 0 and at most 1000. Applied to the
+  running alerts at once, without restarting the source. Returns the same shape
+  as `GET`.
 
 ## Health
 

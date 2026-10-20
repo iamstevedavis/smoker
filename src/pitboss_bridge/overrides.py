@@ -29,7 +29,7 @@ _SOURCE_FIELDS = frozenset({"source", "host", "device_name"})
 
 class SettingsUpdate(BaseModel):
     """A partial update. Omitted fields are left alone; unknown or env-only
-    fields are rejected. Only the probe targets accept null (no alert)."""
+    fields are rejected."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -47,8 +47,6 @@ class SettingsUpdate(BaseModel):
     mqtt_prefix: str = Field(default=None, min_length=1, pattern=r"^[^#+]+$")
     ntfy_url: str = Field(default=None)
     ntfy_token: str = Field(default=None)
-    alert_probe1_target: float | None = Field(default=None, gt=0, le=1000)
-    alert_probe2_target: float | None = Field(default=None, gt=0, le=1000)
     alert_drift_degrees: float = Field(default=None, gt=0)
     alert_drift_minutes: float = Field(default=None, gt=0)
     alert_stale_seconds: float = Field(default=None, gt=0)

@@ -15,11 +15,6 @@ def _bool_env(name: str, default: bool) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
-def _opt_float_env(name: str) -> float | None:
-    raw = os.getenv(name)
-    return float(raw) if raw else None
-
-
 @dataclass(frozen=True)
 class Settings:
     """Runtime settings."""
@@ -41,8 +36,6 @@ class Settings:
     mqtt_prefix: str = "pitboss"
     ntfy_url: str = ""
     ntfy_token: str = ""
-    alert_probe1_target: float | None = None
-    alert_probe2_target: float | None = None
     alert_drift_degrees: float = 25.0
     alert_drift_minutes: float = 10.0
     alert_stale_seconds: float = 60.0
@@ -69,8 +62,6 @@ class Settings:
             mqtt_prefix=os.getenv("PITBOSS_MQTT_PREFIX", "pitboss"),
             ntfy_url=os.getenv("PITBOSS_NTFY_URL", ""),
             ntfy_token=os.getenv("PITBOSS_NTFY_TOKEN", ""),
-            alert_probe1_target=_opt_float_env("PITBOSS_ALERT_PROBE1_TARGET"),
-            alert_probe2_target=_opt_float_env("PITBOSS_ALERT_PROBE2_TARGET"),
             alert_drift_degrees=float(os.getenv("PITBOSS_ALERT_DRIFT_DEGREES", "25")),
             alert_drift_minutes=float(os.getenv("PITBOSS_ALERT_DRIFT_MINUTES", "10")),
             alert_stale_seconds=float(os.getenv("PITBOSS_ALERT_STALE_SECONDS", "60")),
@@ -102,8 +93,6 @@ EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
     "alerts": (
         "ntfy_url",
         "ntfy_token",
-        "alert_probe1_target",
-        "alert_probe2_target",
         "alert_drift_degrees",
         "alert_drift_minutes",
         "alert_stale_seconds",

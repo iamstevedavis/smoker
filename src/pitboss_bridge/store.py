@@ -81,6 +81,16 @@ class Database:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS probe_targets (
+                    probe INTEGER PRIMARY KEY CHECK (probe IN (1, 2)),
+                    target REAL NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            self._move_probe_targets_out_of_settings(conn)
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS auth (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     password_hash TEXT NOT NULL,
@@ -105,6 +115,51 @@ class Database:
             )
             """
         )
+
+    def _move_probe_targets_out_of_settings(self, conn: sqlite3.Connection) -> None:
+        """Probe targets used to be saved as settings; carry them over."""
+        for probe in (1, 2):
+            name = f"alert_probe{probe}_target"
+            row = conn.execute(
+                "SELECT value_json FROM settings WHERE name = ?", (name,)
+            ).fetchone()
+            if row is None:
+                continue
+            value = json.loads(row["value_json"])
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO probe_targets (probe, target, updated_at)
+                    VALUES (?, ?, ?)
+                    """,
+                    (probe, float(value), _iso(utc_now())),
+                )
+            conn.execute("DELETE FROM settings WHERE name = ?", (name,))
+
+    def load_probe_targets(self) -> dict[int, float]:
+        """Probe alert targets set from the dashboard, by probe number."""
+        with self.connect() as conn:
+            rows = conn.execute("SELECT probe, target FROM probe_targets").fetchall()
+        return {row["probe"]: row["target"] for row in rows}
+
+    def save_probe_targets(self, targets: dict[int, float | None]) -> None:
+        """Set or (with None) clear several probe targets in one transaction."""
+        now = _iso(utc_now())
+        with self.connect() as conn:
+            for probe, target in targets.items():
+                if target is None:
+                    conn.execute("DELETE FROM probe_targets WHERE probe = ?", (probe,))
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO probe_targets (probe, target, updated_at)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(probe) DO UPDATE SET
+                            target = excluded.target,
+                            updated_at = excluded.updated_at
+                        """,
+                        (probe, target, now),
+                    )
 
     def load_settings(self) -> dict[str, Any]:
         """Return the settings saved from the dashboard, by field name."""

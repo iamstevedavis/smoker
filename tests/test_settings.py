@@ -209,16 +209,73 @@ def test_source_without_its_host_is_rejected(tmp_path, monkeypatch):
     assert app.state.store.load_settings() == {}
 
 
-def test_probe_targets_can_be_cleared_with_null(tmp_path):
-    app = create_app(_settings(tmp_path, alert_probe1_target=203))
-    with TestClient(app) as client:
-        fields = _fields(
-            client.put("/api/settings", json={"alert_probe1_target": None}).json()
-        )
+def test_probe_targets_are_not_settings(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        assert "alert_probe1_target" not in _fields(client.get("/api/settings").json())
+        response = client.put("/api/settings", json={"alert_probe1_target": 203})
 
-    assert fields["alert_probe1_target"]["value"] is None
-    assert fields["alert_probe1_target"]["origin"] == "ui"
-    assert app.state.store.load_settings() == {"alert_probe1_target": None}
+    assert response.status_code == 422
+
+
+def test_probe_targets_are_set_and_cleared(tmp_path):
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        assert client.get("/api/probe-targets").json() == {
+            "probe1": None,
+            "probe2": None,
+            "alerts_enabled": False,
+        }
+        runtime = app.state.runtime
+        body = client.put("/api/probe-targets", json={"probe1": 203}).json()
+        assert body == {"probe1": 203, "probe2": None, "alerts_enabled": False}
+        # Partial: probe 1 keeps its target.
+        body = client.put("/api/probe-targets", json={"probe2": 165}).json()
+        assert body["probe1"] == 203 and body["probe2"] == 165
+        body = client.put("/api/probe-targets", json={"probe1": None}).json()
+        assert body["probe1"] is None and body["probe2"] == 165
+
+    # Applied in place, without restarting the grill connection.
+    assert app.state.runtime is runtime
+    assert app.state.store.load_probe_targets() == {2: 165}
+    assert app.state.store.load_settings() == {}
+
+
+@pytest.mark.parametrize(
+    "body", [{"probe1": 0}, {"probe2": 1001}, {"probe3": 100}, {"probe1": "hot"}]
+)
+def test_bad_probe_targets_are_rejected(tmp_path, body):
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        assert client.put("/api/probe-targets", json=body).status_code == 422
+
+    assert app.state.store.load_probe_targets() == {}
+
+
+def test_probe_targets_reach_the_alert_engine_and_survive_a_swap(tmp_path):
+    app = create_app(_settings(tmp_path, ntfy_url="http://ntfy.test/t"))
+    with TestClient(app) as client:
+        assert client.get("/api/probe-targets").json()["alerts_enabled"] is True
+        client.put("/api/probe-targets", json={"probe1": 203})
+        assert app.state.runtime.alerts.engine.config.probe1_target == 203
+
+        client.put("/api/settings", json={"alert_drift_degrees": 30})
+        assert app.state.runtime.alerts.engine.config.probe1_target == 203
+
+        # Turning ntfy off keeps the targets for when it comes back.
+        client.put("/api/settings", json={"ntfy_url": ""})
+        assert client.get("/api/probe-targets").json() == {
+            "probe1": 203,
+            "probe2": None,
+            "alerts_enabled": False,
+        }
+
+
+def test_probe_targets_require_login(tmp_path):
+    settings = _settings(tmp_path)
+    finish_setup(settings, password="pw", required=True)
+    with TestClient(api.create_app(settings)) as client:
+        assert client.get("/api/probe-targets").status_code == 401
+        assert client.put("/api/probe-targets", json={"probe1": 200}).status_code == 401
 
 
 def test_reset_unknown_or_env_only_field_is_404(tmp_path):
@@ -367,9 +424,10 @@ def test_saving_settings_does_not_resend_active_alerts(tmp_path, monkeypatch):
         return sent
 
     monkeypatch.setattr(runtime, "NtfySender", RecordingSender)
-    app = create_app(
-        _settings(tmp_path, ntfy_url="http://ntfy.test/t", alert_probe1_target=130)
-    )
+    settings = _settings(tmp_path, ntfy_url="http://ntfy.test/t")
+    Database(settings.db_path).initialize()
+    Database(settings.db_path).save_probe_targets({1: 130})
+    app = create_app(settings)
     with TestClient(app) as client:
         # Probe 1 reads 140, past its 130 target. A new runtime's alert
         # service checks the current reading as soon as it starts.
@@ -383,6 +441,7 @@ def test_saving_settings_does_not_resend_active_alerts(tmp_path, monkeypatch):
         client.put("/api/settings", json={"alert_drift_degrees": 30})
         assert wait_for_sends(2) == ["probe1_target"]
 
-        # A new target is a new alert.
-        client.put("/api/settings", json={"alert_probe1_target": 135})
+        # A new target is a new alert, sent without restarting anything.
+        client.put("/api/probe-targets", json={"probe1": 135})
+        client.portal.call(app.state.hub.publish, app.state.hub.current)
         assert wait_for_sends(2) == ["probe1_target", "probe1_target"]
