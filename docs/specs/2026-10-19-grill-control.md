@@ -92,13 +92,13 @@ firmware clears its status cache, so the next state frame comes back blank.
   them. So they stop depending on the grill's unit at all:
   - Each probe target is stored with the unit it was entered in (a `unit`
     column on `probe_targets`). Existing rows were entered in whatever unit
-    the grill reported at the time, so the migration takes each row's unit
-    from the latest reading with a known `isFahrenheit` at or before that
-    row's `updated_at`; a later reading may follow a unit switch, so it is
-    never used. When no such reading exists (none yet, or pruned), the unit
-    is left unknown: that target is not compared, and the dashboard marks it
-    "re-enter this target" until it is saved again. Guessing could delay an
-    alert by hundreds of degrees; a flagged target cannot. A new target is
+    the grill reported at the time, which cannot be recovered reliably: the
+    latest reading may follow a unit switch, and rows carried over from the
+    old settings storage have a synthetic `updated_at` (the migration time).
+    So every existing row is migrated with an unknown unit: that target is
+    not compared, and the dashboard marks it "re-enter this target" until it
+    is saved again. That is at most two numbers to re-enter once, and a
+    guessed unit could delay an alert by hundreds of degrees. A new target is
     saved in the unit of the latest reading, and saving is rejected while
     that unit is unknown.
   - The drift threshold is defined in Fahrenheit degrees and scaled by 5/9
@@ -108,13 +108,15 @@ firmware clears its status cache, so the next state frame comes back blank.
     rewritten when the unit changes, however it changes. A reading with no
     known unit is not compared.
 
-  For a grill already in Celsius, this changes what an existing drift setting
-  means (25 becomes about 14 C), so the implementation PR carries the
-  `breaking` label and says so. Stored readings keep `isFahrenheit` with each
+  Saved probe targets must be re-entered once after upgrading, and for a
+  grill already in Celsius an existing drift setting changes meaning (25
+  becomes about 14 C), so the implementation PR carries the `breaking` label
+  and says both. Stored readings keep `isFahrenheit` with each
   snapshot, so history stays readable and is not rewritten. Tests cover a
   target saved in F and checked against C readings and the reverse, a unit
-  switch with no command at all, and the migration (targets saved on either
-  side of a unit switch, and a target with no reading before it).
+  switch with no command at all, and the migration (every existing target,
+  including one carried over from the settings table, ends up flagged and is
+  not compared until re-entered).
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise) and a
