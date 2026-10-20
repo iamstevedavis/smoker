@@ -1,0 +1,62 @@
+name: Grill report
+description: Tell us whether Smokestack works with your grill, working or not.
+labels: [grill-report]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports like this decide which grills are listed as working in
+        [Does my grill work?](https://github.com/iamstevedavis/smokestack/blob/master/docs/compatibility.md).
+        Thanks for testing.
+  - type: input
+    id: model
+    attributes:
+      label: Grill model
+      description: As pytboss spells it, the `PITBOSS_MODEL` you used.
+      placeholder: PB850PS2
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Control board
+      description: The start of the grill's Bluetooth name (`PBL-...` means `PBL`), if you know it.
+      placeholder: PBL
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source
+      multiple: true
+      options:
+        - WiFi (http)
+        - Bluetooth (ble)
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Does it work?
+      options:
+        - "Yes: readings match the grill"
+        - Partly (some readings missing or wrong)
+        - "No: no readings"
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What you saw
+      description: Which readings were right, missing or wrong (grill temp, set temp, probes), and anything odd.
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: /api/health output
+      description: "`curl http://<server>:8000/api/health`"
+      render: json
+  - type: input
+    id: firmware
+    attributes:
+      label: Grill firmware
+      description: Optional, if the Pit Boss app shows it.
