@@ -4,6 +4,9 @@ changelog:
   exclude:
     labels: [duplicate, invalid, wontfix]
   categories:
+    # First, so a breaking feature or fix is listed here and not lower down.
+    - title: Breaking changes
+      labels: [breaking]
     - title: Features
       labels: [enhancement]
     - title: Fixes

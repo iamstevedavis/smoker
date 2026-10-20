@@ -20,7 +20,9 @@ Pre-releases add a suffix: `0.2.0-rc.1`, `0.2.0-rc.2`.
 
 1. Make sure the PRs since the last release have labels. The notes group them
    by `enhancement`, `bug` and `documentation`; anything else goes under
-   "Other changes" ([`.github/release.yml`](../.github/release.yml)).
+   "Other changes" ([`.github/release.yml`](../.github/release.yml)). Add
+   `breaking` to anything that needs action when upgrading (renamed settings,
+   moved data); those PRs are listed first, under "Breaking changes".
 2. Bump `version` in `pyproject.toml`, the only place it's written, in a PR
    to `master`. Write pre-releases the way the tag spells them
    (`0.2.0-rc.1`), since the release checks the two match. The installed
