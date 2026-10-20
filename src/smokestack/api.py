@@ -18,7 +18,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, ConfigDict, Field
 
-from smokestack import auth, overrides
+from smokestack import __version__, auth, overrides
 from smokestack.config import EDITABLE_FIELDS, Settings
 from smokestack.runtime import Runtime, configure_logging, make_source
 from smokestack.services.collector import StateHub
@@ -116,7 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         auth.load_or_create_key(base_settings.db_path.parent / auth.KEY_FILENAME),
     )
 
-    app = FastAPI(title="Smokestack", lifespan=lifespan)
+    app = FastAPI(title="Smokestack", version=__version__, lifespan=lifespan)
     app.add_middleware(auth.AuthGate, state=auth_state)
     app.state.store = store
     app.state.auth = auth_state
@@ -130,7 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/health")
     async def health_endpoint() -> dict[str, Any]:
-        return app.state.health.to_api_dict()
+        return {**app.state.health.to_api_dict(), "version": __version__}
 
     def session_payload(request: Request) -> dict[str, Any]:
         return {
