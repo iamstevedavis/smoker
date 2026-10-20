@@ -21,8 +21,7 @@ In scope, all in the first release:
 
 1. **Turn off** (lowest risk: it only ever reduces heat).
 2. **Set grill temperature**, snapped to values the board accepts.
-3. **Set temperature unit** (F or C), only while the grill is off.
-4. **Reboot the WiFi module**, which leaves the grill itself running.
+3. **Reboot the WiFi module**, which leaves the grill itself running.
 
 Out of scope, deliberately:
 
@@ -34,6 +33,10 @@ Out of scope, deliberately:
 - **Grill password and WiFi changes.** Deferred, not rejected; tracked in its
   own issue (#54). A wrong WiFi network or password cuts the grill off from the
   bridge, which then cannot undo the change.
+- **Switching the grill's temperature unit.** Deferred to #58. It depends on
+  #57: the bridge's probe and drift alert thresholds are stored without a
+  unit, so a unit switch (already possible from the grill's panel) silently
+  breaks them.
 - Writing probe targets to the grill (`p1Target` is unreliable, see
   `docs/fields.md`). The probe alert targets from #37 are stored in the bridge
   and never sent to the grill, so they are unaffected. Primer motor, light
@@ -48,7 +51,6 @@ Commands relevant here (checked against pytboss 2026.8.6):
 | --- | --- | --- | --- |
 | Turn off | `turn_grill_off()` | MCU `turn-off` `FE0102FF` | Worked first try in the 2026-10-18 test; the fan runs about 10 min afterwards (normal shutdown cycle) |
 | Set temperature | `set_grill_temperature(temp)` | MCU `set-temperature` | Snapped to the nearest of `180/190/.../300/325/350/375/400/450/500`, in the grill's current unit |
-| Set unit | `set_temperature_unit(fahrenheit)` | MCU `set-fahrenheit` `FE0901FF` / `set-celsius` `FE0902FF` | The grill's own unit, shown on its panel and used by every value it reports |
 | Reboot WiFi module | `reboot()` | RPC `Sys.Reboot` | No answer: the module restarts before it can reply. The grill keeps running |
 
 Every MCU command is an authenticated `PB.SendMCUCommand`. After one, the
@@ -78,45 +80,6 @@ firmware clears its status cache, so the next state frame comes back blank.
   grill's current unit (as `pytboss` expects), is snapped to the board's
   accepted setpoints, and the snapped value is reported back. If the grill's
   unit is unknown, set-temperature is rejected.
-- **Unit only while off.** Set-unit is accepted only when the latest fresh
-  snapshot has `moduleIsOn` explicitly `false`; `true` or a missing field
-  rejects it, since a snapshot can carry any subset of fields. A running cook
-  never switches unit part way.
-- **Unit-safe alert thresholds.** Today the bridge's probe alert targets
-  (#37) and the drift alert threshold are plain numbers in whatever unit the
-  grill reports, and they survive between cooks: a 200 F probe target would
-  be compared with Celsius readings after a switch. Converting them when a
-  set-unit is confirmed is not enough, because a switch that the grill
-  applies but the bridge reports as `unconfirmed` (or one made at the grill's
-  panel or in the vendor app) would leave them wrong with nothing to fix
-  them. So they stop depending on the grill's unit at all:
-  - Each probe target is stored with the unit it was entered in (a `unit`
-    column on `probe_targets`). Existing rows were entered in whatever unit
-    the grill reported at the time, which cannot be recovered reliably: the
-    latest reading may follow a unit switch, and rows carried over from the
-    old settings storage have a synthetic `updated_at` (the migration time).
-    So every existing row is migrated with an unknown unit: that target is
-    not compared, and the dashboard marks it "re-enter this target" until it
-    is saved again. That is at most two numbers to re-enter once, and a
-    guessed unit could delay an alert by hundreds of degrees. A new target is
-    saved in the unit of the latest reading, and saving is rejected while
-    that unit is unknown.
-  - The drift threshold is defined in Fahrenheit degrees and scaled by 5/9
-    when comparing Celsius readings.
-  - The alert engine converts each threshold to the unit of the reading it is
-    comparing against (`isFahrenheit` on that snapshot), every time. Nothing is
-    rewritten when the unit changes, however it changes. A reading with no
-    known unit is not compared.
-
-  Saved probe targets must be re-entered once after upgrading, and for a
-  grill already in Celsius an existing drift setting changes meaning (25
-  becomes about 14 C), so the implementation PR carries the `breaking` label
-  and says both. Stored readings keep `isFahrenheit` with each
-  snapshot, so history stays readable and is not rewritten. Tests cover a
-  target saved in F and checked against C readings and the reverse, a unit
-  switch with no command at all, and the migration (every existing target,
-  including one carried over from the settings table, ends up flagged and is
-  not compared until re-entered).
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise) and a
@@ -137,16 +100,15 @@ firmware clears its status cache, so the next state frame comes back blank.
 
 A command is not "done" because the RPC returned. Flow:
 
-1. Validate (session, enabled, snapping, unit-while-off, rate limit, source
-   health), then take the command lock.
+1. Take the command lock, then validate (session, enabled, snapping, rate
+   limit, source health) against the latest snapshot, so the checks see the
+   state the command is sent into.
 2. **Idempotence check** against the current state: `turn-off` when
    `moduleIsOn` is already false, `set-temperature` when `grillSetTemp` already
-   equals the snapped target, or `set-unit` when `isFahrenheit` already matches,
-   returns `already_applied` without sending anything. These commands are
+   equals the snapped target, returns `already_applied` without sending anything. These commands are
    absolute ("be in this state"), not relative, so a repeat is safe. `reboot`
    has no target state and is always sent. A missing field never counts as
-   already applied: the command is sent (or, for set-unit, rejected as
-   above).
+   already applied: the command is sent.
 3. Send via the source's own connection (see Source support).
 4. **Ignore the blank frame.** A state frame with no known fields right after an
    MCU command is the firmware cache reset, not a reading: it must not be stored
@@ -154,8 +116,7 @@ A command is not "done" because the RPC returned. Flow:
    needs a small change to the collector, which today would persist an empty
    snapshot.
 5. Poll for up to 30 s (about 4 BLE polls) until the expected state appears
-   (`moduleIsOn == false`, `grillSetTemp == target`, or `isFahrenheit ==
-   requested`). For `reboot`, wait up to 90 s for the source to drop and
+   (`moduleIsOn == false` or `grillSetTemp == target`). For `reboot`, wait up to 90 s for the source to drop and
    reconnect and for a fresh frame to arrive; the stale-data alert is held
    back for that window so a deliberate reboot does not page anyone.
 6. Result, returned and stored as `last_result`:
@@ -187,7 +148,6 @@ Always registered; every route needs a logged-in session:
   switched off, or the source does not support commands.
 - `POST /api/control/turn-off`
 - `POST /api/control/set-temperature` with `{"temp": 225}`
-- `POST /api/control/set-unit` with `{"unit": "F"}` or `{"unit": "C"}`
 - `POST /api/control/reboot`
 
 Each POST returns the result object above plus the audit event id.
@@ -198,36 +158,31 @@ The dashboard shows a **Controls** section when `/api/control` reports control
 enabled, and explains `reason` when it is not available. Each action opens a
 confirmation dialog stating exactly what will happen ("Turn the grill off. The
 fan will run for about 10 minutes."; "Set grill to 250 F, currently 225 F",
-showing the snapped value when it differs from what was typed; "Switch the
-grill to Celsius"; "Restart the grill's WiFi module. The grill keeps running;
+showing the snapped value when it differs from what was typed; "Restart the grill's WiFi module. The grill keeps running;
 the dashboard goes blank for up to a minute."). After sending, the panel shows
 the last command, its time, and its result until replaced, with a spinner
 while confirming. Every result state has its own wording: `confirmed`,
 `unconfirmed`, `failed`, and `already_applied` ("The grill was already off" /
 "already set to 250 F"; nothing was sent), which also clears the spinner. The
-control buttons are disabled while the source is stale, and the unit buttons
-while the grill is on.
+control buttons are disabled while the source is stale.
 
 ## Testing without a live fire
 
 - The **fake source implements the commands**: `turn-off` flips `moduleIsOn`
   and winds the simulated temperature down, `set-temperature` updates
-  `grillSetTemp`, `set-unit` flips `isFahrenheit` and converts its values,
-  `reboot` drops the stream briefly and reconnects. It also supports failure
+  `grillSetTemp`, `reboot` drops the stream briefly and reconnects. It also supports failure
   injection (RPC error, ignored command so the state never changes, blank frame
   after a command, `Unauthorized` once, a reboot that never comes back).
 - Unit tests cover the session requirement (including login switched off),
   the enable setting and its save round-trip, snapping (including a Celsius
-  grill), set-unit rejection while on or with `moduleIsOn` missing, idempotence
-  with missing fields, rate limiting, the command lock,
-  idempotence, each result state (in the API and in the dashboard, including
+  grill), rate limiting, the command lock, idempotence (including missing
+  fields), each result state (in the API and in the dashboard, including
   `already_applied`), the blank-frame handling, the held-back stale alert
   during a reboot, the retention exemption, and the audit rows, using
   `FakeBoss` objects in the style of `tests/test_ble_poll_state.py`.
 - CI never talks to a real grill. The one hardware step is a manual
   checklist, run by the owner standing at the grill, over both `http` and BLE:
-  `turn-off` first, then a single `set-temperature`, then `set-unit` both ways
-  with the grill off, then `reboot`, comparing the grill with each result.
+  `turn-off` first, then a single `set-temperature`, then `reboot`, comparing the grill with each result.
 
 ## Decisions
 
@@ -241,18 +196,17 @@ Answered by the owner on 2026-10-20:
    editable from the dashboard rather than environment-only.
 6. `control_command` audit rows are kept until pruned by hand, from a
    dashboard view tracked in #55.
-7. Set-unit and WiFi-module reboot are in scope; grill password and WiFi
-   changes are deferred to #54. The hourly rate limit is dropped.
+7. WiFi-module reboot is in scope; grill password and WiFi changes are
+   deferred to #54, and switching the temperature unit to #58 (after #57).
+   The hourly rate limit is dropped.
 
 ## Follow-up implementation issue (to open after approval)
 
-Title: "Implement grill control (turn-off, set-temperature, set-unit, reboot)
-per `docs/specs/2026-10-19-grill-control.md`". Tasks: the `enable_control`
+Title: "Implement grill control (turn-off, set-temperature, reboot) per `docs/specs/2026-10-19-grill-control.md`". Tasks: the `enable_control`
 setting (env, `EDITABLE_GROUPS`, `overrides.SettingsUpdate`, dashboard field,
 docs); `execute` on sources and the command queue; blank-frame handling in the
 collector; control service (validation, rate limit, idempotence, confirmation,
-audit); the control header and `Origin` check; unit-safe alert thresholds
-(probe targets stored with their unit, drift threshold in F); retention
+audit); the control header and `Origin` check; retention
 exemption for audit rows; `/api/control` routes; fake-source
 commands with failure injection; dashboard Controls section; README and tests.
 It is not opened yet because the design is not approved.
