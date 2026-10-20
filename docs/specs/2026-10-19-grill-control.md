@@ -63,17 +63,36 @@ firmware clears its status cache, so the next state frame comes back blank.
 - **Logged in only.** Control needs a valid dashboard session (#36). If
   dashboard login is switched off (`PUT /api/auth`), control is unavailable
   even when enabled: the dashboard is read-only to anyone who is not logged in.
-  There is no separate control token. The session cookie is `HttpOnly` and
-  `SameSite=Strict`, so a page on another site cannot send a command through
-  the browser's session.
+  There is no separate control token.
+- **No cross-site requests.** The session cookie is `HttpOnly` and
+  `SameSite=Strict`, but that alone still lets another service on the same
+  site (a sibling subdomain, another port on the same host) send it, and the
+  bodyless `turn-off` and `reboot` POSTs would be simple requests with no CORS
+  preflight. So every control POST must also carry an
+  `X-Smokestack-Control: 1` header, which makes any cross-origin request need
+  a preflight the bridge never grants (it has no CORS middleware), and is
+  rejected with 403 when its `Origin` header is present and does not match
+  the request's own `Host`. The dashboard sends the header; tests cover a
+  missing header and a foreign `Origin`.
 - **Temperature.** No bounds beyond the board's own: a request is in the
   grill's current unit (as `pytboss` expects), is snapped to the board's
   accepted setpoints, and the snapped value is reported back. If the grill's
   unit is unknown, set-temperature is rejected.
-- **Unit only while off.** Set-unit is rejected while `moduleIsOn` is true.
-  Stored readings, the bridge's probe alert targets (#37) and the drift alert
-  threshold are plain numbers in whatever unit the grill reports, so changing
-  the unit mid-cook would make them wrong.
+- **Unit only while off.** Set-unit is rejected while `moduleIsOn` is true,
+  so a running cook never switches unit part way.
+- **Converting stored values on a unit change.** The bridge's probe alert
+  targets (#37) and the drift alert threshold are plain numbers in whatever
+  unit the grill reports, and they survive between cooks: a 200 F probe
+  target would be compared with Celsius readings after a switch. So when a
+  set-unit is `confirmed`, the bridge converts them in the same step: probe
+  targets as temperatures (`(F - 32) * 5/9` and back), and the drift
+  threshold as a difference (`* 5/9` or `* 9/5`), saved as a dashboard
+  override since an `.env` value cannot be rewritten. On `unconfirmed` or
+  `failed` nothing is converted, and a later reading that shows the new unit
+  does not trigger a conversion either; the UI says to check the targets.
+  Stored readings keep `isFahrenheit` with each snapshot, so history stays
+  readable and is not rewritten. Tests round-trip F to C to F and check the
+  values come back.
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise) and a
@@ -205,6 +224,8 @@ per `docs/specs/2026-10-19-grill-control.md`". Tasks: the `enable_control`
 setting (env, `EDITABLE_GROUPS`, `overrides.SettingsUpdate`, dashboard field,
 docs); `execute` on sources and the command queue; blank-frame handling in the
 collector; control service (validation, rate limit, idempotence, confirmation,
-audit); retention exemption for audit rows; `/api/control` routes; fake-source
+audit); the control header and `Origin` check; converting stored probe
+targets and the drift threshold on a confirmed unit change; retention
+exemption for audit rows; `/api/control` routes; fake-source
 commands with failure injection; dashboard Controls section; README and tests.
 It is not opened yet because the design is not approved.
