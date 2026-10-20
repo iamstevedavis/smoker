@@ -102,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await app.state.runtime.stop()
 
+    auth.import_legacy_password(store)
     auth_state = auth.AuthState(
         store,
         auth.load_or_create_key(base_settings.db_path.parent / auth.KEY_FILENAME),
