@@ -3,6 +3,10 @@
 Status: **proposed, awaiting owner approval** (issue #17). Nothing here is
 implemented, and nothing may be until it is approved.
 
+Revised 2026-10-20 for what has landed since it was written: dashboard login
+(#36), settings saved from the dashboard, retention pruning, and bridge-side
+probe alert targets (#37).
+
 ## Goal
 
 Let the bridge, and later the dashboard, send a small set of commands to the
@@ -24,7 +28,9 @@ Out of scope, deliberately:
   may be standing next to", and no board in the vendor catalogue declares a
   turn-on command. The bridge will not expose it. Reversing this is the owner's
   call, not an implementation detail.
-- Probe targets (`p1Target` is unreliable, see `docs/fields.md`), temperature
+- Writing probe targets to the grill (`p1Target` is unreliable, see
+  `docs/fields.md`). The probe alert targets from #37 are stored in the bridge
+  and never sent to the grill, so they are unaffected. Temperature
   unit, primer motor, light (the PB850PS2 has none), password and WiFi changes,
   reboot.
 
@@ -43,13 +49,24 @@ clears its status cache, so the next state frame comes back blank.
 
 ## Safety
 
-- **Off by default.** Routes are not registered unless `SMOKESTACK_ENABLE_CONTROL=1`,
-  so the existing "no write endpoints" test stays true by default. When enabled,
-  that test is relaxed to allow exactly `/api/control/*`.
+- **Off by default.** Routes are not registered unless `SMOKESTACK_ENABLE_CONTROL=1`.
+  A test asserts that no `/api/control` route exists and no source command
+  method is ever called while it is unset.
+- **Environment only.** Every `SMOKESTACK_CONTROL_*` setting, and
+  `SMOKESTACK_ENABLE_CONTROL` itself, goes in `ENV_ONLY` and never in
+  `EDITABLE_GROUPS`. The dashboard can save other settings to the database
+  (`PUT /api/settings`), and a logged-in session must not be able to turn
+  control on, change the token or raise the temperature cap. Only someone who
+  can edit the host's `.env` and restart the container can.
 - **Separate auth.** Control requires `Authorization: Bearer <SMOKESTACK_CONTROL_TOKEN>`
   even if the read API is open. If control is enabled and the token is empty or
   shorter than 16 characters, the bridge refuses to start. Compared in constant
-  time; the token is never logged.
+  time; the token is never logged. When dashboard login (#36) is on, its
+  session cookie is checked first as for every route, and the token is still
+  required. The token is independent of login because login can be switched
+  off from the dashboard (`PUT /api/auth`). Because it travels in a header,
+  never a cookie, a page on another site cannot send a command through the
+  browser's session (no CSRF exposure).
 - **Bounds.** `SMOKESTACK_CONTROL_MIN_TEMP` (default 180) and
   `SMOKESTACK_CONTROL_MAX_TEMP` (default **300**, hard-capped at the model's 500)
   are always in **Fahrenheit**, whatever unit the grill is set to. A request is
@@ -68,7 +85,9 @@ clears its status cache, so the next state frame comes back blank.
   gap of 5 s, and at most 10 commands per hour (429).
 - **Audit log.** Every attempt, accepted or rejected, is a `health_events` row
   of type `control_command` with command, arguments, client address, and
-  outcome. The log is append-only from the API's point of view.
+  outcome. The log is append-only from the API's point of view, and retention
+  pruning (`SMOKESTACK_RETENTION_DAYS`) skips `control_command` rows, so the
+  record of what was sent to the grill is never deleted automatically.
 - **No remote ignition**, as above. A request that would require the grill to be
   off-to-on is not representable in the API.
 
@@ -156,13 +175,19 @@ while the source is stale.
 3. Confirm remote power-on stays excluded.
 4. Is a shared bearer token enough, or should the UI require a second step such
    as a PIN for set-temperature?
+5. Should enabling control also require dashboard login to be on (refusing to
+   start otherwise), or is the token alone enough? This design requires only
+   the token, since login can be switched off from the dashboard anyway.
+6. Keep `control_command` audit rows forever, as proposed, or prune them after
+   a longer, separate retention period?
 
 ## Follow-up implementation issue (to open after approval)
 
 Title: "Implement grill control (turn-off, set-temperature) per
-`docs/specs/2026-10-19-grill-control.md`". Tasks: settings and startup checks;
+`docs/specs/2026-10-19-grill-control.md`". Tasks: env-only settings and
+startup checks;
 `execute` on sources and the command queue; blank-frame handling in the
 collector; control service (validation, rate limit, idempotence, confirmation,
-audit); `/api/control` routes; fake-source commands with failure injection;
+audit); retention exemption for audit rows; `/api/control` routes; fake-source commands with failure injection;
 dashboard Controls section; README and tests. It is not opened yet because the
 design is not approved.
