@@ -15,12 +15,12 @@ ask_yes() {
 }
 
 # --- Python ---------------------------------------------------------------
-# pytboss needs 3.11+, and BLE dependencies don't resolve on 3.14 yet.
-say "Looking for Python 3.11-3.13"
+# 3.12 is the oldest version CI tests, and BLE dependencies don't resolve on 3.14 yet.
+say "Looking for Python 3.12-3.13"
 PYTHON=""
-for candidate in python3.13 python3.12 python3.11 python3; do
+for candidate in python3.13 python3.12 python3; do
   if command -v "$candidate" >/dev/null 2>&1 &&
-    "$candidate" -c 'import sys; sys.exit(not ((3, 11) <= sys.version_info[:2] <= (3, 13)))' 2>/dev/null; then
+    "$candidate" -c 'import sys; sys.exit(not ((3, 12) <= sys.version_info[:2] <= (3, 13)))' 2>/dev/null; then
     PYTHON="$(command -v "$candidate")"
     break
   fi
@@ -28,7 +28,7 @@ done
 
 if [[ -z "$PYTHON" ]]; then
   found="$(python3 --version 2>/dev/null || echo 'none')"
-  die "Need Python 3.11, 3.12 or 3.13 (found: $found).
+  die "Need Python 3.12 or 3.13 (found: $found).
   Linux Mint 21.x ships Python 3.10. Either upgrade to Mint 22, or install a
   newer Python alongside it, e.g.:
       sudo add-apt-repository ppa:deadsnakes/ppa
@@ -86,7 +86,7 @@ echo "  Adapter: $(bluetoothctl list | head -n1)"
 # --- Python environment ---------------------------------------------------
 say "Installing the bridge into .venv"
 if [[ -x .venv/bin/python ]] && ! .venv/bin/python -c \
-  'import sys; sys.exit(not ((3, 11) <= sys.version_info[:2] <= (3, 13)))' 2>/dev/null; then
+  'import sys; sys.exit(not ((3, 12) <= sys.version_info[:2] <= (3, 13)))' 2>/dev/null; then
   warn "Existing .venv uses an unsupported Python; recreating it."
   rm -rf .venv
 fi

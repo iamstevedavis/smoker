@@ -77,7 +77,7 @@ pytest
 PITBOSS_SOURCE=fake uvicorn smokestack.api:create_app --factory --reload
 ```
 
-On Windows, run this inside WSL2 (Ubuntu). The dashboard is plain HTML/CSS/JS in `src/smokestack/static/` with no build step.
+Development needs Python 3.12 or 3.13. On Windows, run this inside WSL2 (Ubuntu). The dashboard is plain HTML/CSS/JS in `src/smokestack/static/` with no build step.
 
 ## License
 
