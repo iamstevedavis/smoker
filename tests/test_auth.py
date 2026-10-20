@@ -209,6 +209,51 @@ def test_websocket_needs_a_session(tmp_path):
     assert snapshot["fields"]["grillSetTemp"]["value"] == 225
 
 
+def _next_reading(client, app):
+    # Publish on the app's own loop so the socket's queue wakes up.
+    client.portal.call(app.state.collector.collect_next)
+
+
+def test_open_socket_closes_when_the_password_is_turned_on(tmp_path):
+    app = _app(tmp_path, required=False)
+    with TestClient(app) as client, TestClient(app) as admin:
+        with client.websocket_connect("/api/live") as websocket:
+            _next_reading(client, app)
+            websocket.receive_json()
+
+            response = admin.put("/api/auth", json={"required": True, "password": PASSWORD})
+            assert response.status_code == 204
+            _next_reading(client, app)
+            with pytest.raises(WebSocketDisconnect) as closed:
+                websocket.receive_json()
+        assert closed.value.code == 1008
+
+
+def test_open_socket_closes_when_the_password_changes(tmp_path):
+    app = _app(tmp_path)
+    with TestClient(app) as client, TestClient(app) as admin:
+        _login(client)
+        _login(admin)
+        with client.websocket_connect("/api/live") as websocket, admin.websocket_connect(
+            "/api/live"
+        ) as admin_socket:
+            response = admin.post(
+                "/api/auth/password", json={"current": PASSWORD, "new": "new password"}
+            )
+            assert response.status_code == 204
+            _next_reading(client, app)
+            with pytest.raises(WebSocketDisconnect) as closed:
+                websocket.receive_json()
+            assert closed.value.code == 1008
+            # The socket opened with the old cookie closes too; the browser
+            # reconnects with the new one.
+            with pytest.raises(WebSocketDisconnect):
+                admin_socket.receive_json()
+        with admin.websocket_connect("/api/live") as websocket:
+            _next_reading(admin, app)
+            assert websocket.receive_json()["available"] is True
+
+
 def test_session_survives_restart(tmp_path):
     with TestClient(_app(tmp_path)) as client:
         _login(client)
