@@ -83,9 +83,11 @@ clears its status cache, so the next state frame comes back blank.
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise), a minimum
   gap of 5 s, and at most 10 commands per hour (429).
-- **Audit log.** Every attempt, accepted or rejected, is a `health_events` row
-  of type `control_command` with command, arguments, client address, and
-  outcome. The log is append-only from the API's point of view, and retention
+- **Audit log.** Every attempt that reaches the control routes, accepted or
+  rejected (including a missing or wrong token), is a `health_events` row of
+  type `control_command` with command, arguments, client address, and outcome.
+  Requests the login gate rejects for a missing or expired session never reach
+  the routes and are not audited, the same as for every other route. The log is append-only from the API's point of view, and retention
   pruning (`SMOKESTACK_RETENTION_DAYS`) skips `control_command` rows, so the
   record of what was sent to the grill is never deleted automatically.
 - **No remote ignition**, as above. A request that would require the grill to be
