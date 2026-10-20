@@ -2,14 +2,14 @@
 # Copy .env.example to .env and set PITBOSS_HOST / PITBOSS_PASSWORD.
 # Try it without a grill:  PITBOSS_SOURCE=fake docker compose up --build
 services:
-  pitboss-bridge:
+  smokestack:
     build:
       context: .
       args:
         EXTRAS: http
     image: ghcr.io/iamstevedavis/smokestack:latest
     restart: unless-stopped
-    # Starts as root only so the entrypoint can hand /data back to `pitboss`
+    # Starts as root only so the entrypoint can hand /data back to `smokestack`
     # if docker-compose.ble.yml (which runs as `nobody`) used the volume last;
     # it drops root before the bridge starts.
     user: root
@@ -17,18 +17,18 @@ services:
       - path: .env
         required: false
     environment:
-      PITBOSS_RUN_AS: "10001:10001"
+      SMOKESTACK_RUN_AS: "10001:10001"
       PITBOSS_SOURCE: ${PITBOSS_SOURCE:-http}
       PITBOSS_MODEL: ${PITBOSS_MODEL:-PB850PS2}
       PITBOSS_HOST: ${PITBOSS_HOST:-}
       PITBOSS_PASSWORD: ${PITBOSS_PASSWORD:-}
-      PITBOSS_DB: /data/pitboss.sqlite
-      PITBOSS_POLL_SECONDS: ${PITBOSS_POLL_SECONDS:-2}
-      PITBOSS_STALE_AFTER_SECONDS: ${PITBOSS_STALE_AFTER_SECONDS:-30}
+      SMOKESTACK_DB: /data/smokestack.sqlite
+      SMOKESTACK_POLL_SECONDS: ${SMOKESTACK_POLL_SECONDS:-2}
+      SMOKESTACK_STALE_AFTER_SECONDS: ${SMOKESTACK_STALE_AFTER_SECONDS:-30}
     ports:
-      - "${PITBOSS_PORT:-8000}:8000"
+      - "${SMOKESTACK_PORT:-8000}:8000"
     volumes:
-      - pitboss-data:/data
+      - smokestack-data:/data
 
 volumes:
-  pitboss-data:
+  smokestack-data:

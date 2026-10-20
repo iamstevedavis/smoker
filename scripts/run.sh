@@ -13,7 +13,7 @@ set -a
 . ./.env
 set +a
 export PYTHONUNBUFFERED=1
-PORT="${PITBOSS_PORT:-8000}"
+PORT="${SMOKESTACK_PORT:-8000}"
 
 if (echo >"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
   echo "Something is already listening on port $PORT (is the bridge already running?)." >&2
@@ -23,7 +23,7 @@ fi
 mkdir -p logs data
 LOG="logs/bridge-$(date +%Y%m%d-%H%M%S).log"
 
-cmd=(.venv/bin/uvicorn pitboss_bridge.api:create_app --factory --host 0.0.0.0 --port "$PORT")
+cmd=(.venv/bin/uvicorn smokestack.api:create_app --factory --host 0.0.0.0 --port "$PORT")
 # Stop the laptop suspending from inactivity mid-cook.
 inhibit=(systemd-inhibit --what=sleep:idle --who="Smokestack" --why="Recording a grill test")
 if command -v systemd-inhibit >/dev/null 2>&1 && "${inhibit[@]}" true 2>/dev/null; then

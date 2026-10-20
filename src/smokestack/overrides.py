@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from pitboss_bridge.config import (
+from smokestack.config import (
     EDITABLE_GROUPS,
     ENV_ONLY,
     SECRET_FIELDS,
@@ -19,7 +19,7 @@ from pitboss_bridge.config import (
     base_origin,
     env_name,
 )
-from pitboss_bridge.runtime import available_sources, make_source
+from smokestack.runtime import available_sources, make_source
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 import pytest
 
-from pitboss_bridge.sources.pytboss_ble import PytbossBleSource
+from smokestack.sources.pytboss_ble import PytbossBleSource
 
 
 def test_ble_source_requires_device_name():

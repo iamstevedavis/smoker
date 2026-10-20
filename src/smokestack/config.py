@@ -24,7 +24,7 @@ class Settings:
     device_name: str = ""
     host: str = ""
     password: str = ""
-    db_path: Path = Path("data/pitboss.sqlite")
+    db_path: Path = Path("data/smokestack.sqlite")
     poll_seconds: float = 2.0
     stale_after_seconds: int = 30
     start_collector: bool = True
@@ -33,7 +33,7 @@ class Settings:
     mqtt_port: int = 1883
     mqtt_user: str = ""
     mqtt_password: str = ""
-    mqtt_prefix: str = "pitboss"
+    mqtt_prefix: str = "smokestack"
     ntfy_url: str = ""
     ntfy_token: str = ""
     alert_drift_degrees: float = 25.0
@@ -50,25 +50,25 @@ class Settings:
             device_name=os.getenv("PITBOSS_DEVICE_NAME", ""),
             host=os.getenv("PITBOSS_HOST", ""),
             password=os.getenv("PITBOSS_PASSWORD", ""),
-            db_path=Path(os.getenv("PITBOSS_DB", "data/pitboss.sqlite")),
-            poll_seconds=float(os.getenv("PITBOSS_POLL_SECONDS", "2")),
-            stale_after_seconds=int(os.getenv("PITBOSS_STALE_AFTER_SECONDS", "30")),
-            start_collector=_bool_env("PITBOSS_START_COLLECTOR", True),
-            log_level=os.getenv("PITBOSS_LOG_LEVEL", "INFO").upper(),
-            mqtt_host=os.getenv("PITBOSS_MQTT_HOST", ""),
-            mqtt_port=int(os.getenv("PITBOSS_MQTT_PORT", "1883")),
-            mqtt_user=os.getenv("PITBOSS_MQTT_USER", ""),
-            mqtt_password=os.getenv("PITBOSS_MQTT_PASSWORD", ""),
-            mqtt_prefix=os.getenv("PITBOSS_MQTT_PREFIX", "pitboss"),
-            ntfy_url=os.getenv("PITBOSS_NTFY_URL", ""),
-            ntfy_token=os.getenv("PITBOSS_NTFY_TOKEN", ""),
-            alert_drift_degrees=float(os.getenv("PITBOSS_ALERT_DRIFT_DEGREES", "25")),
-            alert_drift_minutes=float(os.getenv("PITBOSS_ALERT_DRIFT_MINUTES", "10")),
-            alert_stale_seconds=float(os.getenv("PITBOSS_ALERT_STALE_SECONDS", "60")),
+            db_path=Path(os.getenv("SMOKESTACK_DB", "data/smokestack.sqlite")),
+            poll_seconds=float(os.getenv("SMOKESTACK_POLL_SECONDS", "2")),
+            stale_after_seconds=int(os.getenv("SMOKESTACK_STALE_AFTER_SECONDS", "30")),
+            start_collector=_bool_env("SMOKESTACK_START_COLLECTOR", True),
+            log_level=os.getenv("SMOKESTACK_LOG_LEVEL", "INFO").upper(),
+            mqtt_host=os.getenv("SMOKESTACK_MQTT_HOST", ""),
+            mqtt_port=int(os.getenv("SMOKESTACK_MQTT_PORT", "1883")),
+            mqtt_user=os.getenv("SMOKESTACK_MQTT_USER", ""),
+            mqtt_password=os.getenv("SMOKESTACK_MQTT_PASSWORD", ""),
+            mqtt_prefix=os.getenv("SMOKESTACK_MQTT_PREFIX", "smokestack"),
+            ntfy_url=os.getenv("SMOKESTACK_NTFY_URL", ""),
+            ntfy_token=os.getenv("SMOKESTACK_NTFY_TOKEN", ""),
+            alert_drift_degrees=float(os.getenv("SMOKESTACK_ALERT_DRIFT_DEGREES", "25")),
+            alert_drift_minutes=float(os.getenv("SMOKESTACK_ALERT_DRIFT_MINUTES", "10")),
+            alert_stale_seconds=float(os.getenv("SMOKESTACK_ALERT_STALE_SECONDS", "60")),
             alert_cooldown_seconds=float(
-                os.getenv("PITBOSS_ALERT_COOLDOWN_SECONDS", "0")
+                os.getenv("SMOKESTACK_ALERT_COOLDOWN_SECONDS", "0")
             ),
-            retention_days=float(os.getenv("PITBOSS_RETENTION_DAYS", "0")),
+            retention_days=float(os.getenv("SMOKESTACK_RETENTION_DAYS", "0")),
         )
 
     def with_overrides(self, overrides: dict[str, Any]) -> "Settings":
@@ -105,15 +105,21 @@ EDITABLE_FIELDS = frozenset(name for group in EDITABLE_GROUPS.values() for name 
 # Never sent back to the browser; the API only says whether they are set.
 SECRET_FIELDS = frozenset({"password", "mqtt_password", "ntfy_token"})
 ENV_ONLY = (
-    "PITBOSS_DB",
-    "PITBOSS_PORT",
-    "PITBOSS_START_COLLECTOR",
+    "SMOKESTACK_DB",
+    "SMOKESTACK_PORT",
+    "SMOKESTACK_START_COLLECTOR",
 )
 _DEFAULTS = {f.name: f.default for f in fields(Settings)}
 
 
+# Settings that describe the grill keep the PITBOSS_ prefix; the rest
+# configure Smokestack itself.
+GRILL_FIELDS = frozenset({"source", "model", "device_name", "host", "password"})
+
+
 def env_name(field_name: str) -> str:
-    return f"PITBOSS_{field_name.upper()}"
+    prefix = "PITBOSS" if field_name in GRILL_FIELDS else "SMOKESTACK"
+    return f"{prefix}_{field_name.upper()}"
 
 
 def base_origin(settings: Settings, field_name: str) -> str:

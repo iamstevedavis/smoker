@@ -20,21 +20,20 @@ No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up --bu
 
 - Find the grill's IP in your router's DHCP list and give it a reservation.
 - Multi-arch images (amd64, arm64) are published to `ghcr.io/iamstevedavis/smokestack` on each `v*` tag: `docker compose pull && docker compose up -d`.
-- Data lives on the `pitboss-data` volume. Upgrading, backup and migration: [docs/docker.md](docs/docker.md).
+- Data lives on the `smokestack-data` volume. Upgrading, backup and migration: [docs/docker.md](docs/docker.md).
 - Not every grill serves local HTTP (ESP-IDF boards such as `PBL2`/`PBC2` don't). If the bridge says so, use [Bluetooth](docs/ble.md): `docker compose -f docker-compose.ble.yml up -d --build`.
 
 ## Security
 
 - **The first visit asks you to create a password.** Until then the dashboard and API are locked. After that the password protects the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. It is stored as a scrypt hash in the database, you can turn it off or back on under **Settings → Login**, and change it under **Profile** (the person button; needs the current password). Sessions are signed cookies that last 30 days; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
 - **Turning the password off opens everything to the LAN**, including the settings panel, so anyone there could point MQTT or ntfy at their own server and collect the saved secrets.
-- **Upgrading from `PITBOSS_UI_PASSWORD`:** on first start the bridge stores that password in the database and keeps requiring it, so there's no setup screen. After that the variable is ignored; remove it from `.env`. You'll have to sign in again once.
-- **Locked out?** Run `docker compose exec pitboss-bridge smokestack reset-password`, then `docker compose restart`. The next visit shows the setup screen again. Do this right after first start too if someone else might have reached the setup screen before you.
+- **Locked out?** Run `docker compose exec smokestack smokestack reset-password`, then `docker compose restart`. The next visit shows the setup screen again. Do this right after first start too if someone else might have reached the setup screen before you.
 - **On plain HTTP the password and session cookie cross the LAN unencrypted.** That's fine for home use, but don't expose port 8000 to the internet: use a VPN (WireGuard, Tailscale), or put a TLS reverse proxy such as Caddy in front.
 - The grill's local HTTP RPC exposes its configuration, including stored **WiFi credentials**, to anyone on the network. Keep the grill on an IoT VLAN that only the bridge host can reach. Details: [docs/testing/2026-10-18-cook-test.md](docs/testing/2026-10-18-cook-test.md).
 
 ## Configuration
 
-Set these in `.env` (Docker) or the environment.
+Set these in `.env` (Docker) or the environment. Settings for the grill start with `PITBOSS_`; settings for Smokestack itself start with `SMOKESTACK_`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -43,13 +42,13 @@ Set these in `.env` (Docker) or the environment.
 | `PITBOSS_DEVICE_NAME` | | BLE device name for `ble` |
 | `PITBOSS_PASSWORD` | | Grill password, if set |
 | `PITBOSS_MODEL` | `PB850PS2` | Grill model |
-| `PITBOSS_DB` | `data/pitboss.sqlite` | SQLite path (`/data/pitboss.sqlite` in Docker) |
-| `PITBOSS_POLL_SECONDS` | `2` | Polling interval |
-| `PITBOSS_STALE_AFTER_SECONDS` | `30` | Age at which a reading counts as stale |
-| `PITBOSS_RETENTION_DAYS` | `0` | Delete data older than this; `0` keeps everything |
-| `PITBOSS_LOG_LEVEL` | `INFO` | Use `DEBUG` when troubleshooting |
+| `SMOKESTACK_DB` | `data/smokestack.sqlite` | SQLite path (`/data/smokestack.sqlite` in Docker) |
+| `SMOKESTACK_POLL_SECONDS` | `2` | Polling interval |
+| `SMOKESTACK_STALE_AFTER_SECONDS` | `30` | Age at which a reading counts as stale |
+| `SMOKESTACK_RETENTION_DAYS` | `0` | Delete data older than this; `0` keeps everything |
+| `SMOKESTACK_LOG_LEVEL` | `INFO` | Use `DEBUG` when troubleshooting |
 
-Home Assistant (`PITBOSS_MQTT_*`) and ntfy alerts (`PITBOSS_NTFY_*`, `PITBOSS_ALERT_*`) are optional and off by default. Every variable and its default is listed in [docs/integrations.md](docs/integrations.md#settings).
+Home Assistant (`SMOKESTACK_MQTT_*`) and ntfy alerts (`SMOKESTACK_NTFY_*`, `SMOKESTACK_ALERT_*`) are optional and off by default. Every variable and its default is listed in [docs/integrations.md](docs/integrations.md#settings).
 
 ### Changing settings from the dashboard
 
@@ -59,7 +58,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Each field shows where its value comes from (Default, .env or UI); **Reset** drops the saved value and falls back to `.env` or the default.
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
 - The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
-- **Env only:** `PITBOSS_DB`, `PITBOSS_PORT` and `PITBOSS_START_COLLECTOR`.
+- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`.
 - The source list only offers what can actually run: `fake` always, `http` (WiFi) in every image, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
 
 ## More
@@ -75,10 +74,10 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 python -m venv .venv && . .venv/bin/activate
 python -m pip install -e ".[test]"
 pytest
-PITBOSS_SOURCE=fake uvicorn pitboss_bridge.api:create_app --factory --reload
+PITBOSS_SOURCE=fake uvicorn smokestack.api:create_app --factory --reload
 ```
 
-On Windows, run this inside WSL2 (Ubuntu). The dashboard is plain HTML/CSS/JS in `src/pitboss_bridge/static/` with no build step.
+On Windows, run this inside WSL2 (Ubuntu). The dashboard is plain HTML/CSS/JS in `src/smokestack/static/` with no build step.
 
 ## License
 

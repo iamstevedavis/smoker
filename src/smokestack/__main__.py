@@ -1,20 +1,18 @@
 """Command-line entrypoint for Smokestack.
 
-`python -m pitboss_bridge` runs the server. `python -m pitboss_bridge
+`python -m smokestack` runs the server. `python -m smokestack
 reset-password` forgets the dashboard password, so the next visit after a
 restart shows the first-run setup again.
 """
 
 from __future__ import annotations
 
-import os
 import sys
 
 import uvicorn
 
-from pitboss_bridge.auth import LEGACY_PASSWORD_ENV
-from pitboss_bridge.config import Settings
-from pitboss_bridge.store import Database
+from smokestack.config import Settings
+from smokestack.store import Database
 
 
 def reset_password() -> None:
@@ -24,11 +22,6 @@ def reset_password() -> None:
         print("Password cleared. Restart the bridge, then open the dashboard to set a new one.")
     else:
         print("No password was set.")
-    if os.getenv(LEGACY_PASSWORD_ENV):
-        print(
-            f"{LEGACY_PASSWORD_ENV} is still set, so the bridge will import it again "
-            "on restart; remove it from .env to get the setup screen."
-        )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -38,8 +31,8 @@ def main(argv: list[str] | None = None) -> None:
         reset_password()
         return
     if args:
-        sys.exit("usage: python -m pitboss_bridge [reset-password]")
-    uvicorn.run("pitboss_bridge.api:create_app", factory=True, host="0.0.0.0", port=8000)
+        sys.exit("usage: python -m smokestack [reset-password]")
+    uvicorn.run("smokestack.api:create_app", factory=True, host="0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":

@@ -43,15 +43,15 @@ clears its status cache, so the next state frame comes back blank.
 
 ## Safety
 
-- **Off by default.** Routes are not registered unless `PITBOSS_ENABLE_CONTROL=1`,
+- **Off by default.** Routes are not registered unless `SMOKESTACK_ENABLE_CONTROL=1`,
   so the existing "no write endpoints" test stays true by default. When enabled,
   that test is relaxed to allow exactly `/api/control/*`.
-- **Separate auth.** Control requires `Authorization: Bearer <PITBOSS_CONTROL_TOKEN>`
+- **Separate auth.** Control requires `Authorization: Bearer <SMOKESTACK_CONTROL_TOKEN>`
   even if the read API is open. If control is enabled and the token is empty or
   shorter than 16 characters, the bridge refuses to start. Compared in constant
   time; the token is never logged.
-- **Bounds.** `PITBOSS_CONTROL_MIN_TEMP` (default 180) and
-  `PITBOSS_CONTROL_MAX_TEMP` (default **300**, hard-capped at the model's 500)
+- **Bounds.** `SMOKESTACK_CONTROL_MIN_TEMP` (default 180) and
+  `SMOKESTACK_CONTROL_MAX_TEMP` (default **300**, hard-capped at the model's 500)
   are always in **Fahrenheit**, whatever unit the grill is set to. A request is
   in the grill's current unit (as `pytboss` expects), so it is first snapped to
   the board's accepted setpoints, then the *snapped* target is converted to F
@@ -151,7 +151,7 @@ while the source is stale.
 
 ## Open decisions for the owner
 
-1. Is `PITBOSS_CONTROL_MAX_TEMP` default 300 right, or should it start higher?
+1. Is `SMOKESTACK_CONTROL_MAX_TEMP` default 300 right, or should it start higher?
 2. Roll out BLE and `http` together, or `http` + `fake` first?
 3. Confirm remote power-on stays excluded.
 4. Is a shared bearer token enough, or should the UI require a second step such

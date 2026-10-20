@@ -3,9 +3,9 @@
 # The bridge reaches the broker by its service name on the compose network.
 # For Bluetooth, use -f docker-compose.ble.yml in place of docker-compose.yml.
 services:
-  pitboss-bridge:
+  smokestack:
     environment:
-      PITBOSS_MQTT_HOST: mosquitto
+      SMOKESTACK_MQTT_HOST: mosquitto
   mosquitto:
     image: eclipse-mosquitto:2
     profiles: ["mqtt"]

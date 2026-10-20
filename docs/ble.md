@@ -16,21 +16,21 @@ something else, usually the Pit Boss phone app, stops advertising, and the
 bridge retries with growing delays of up to 60 seconds. Close the app and wait.
 
 The container talks to the host's BlueZ through the host's D-Bus socket, which
-is the only host resource it gets: no host networking, so `PITBOSS_PORT` works
+is the only host resource it gets: no host networking, so `SMOKESTACK_PORT` works
 as usual. The bridge runs unprivileged as `nobody` (uid 65534). The entrypoint
 starts as root only to hand the data volume to that user, then drops root.
 
-Why `nobody` and not the image's own `pitboss` user (uid 10001): the host's
+Why `nobody` and not the image's own `smokestack` user (uid 10001): the host's
 D-Bus refuses connections from uids it has no user for. `nobody` exists on
 every Linux host, and BlueZ as shipped by Debian 12+ (the base of Raspberry Pi
 OS) and Ubuntu 24.04 lets any local user talk to it.
 
 If the bridge reports `AccessDenied` from `org.bluez`, your distro limits
-BlueZ to the `bluetooth` group. Set `PITBOSS_RUN_AS` in `.env` to a host
+BlueZ to the `bluetooth` group. Set `SMOKESTACK_RUN_AS` in `.env` to a host
 `uid:gid` that is allowed, for example your own user if it's in that group:
 
 ```bash
-PITBOSS_RUN_AS=1000:1000
+SMOKESTACK_RUN_AS=1000:1000
 ```
 
 The container runs without Docker's AppArmor profile (`apparmor=unconfined`).
@@ -42,7 +42,7 @@ capabilities, `no-new-privs`, Docker's seccomp filter, no host networking.
 Upgrading from the earlier root-run setup needs nothing extra: the first start
 hands the existing data volume to the new user. Switching between this file
 and the WiFi `docker-compose.yml` works the same way, since both share the
-`pitboss-data` volume and each hands it to its own user on start.
+`smokestack-data` volume and each hands it to its own user on start.
 
 ## Linux laptop test
 
@@ -95,7 +95,7 @@ Once you know the smoker's advertised BLE name, start the bridge with BLE enable
 PITBOSS_SOURCE=ble \
 PITBOSS_MODEL=PB850PS2 \
 PITBOSS_DEVICE_NAME='REAL_DEVICE_NAME' \
-uvicorn pitboss_bridge.api:create_app --factory --reload
+uvicorn smokestack.api:create_app --factory --reload
 ```
 
 In another terminal, check the health and state endpoints:

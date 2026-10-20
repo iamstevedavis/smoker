@@ -16,8 +16,8 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from pitboss_bridge.services.collector import CollectorHealth, StateHub
-from pitboss_bridge.state import ERROR_FLAGS_FOR_PROBLEM, StateSnapshot
+from smokestack.services.collector import CollectorHealth, StateHub
+from smokestack.state import ERROR_FLAGS_FOR_PROBLEM, StateSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class MqttConfig:
     port: int = 1883
     user: str = ""
     password: str = ""
-    prefix: str = "pitboss"
+    prefix: str = "smokestack"
     model: str = "PB850PS2"
 
 

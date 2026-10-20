@@ -6,11 +6,11 @@ Every setting below can also be changed from the dashboard's settings panel
 and applied without a restart. Values saved there are stored in the data volume
 and override `.env`; see [Changing settings from the dashboard](../README.md#changing-settings-from-the-dashboard).
 
-- `PITBOSS_MQTT_HOST`, `PITBOSS_MQTT_PORT` (default `1883`), `PITBOSS_MQTT_USER`, `PITBOSS_MQTT_PASSWORD`, `PITBOSS_MQTT_PREFIX` (default `pitboss`): MQTT publishing, disabled when the host is unset
-- `PITBOSS_NTFY_URL`, `PITBOSS_NTFY_TOKEN`: ntfy topic URL and optional access token; alerts are off when the URL is unset
-- `PITBOSS_ALERT_DRIFT_DEGREES` (default `25`), `PITBOSS_ALERT_DRIFT_MINUTES` (default `10`): grill-vs-set-temp drift alert
-- `PITBOSS_ALERT_STALE_SECONDS` (default `60`): seconds without data before a disconnect alert
-- `PITBOSS_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
+- `SMOKESTACK_MQTT_HOST`, `SMOKESTACK_MQTT_PORT` (default `1883`), `SMOKESTACK_MQTT_USER`, `SMOKESTACK_MQTT_PASSWORD`, `SMOKESTACK_MQTT_PREFIX` (default `smokestack`): MQTT publishing, disabled when the host is unset
+- `SMOKESTACK_NTFY_URL`, `SMOKESTACK_NTFY_TOKEN`: ntfy topic URL and optional access token; alerts are off when the URL is unset
+- `SMOKESTACK_ALERT_DRIFT_DEGREES` (default `25`), `SMOKESTACK_ALERT_DRIFT_MINUTES` (default `10`): grill-vs-set-temp drift alert
+- `SMOKESTACK_ALERT_STALE_SECONDS` (default `60`): seconds without data before a disconnect alert
+- `SMOKESTACK_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
 
 ## Home Assistant (MQTT)
 
@@ -20,8 +20,8 @@ topics. Install the extra and point it at your broker:
 
 ```bash
 python -m pip install -e ".[mqtt]"
-PITBOSS_MQTT_HOST=192.168.1.10 PITBOSS_MQTT_USER=ha PITBOSS_MQTT_PASSWORD=... \
-  uvicorn pitboss_bridge.api:create_app --factory
+SMOKESTACK_MQTT_HOST=192.168.1.10 SMOKESTACK_MQTT_USER=ha SMOKESTACK_MQTT_PASSWORD=... \
+  uvicorn smokestack.api:create_app --factory
 ```
 
 Home Assistant (with the MQTT integration and discovery enabled) creates a
@@ -29,10 +29,10 @@ Home Assistant (with the MQTT integration and discovery enabled) creates a
 temperature and both probes (unit follows the grill's `isFahrenheit`), binary
 sensors for power, fan, igniter and auger, and a `Problem` sensor that turns on
 when any error flag is set. Entities go unavailable when the source is
-disconnected or stale (`pitboss/availability`, with a last-will of `offline`).
+disconnected or stale (`smokestack/availability`, with a last-will of `offline`).
 
-Topics, with the default prefix: `pitboss/state` (JSON of field values) and
-`pitboss/availability`. The unreliable fields are not published. An unreachable
+Topics, with the default prefix: `smokestack/state` (JSON of field values) and
+`smokestack/availability`. The unreliable fields are not published. An unreachable
 broker is retried with backoff and never affects `/api/*` or collection.
 
 Example automation:
@@ -60,14 +60,14 @@ docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt u
 ## Alerts (ntfy)
 
 The bridge can push notifications through [ntfy](https://ntfy.sh) with a plain
-HTTP POST, so any phone with the ntfy app gets them. Set `PITBOSS_NTFY_URL` to
+HTTP POST, so any phone with the ntfy app gets them. Set `SMOKESTACK_NTFY_URL` to
 enable it:
 
 ```bash
 # public ntfy.sh topic
-PITBOSS_NTFY_URL=https://ntfy.sh/my-long-random-topic-name
+SMOKESTACK_NTFY_URL=https://ntfy.sh/my-long-random-topic-name
 # self-hosted, with an access token
-PITBOSS_NTFY_URL=http://ntfy.lan/smoker PITBOSS_NTFY_TOKEN=tk_...
+SMOKESTACK_NTFY_URL=http://ntfy.lan/smoker SMOKESTACK_NTFY_TOKEN=tk_...
 ```
 
 Subscribe to the same topic in the ntfy app. **A public topic name is effectively

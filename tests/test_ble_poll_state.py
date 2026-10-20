@@ -2,7 +2,7 @@ import pytest
 
 Unauthorized = pytest.importorskip("pytboss.exceptions").Unauthorized
 
-from pitboss_bridge.sources.pytboss_ble import poll_state  # noqa: E402
+from smokestack.sources.pytboss_ble import poll_state  # noqa: E402
 
 
 class FakeBoss:
@@ -34,7 +34,7 @@ async def test_poll_state_gives_up_after_second_unauthorized():
     assert boss.calls == 2
 
 
-from pitboss_bridge.sources._pytboss import PollStats, UptimeRefresher  # noqa: E402
+from smokestack.sources._pytboss import PollStats, UptimeRefresher  # noqa: E402
 
 
 def test_uptime_refresher_drops_cache_only_when_due():

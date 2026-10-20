@@ -1,9 +1,9 @@
 import pytest
 
-from pitboss_bridge import auth
-from pitboss_bridge.api import create_app
-from pitboss_bridge.config import Settings
-from pitboss_bridge.store import Database
+from smokestack import auth
+from smokestack.api import create_app
+from smokestack.config import Settings
+from smokestack.store import Database
 
 
 def finish_setup(settings: Settings, password: str = "brisket", required: bool = True) -> None:

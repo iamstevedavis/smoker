@@ -160,8 +160,8 @@ say "Saving settings to .env"
   echo "PITBOSS_MODEL=${PITBOSS_MODEL:-PB850PS2}"
   printf 'PITBOSS_DEVICE_NAME=%q\n' "$DEVICE_NAME"
   printf 'PITBOSS_PASSWORD=%q\n' "$PASSWORD"
-  echo "PITBOSS_DB=data/pitboss.sqlite"
-  echo "PITBOSS_LOG_LEVEL=DEBUG"
+  echo "SMOKESTACK_DB=data/smokestack.sqlite"
+  echo "SMOKESTACK_LOG_LEVEL=DEBUG"
 } >.env
 chmod 600 .env
 echo "  Grill: $DEVICE_NAME"

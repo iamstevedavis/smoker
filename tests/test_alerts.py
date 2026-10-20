@@ -1,16 +1,16 @@
 import asyncio
 from datetime import UTC, datetime
 
-from pitboss_bridge.services.alerts import (
+from smokestack.services.alerts import (
     AlertConfig,
     AlertEngine,
     AlertService,
     Notification,
     NtfySender,
 )
-from pitboss_bridge.services.collector import CollectorHealth, StateHub
-from pitboss_bridge.state import normalize_state
-from pitboss_bridge.store import Database
+from smokestack.services.collector import CollectorHealth, StateHub
+from smokestack.state import normalize_state
+from smokestack.store import Database
 
 
 class Clock:
@@ -354,7 +354,7 @@ def test_ntfy_sender_builds_request(monkeypatch):
 def test_app_starts_with_alerts_configured(tmp_path, make_app):
     from fastapi.testclient import TestClient
 
-    from pitboss_bridge.config import Settings
+    from smokestack.config import Settings
 
     settings = Settings(
         source="fake",

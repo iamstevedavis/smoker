@@ -11,8 +11,8 @@ if [[ -f .env ]]; then
   . ./.env
   set +a
 fi
-DB="${PITBOSS_DB:-data/pitboss.sqlite}"
-PORT="${PITBOSS_PORT:-8000}"
+DB="${SMOKESTACK_DB:-data/smokestack.sqlite}"
+PORT="${SMOKESTACK_PORT:-8000}"
 [[ -f "$DB" ]] || { echo "No database at $DB -- has the bridge run yet?" >&2; exit 1; }
 
 mkdir -p reports

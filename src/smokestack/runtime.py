@@ -17,17 +17,17 @@ from collections.abc import Mapping
 from functools import cache
 from typing import Any
 
-from pitboss_bridge.config import Settings
-from pitboss_bridge.services.alerts import (
+from smokestack.config import Settings
+from smokestack.services.alerts import (
     AlertConfig,
     AlertEngine,
     AlertService,
     NtfySender,
 )
-from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
-from pitboss_bridge.services.mqtt import MqttConfig, MqttPublisher
-from pitboss_bridge.sources.fake import FakeGrillSource
-from pitboss_bridge.store import Database
+from smokestack.services.collector import Collector, CollectorHealth, StateHub
+from smokestack.services.mqtt import MqttConfig, MqttPublisher
+from smokestack.sources.fake import FakeGrillSource
+from smokestack.store import Database
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def make_source(settings: Settings) -> Any:
     if settings.source == "fake":
         return FakeGrillSource(interval_seconds=settings.poll_seconds)
     if settings.source == "ble":
-        from pitboss_bridge.sources.pytboss_ble import PytbossBleSource
+        from smokestack.sources.pytboss_ble import PytbossBleSource
 
         return PytbossBleSource(
             model=settings.model,
@@ -104,7 +104,7 @@ def make_source(settings: Settings) -> Any:
             poll_seconds=settings.poll_seconds,
         )
     if settings.source == "http":
-        from pitboss_bridge.sources.pytboss_http import PytbossHttpSource
+        from smokestack.sources.pytboss_http import PytbossHttpSource
 
         return PytbossHttpSource(
             model=settings.model,
@@ -118,7 +118,7 @@ def make_source(settings: Settings) -> Any:
 def configure_logging(level: str) -> None:
     # uvicorn only configures its own loggers, so without this the bridge's
     # INFO logs (connects, disconnects, retries) would be silently dropped.
-    logger = logging.getLogger("pitboss_bridge")
+    logger = logging.getLogger("smokestack")
     logger.setLevel(level)
     if not logger.handlers:
         handler = logging.StreamHandler()

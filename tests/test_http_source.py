@@ -2,10 +2,10 @@ import pytest
 
 pytboss = pytest.importorskip("pytboss")
 
-from pitboss_bridge.api import _make_source  # noqa: E402
-from pitboss_bridge.config import Settings  # noqa: E402
-from pitboss_bridge.sources import pytboss_http  # noqa: E402
-from pitboss_bridge.sources.pytboss_http import PytbossHttpSource  # noqa: E402
+from smokestack.api import _make_source  # noqa: E402
+from smokestack.config import Settings  # noqa: E402
+from smokestack.sources import pytboss_http  # noqa: E402
+from smokestack.sources.pytboss_http import PytbossHttpSource  # noqa: E402
 
 
 class FakeBoss:

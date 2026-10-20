@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
-from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
-from pitboss_bridge.sources.fake import FakeGrillSource
-from pitboss_bridge.store import Database
+from smokestack.services.collector import Collector, CollectorHealth, StateHub
+from smokestack.sources.fake import FakeGrillSource
+from smokestack.store import Database
 
 
 async def test_fake_source_emits_realistic_state():
@@ -22,7 +22,7 @@ async def test_fake_source_emits_realistic_state():
 
 async def test_collector_stores_snapshot_and_updates_health(tmp_path):
     source = FakeGrillSource(interval_seconds=0)
-    db = Database(tmp_path / "pitboss.sqlite")
+    db = Database(tmp_path / "smokestack.sqlite")
     db.initialize()
     hub = StateHub(stale_after_seconds=30)
     health = CollectorHealth(source="fake", stale_after_seconds=30)
@@ -84,7 +84,7 @@ READING = {"grillTemp": 225, "grillSetTemp": 225}
 
 
 def make_collector(tmp_path, source, store=None):
-    db = store or Database(tmp_path / "pitboss.sqlite")
+    db = store or Database(tmp_path / "smokestack.sqlite")
     db.initialize()
     hub = StateHub(stale_after_seconds=30)
     health = CollectorHealth(source=source.name, stale_after_seconds=30)
@@ -183,7 +183,7 @@ async def test_open_session_is_closed_when_processing_fails(tmp_path):
             super().insert_reading(snapshot)
 
     source = ScriptedSource([[READING, READING], [READING]])
-    store = FailingOnceStore(tmp_path / "pitboss.sqlite")
+    store = FailingOnceStore(tmp_path / "smokestack.sqlite")
     collector, health, _ = make_collector(tmp_path, source, store=store)
 
     await run_until(collector, lambda: source.opened == 2 and health.connected)
@@ -204,7 +204,7 @@ async def test_stopping_collector_closes_source_session(tmp_path):
 
 
 async def test_collector_copies_unauthorized_retries_into_health(tmp_path):
-    from pitboss_bridge.sources._pytboss import PollStats
+    from smokestack.sources._pytboss import PollStats
 
     db = Database(tmp_path / "p.sqlite")
     db.initialize()
@@ -222,7 +222,7 @@ async def test_collector_copies_unauthorized_retries_into_health(tmp_path):
 
 
 async def test_collector_copies_unauthorized_retries_when_poll_fails(tmp_path):
-    from pitboss_bridge.sources._pytboss import PollStats
+    from smokestack.sources._pytboss import PollStats
 
     source = ScriptedSource([[RuntimeError("retry also failed")]])
     source.stats = PollStats()
@@ -238,10 +238,10 @@ async def test_collector_copies_unauthorized_retries_when_poll_fails(tmp_path):
 def test_prune_once_respects_retention_days(tmp_path):
     from datetime import timedelta
 
-    from pitboss_bridge.services.collector import Collector, CollectorHealth, StateHub
-    from pitboss_bridge.sources.fake import FakeGrillSource
-    from pitboss_bridge.state import utc_now
-    from pitboss_bridge.store import Database
+    from smokestack.services.collector import Collector, CollectorHealth, StateHub
+    from smokestack.sources.fake import FakeGrillSource
+    from smokestack.state import utc_now
+    from smokestack.store import Database
 
     db = Database(tmp_path / "p.sqlite")
     db.initialize()

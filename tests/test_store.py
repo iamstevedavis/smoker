@@ -2,12 +2,12 @@ import json
 import time
 from datetime import UTC, datetime, timedelta
 
-from pitboss_bridge.state import normalize_state
-from pitboss_bridge.store import Database
+from smokestack.state import normalize_state
+from smokestack.store import Database
 
 
 def test_database_persists_and_lists_history(tmp_path):
-    db = Database(tmp_path / "pitboss.sqlite")
+    db = Database(tmp_path / "smokestack.sqlite")
     db.initialize()
     snapshot = normalize_state(
         {"grillTemp": 220, "p1Temp": 150, "unexpected": "raw"},
@@ -28,7 +28,7 @@ def test_database_persists_and_lists_history(tmp_path):
 
 
 def test_database_filters_history_by_since(tmp_path):
-    db = Database(tmp_path / "pitboss.sqlite")
+    db = Database(tmp_path / "smokestack.sqlite")
     db.initialize()
     old = normalize_state(
         {"grillTemp": 200},
@@ -52,7 +52,7 @@ def test_database_filters_history_by_since(tmp_path):
 
 
 def test_database_records_health_events(tmp_path):
-    db = Database(tmp_path / "pitboss.sqlite")
+    db = Database(tmp_path / "smokestack.sqlite")
     db.initialize()
 
     db.insert_health_event("connect", "fake source connected", {"source": "fake"})
@@ -147,7 +147,7 @@ def test_prune_removes_old_rows_and_events(tmp_path):
 
 
 def test_probe_targets_are_set_and_cleared(tmp_path):
-    db = Database(tmp_path / "pitboss.sqlite")
+    db = Database(tmp_path / "smokestack.sqlite")
     db.initialize()
 
     db.save_probe_targets({1: 203, 2: 165})
@@ -158,7 +158,7 @@ def test_probe_targets_are_set_and_cleared(tmp_path):
 
 
 def test_probe_targets_saved_as_settings_are_carried_over(tmp_path):
-    db = Database(tmp_path / "pitboss.sqlite")
+    db = Database(tmp_path / "smokestack.sqlite")
     db.initialize()
     db.save_settings(
         {"alert_probe1_target": 203, "alert_probe2_target": None, "poll_seconds": 3}
