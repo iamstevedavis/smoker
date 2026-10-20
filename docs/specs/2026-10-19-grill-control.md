@@ -92,12 +92,15 @@ firmware clears its status cache, so the next state frame comes back blank.
   them. So they stop depending on the grill's unit at all:
   - Each probe target is stored with the unit it was entered in (a `unit`
     column on `probe_targets`). Existing rows were entered in whatever unit
-    the grill reported, so the migration takes their unit from the latest
-    stored reading with a known `isFahrenheit`. With no such reading, the
-    unit stays empty and is filled in from the first reading that has one;
-    until then the target is compared in the reading's own unit, as today.
-    A new target is saved in the unit of the latest reading, and saving is
-    rejected while that unit is unknown.
+    the grill reported at the time, so the migration takes each row's unit
+    from the latest reading with a known `isFahrenheit` at or before that
+    row's `updated_at`; a later reading may follow a unit switch, so it is
+    never used. When no such reading exists (none yet, or pruned), the unit
+    is left unknown: that target is not compared, and the dashboard marks it
+    "re-enter this target" until it is saved again. Guessing could delay an
+    alert by hundreds of degrees; a flagged target cannot. A new target is
+    saved in the unit of the latest reading, and saving is rejected while
+    that unit is unknown.
   - The drift threshold is defined in Fahrenheit degrees and scaled by 5/9
     when comparing Celsius readings.
   - The alert engine converts each threshold to the unit of the reading it is
@@ -110,7 +113,8 @@ firmware clears its status cache, so the next state frame comes back blank.
   `breaking` label and says so. Stored readings keep `isFahrenheit` with each
   snapshot, so history stays readable and is not rewritten. Tests cover a
   target saved in F and checked against C readings and the reverse, a unit
-  switch with no command at all, and the migration.
+  switch with no command at all, and the migration (targets saved on either
+  side of a unit switch, and a target with no reading before it).
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise) and a
