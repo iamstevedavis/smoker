@@ -205,6 +205,10 @@ class AuthState:
     def session_valid(self, token: str | None) -> bool:
         return self._signer is not None and self._signer.verify(token)
 
+    def allows(self, token: str | None) -> bool:
+        """Whether a request with this session cookie may proceed now."""
+        return not self.required or self.session_valid(token)
+
 
 def is_exempt(path: str) -> bool:
     return path in _EXEMPT_PATHS or path.startswith(_EXEMPT_PREFIXES)
@@ -227,9 +231,7 @@ class AuthGate:
         if scope["type"] not in ("http", "websocket") or is_exempt(scope["path"]):
             await self.app(scope, receive, send)
             return
-        if not self.state.required or self.state.session_valid(
-            HTTPConnection(scope).cookies.get(COOKIE_NAME)
-        ):
+        if self.state.allows(HTTPConnection(scope).cookies.get(COOKIE_NAME)):
             await self.app(scope, receive, send)
             return
         if scope["type"] == "websocket":

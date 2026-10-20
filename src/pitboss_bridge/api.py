@@ -347,12 +347,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.websocket("/api/live")
     async def live_endpoint(websocket: WebSocket) -> None:
         await websocket.accept()
+        token = websocket.cookies.get(auth.COOKIE_NAME)
         queue = hub.subscribe()
         try:
             if hub.current is not None:
                 await websocket.send_json(hub.current_api_dict())
             while True:
                 snapshot = await queue.get()
+                # The gate only checked the handshake. Turning the password
+                # on, changing it or the session expiring must also end
+                # sockets that are already open.
+                if not auth_state.allows(token):
+                    await websocket.close(code=1008)
+                    return
                 await websocket.send_json(
                     snapshot.to_api_dict(stale_after_seconds=hub.stale_after_seconds)
                 )
