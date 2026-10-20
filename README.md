@@ -1,6 +1,6 @@
 # Smokestack
 
-A self-hosted, read-only dashboard and alert service for Pit Boss pellet grills (built for the `PB850PS2`). It polls the grill over WiFi or Bluetooth, stores the history in SQLite, and serves a live dashboard and a JSON API. It never sends commands to the grill.
+A self-hosted, read-only dashboard and alert service for Pit Boss pellet grills (built and tested on the `PB850PS2`; other models: [Does my grill work?](docs/compatibility.md)). It polls the grill over WiFi or Bluetooth, stores the history in SQLite, and serves a live dashboard and a JSON API. It never sends commands to the grill.
 
 ![Dashboard](docs/images/dashboard-desktop.png)
 
@@ -8,20 +8,39 @@ A self-hosted, read-only dashboard and alert service for Pit Boss pellet grills 
 
 Runs on any always-on machine (NAS, mini-PC, Raspberry Pi). No Bluetooth adapter needed.
 
-```bash
-git clone https://github.com/iamstevedavis/smokestack.git && cd smokestack
-cp .env.example .env        # set PITBOSS_HOST to the grill's IP (and PITBOSS_PASSWORD)
-docker compose up -d --build
-```
+1. Get the compose file and settings:
 
-Open `http://<server>:8000/`, or check `curl http://<server>:8000/api/health`.
+   ```bash
+   git clone https://github.com/iamstevedavis/smokestack.git && cd smokestack
+   cp .env.example .env
+   ```
 
-No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up --build`.
+2. Edit `.env`:
+   - `PITBOSS_HOST`: the grill's IP. Find it in your router's DHCP list and
+     give it a reservation so it doesn't change.
+   - `PITBOSS_MODEL`: your model if it isn't the `PB850PS2`
+     ([which names work](docs/compatibility.md)).
+   - `PITBOSS_PASSWORD`: only if you set one on the grill.
 
-- Find the grill's IP in your router's DHCP list and give it a reservation.
-- Multi-arch images (amd64, arm64) are published to `ghcr.io/iamstevedavis/smokestack` on each `v*` tag, one image for WiFi and Bluetooth: `docker compose pull && docker compose up -d`.
+3. Start it with the published image (amd64 or arm64):
+
+   ```bash
+   docker compose pull && docker compose up -d
+   ```
+
+4. Open `http://<server>:8000/`. Create the dashboard password when asked,
+   and the dashboard shows live temperatures within a few seconds.
+
+**No readings?** `curl http://<server>:8000/api/health` shows the bridge's
+`last_error`. If it says it could not read the grill, first check that
+`PITBOSS_HOST` is right and the grill is on. If it is, your grill probably
+doesn't serve local HTTP and needs [Bluetooth](docs/ble.md) instead:
+`docker compose -f docker-compose.ble.yml pull && docker compose -f docker-compose.ble.yml up -d`.
+
+No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up -d`.
+
+- To build from source instead, add `--build` to `docker compose up`.
 - Data lives on the `smokestack-data` volume. Upgrading, backup and migration: [docs/docker.md](docs/docker.md).
-- Not every grill serves local HTTP (ESP-IDF boards such as `PBL2`/`PBC2` don't). If the bridge says so, use [Bluetooth](docs/ble.md): `docker compose -f docker-compose.ble.yml up -d --build`.
 
 ## Security
 
@@ -65,6 +84,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 
 - [API reference](docs/api.md): history, cook sessions, settings, health
 - [Home Assistant and alerts](docs/integrations.md)
+- [Does my grill work?](docs/compatibility.md): tested models, WiFi or Bluetooth
 - [Bluetooth setup](docs/ble.md)
 - [Docker operations](docs/docker.md): upgrade, backup, migrating the old `./data` mount
 - [Releasing](docs/releasing.md): versions, tags, release notes and images
