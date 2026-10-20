@@ -3,7 +3,8 @@
 Pushing a `v*` tag runs [`release.yml`](../.github/workflows/release.yml). It
 checks the tag, runs the CI tests and image build, publishes the image to
 `ghcr.io/iamstevedavis/smokestack` and creates a GitHub Release with
-generated notes. Nothing is published if any step fails.
+generated notes. Nothing is published if the checks or tests fail; see
+[If the release fails](#if-the-release-fails) for a failure after that.
 
 ## Pick a version
 
@@ -38,8 +39,16 @@ Pre-releases add a suffix: `0.2.0-rc.1`, `0.2.0-rc.2`.
 - The tagged commit is on `master`.
 - The tests pass and the image builds (the same jobs as CI).
 
-If a check fails, delete the tag (`git push --delete origin v0.2.0 && git tag -d v0.2.0`),
-fix it on `master` and tag again.
+## If the release fails
+
+- **A check or the tests fail:** nothing was published. Delete the tag
+  (`git push --delete origin v0.2.0 && git tag -d v0.2.0`), fix it on `master`
+  and tag again.
+- **The image is pushed but the GitHub Release step fails** (for example, a
+  GitHub API error): the image tags, including `latest`, are already public.
+  Don't delete the tag. Use **Re-run failed jobs** on the workflow run, which
+  repeats only the release step. If the release was created before the step
+  failed, edit it on the Releases page instead.
 
 ## Image tags
 
