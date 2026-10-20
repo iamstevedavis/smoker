@@ -7,10 +7,12 @@ restart shows the first-run setup again.
 
 from __future__ import annotations
 
+import os
 import sys
 
 import uvicorn
 
+from pitboss_bridge.auth import LEGACY_PASSWORD_ENV
 from pitboss_bridge.config import Settings
 from pitboss_bridge.store import Database
 
@@ -22,6 +24,11 @@ def reset_password() -> None:
         print("Password cleared. Restart the bridge, then open the dashboard to set a new one.")
     else:
         print("No password was set.")
+    if os.getenv(LEGACY_PASSWORD_ENV):
+        print(
+            f"{LEGACY_PASSWORD_ENV} is still set, so the bridge will import it again "
+            "on restart; remove it from .env to get the setup screen."
+        )
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -32,6 +32,10 @@ Managing it (behind the login when it is on; a wrong password answers 403):
 - `POST /api/auth/password` `{"current": "...", "new": "..."}` changes it (at
   least 8 characters). Every other session is signed out.
 
+Upgrading: if the database has no password yet and the old
+`PITBOSS_UI_PASSWORD` is set, it is imported (with the password on) at
+startup. After that the variable is ignored.
+
 Locked out? `python -m pitboss_bridge reset-password` (in Docker:
 `docker compose exec pitboss-bridge smokestack reset-password`) forgets the
 password; restart the bridge and the next visit shows the setup form again.

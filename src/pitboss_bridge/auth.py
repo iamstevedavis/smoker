@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import time
@@ -24,6 +25,8 @@ from starlette.websockets import WebSocket
 
 if TYPE_CHECKING:
     from pitboss_bridge.store import Database
+
+logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "smoker_session"
 KEY_FILENAME = "session.key"
@@ -48,6 +51,8 @@ _EXEMPT_PATHS = {
 }
 _EXEMPT_PREFIXES = ("/static/",)
 _NO_STORE = {"Cache-Control": "no-store"}
+# Where the password lived before it moved to the database.
+LEGACY_PASSWORD_ENV = "PITBOSS_UI_PASSWORD"
 
 
 def load_or_create_key(path: Path) -> bytes:
@@ -111,6 +116,32 @@ def verify_password(password: str, stored: str) -> bool:
     except ValueError:
         return False
     return hmac.compare_digest(digest.hex(), expected)
+
+
+def import_legacy_password(store: Database) -> None:
+    """Upgrade path: adopt `PITBOSS_UI_PASSWORD` as the stored password.
+
+    Without this, an install that was protected by the env var would come up
+    in first-run setup, open to whoever on the LAN reaches it first. Runs only
+    while the database has no password; after that the variable is ignored.
+    """
+    legacy = os.getenv(LEGACY_PASSWORD_ENV, "")
+    if not legacy:
+        return
+    if store.load_auth() is None:
+        store.save_auth(hash_password(legacy), required=True)
+        logger.warning(
+            "Imported %s as the dashboard password. It now lives in the database; "
+            "remove %s from .env.",
+            LEGACY_PASSWORD_ENV,
+            LEGACY_PASSWORD_ENV,
+        )
+    else:
+        logger.warning(
+            "%s is ignored: the dashboard password is set in the database. "
+            "Remove it from .env, and change the password under Profile.",
+            LEGACY_PASSWORD_ENV,
+        )
 
 
 class AuthState:

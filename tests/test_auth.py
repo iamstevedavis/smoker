@@ -1,3 +1,4 @@
+import logging
 import stat
 
 import pytest
@@ -26,6 +27,8 @@ PROTECTED = [
 @pytest.fixture(autouse=True)
 def no_login_delay(monkeypatch):
     monkeypatch.setattr(auth, "LOGIN_FAILURE_DELAY_SECONDS", 0)
+    # A developer's shell may still export the old variable.
+    monkeypatch.delenv(auth.LEGACY_PASSWORD_ENV, raising=False)
 
 
 def _settings(tmp_path) -> Settings:
@@ -362,6 +365,55 @@ def test_reset_password_command_returns_to_first_run(tmp_path, monkeypatch, caps
         assert client.get("/api/session").json()["setup_required"] is True
 
 
+def test_reset_password_warns_while_the_legacy_variable_is_set(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setenv("PITBOSS_DB", str(tmp_path / "pitboss.sqlite"))
+    monkeypatch.setenv(auth.LEGACY_PASSWORD_ENV, "old password")
+    finish_setup(_settings(tmp_path), password=PASSWORD)
+
+    cli.main(["reset-password"])
+    assert "remove it" in capsys.readouterr().out
+
+
 def test_cli_rejects_unknown_commands():
     with pytest.raises(SystemExit):
         cli.main(["bogus"])
+
+
+# Upgrading from PITBOSS_UI_PASSWORD ----------------------------------------
+
+
+@pytest.fixture
+def auth_log(caplog):
+    # The bridge's logger doesn't propagate, so listen on it directly.
+    logger = logging.getLogger("pitboss_bridge.auth")
+    logger.addHandler(caplog.handler)
+    yield caplog
+    logger.removeHandler(caplog.handler)
+
+
+def test_legacy_env_password_is_imported_and_required(tmp_path, monkeypatch, auth_log):
+    monkeypatch.setenv(auth.LEGACY_PASSWORD_ENV, "old password")
+    app = _app(tmp_path, password=None)
+    with TestClient(app) as client:
+        assert client.get("/api/session").json()["setup_required"] is False
+        assert client.get("/api/state").status_code == 401
+        assert client.post("/api/setup", json={"password": "taking over"}).status_code == 409
+        assert _login(client, "old password").status_code == 204
+
+    stored = app.state.store.load_auth()
+    assert stored["required"] is True
+    assert "old password" not in stored["password_hash"]
+    assert "Imported PITBOSS_UI_PASSWORD" in auth_log.text
+
+
+def test_legacy_env_password_is_ignored_once_one_is_stored(tmp_path, monkeypatch, auth_log):
+    monkeypatch.setenv(auth.LEGACY_PASSWORD_ENV, "old password")
+    app = _app(tmp_path, required=False)
+    with TestClient(app) as client:
+        assert client.get("/api/state").status_code == 200
+        assert _login(client, "old password").status_code == 401
+        assert _login(client).status_code == 204
+
+    assert "PITBOSS_UI_PASSWORD is ignored" in auth_log.text
