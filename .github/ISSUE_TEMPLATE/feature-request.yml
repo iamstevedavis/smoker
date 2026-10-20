@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest something Smokestack should do.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Smokestack only reads from the grill. Controlling it (set
+        temperature, turn off) is being designed in
+        [#17](https://github.com/iamstevedavis/smokestack/issues/17); add to
+        that issue rather than opening a new one.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The problem or situation, not the solution yet.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you'd like it to work.
