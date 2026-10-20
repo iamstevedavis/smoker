@@ -2,13 +2,13 @@
 # Needs a Linux host with a Bluetooth adapter and bluetoothd running.
 #   docker compose -f docker-compose.ble.yml up -d --build
 services:
-  pitboss-bridge:
+  smokestack:
     build:
       context: .
       args:
         EXTRAS: ble
     restart: unless-stopped
-    # Starts as root only so the entrypoint can hand /data to PITBOSS_RUN_AS;
+    # Starts as root only so the entrypoint can hand /data to SMOKESTACK_RUN_AS;
     # it then drops root before the bridge starts. The host's D-Bus only
     # accepts uids that exist on the host, and `nobody` (65534) always does.
     user: root
@@ -21,20 +21,20 @@ services:
       - path: .env
         required: false
     environment:
-      PITBOSS_RUN_AS: ${PITBOSS_RUN_AS:-65534:65534}
+      SMOKESTACK_RUN_AS: ${SMOKESTACK_RUN_AS:-65534:65534}
       PITBOSS_SOURCE: ble
       PITBOSS_MODEL: ${PITBOSS_MODEL:-PB850PS2}
       PITBOSS_DEVICE_NAME: ${PITBOSS_DEVICE_NAME:-}
       PITBOSS_PASSWORD: ${PITBOSS_PASSWORD:-}
-      PITBOSS_DB: /data/pitboss.sqlite
-      PITBOSS_POLL_SECONDS: ${PITBOSS_POLL_SECONDS:-2}
-      PITBOSS_STALE_AFTER_SECONDS: ${PITBOSS_STALE_AFTER_SECONDS:-30}
+      SMOKESTACK_DB: /data/smokestack.sqlite
+      SMOKESTACK_POLL_SECONDS: ${SMOKESTACK_POLL_SECONDS:-2}
+      SMOKESTACK_STALE_AFTER_SECONDS: ${SMOKESTACK_STALE_AFTER_SECONDS:-30}
     ports:
-      - "${PITBOSS_PORT:-8000}:8000"
+      - "${SMOKESTACK_PORT:-8000}:8000"
     volumes:
-      - pitboss-data:/data
+      - smokestack-data:/data
       # Only the system bus socket: no host networking or other host access.
       - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
 
 volumes:
-  pitboss-data:
+  smokestack-data:

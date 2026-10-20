@@ -4,14 +4,14 @@ import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from pitboss_bridge.config import Settings
+from smokestack.config import Settings
 
 
 @pytest.fixture
 def app(tmp_path, make_app):
     settings = Settings(
         source="fake",
-        db_path=tmp_path / "pitboss.sqlite",
+        db_path=tmp_path / "smokestack.sqlite",
         poll_seconds=0,
         start_collector=False,
     )

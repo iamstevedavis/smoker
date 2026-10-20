@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from pitboss_bridge.sources.base import GrillSource
-from pitboss_bridge.state import DEFAULT_MODEL, StateSnapshot, normalize_state, utc_now
-from pitboss_bridge.store import Database
+from smokestack.sources.base import GrillSource
+from smokestack.state import DEFAULT_MODEL, StateSnapshot, normalize_state, utc_now
+from smokestack.store import Database
 
 logger = logging.getLogger(__name__)
 

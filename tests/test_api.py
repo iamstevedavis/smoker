@@ -1,12 +1,12 @@
 from fastapi.testclient import TestClient
 
-from pitboss_bridge.config import Settings
+from smokestack.config import Settings
 
 
 def test_health_state_and_history_endpoints(tmp_path, make_app):
     settings = Settings(
         source="fake",
-        db_path=tmp_path / "pitboss.sqlite",
+        db_path=tmp_path / "smokestack.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
@@ -30,7 +30,7 @@ def test_health_state_and_history_endpoints(tmp_path, make_app):
 def test_history_since_filter(tmp_path, make_app):
     settings = Settings(
         source="fake",
-        db_path=tmp_path / "pitboss.sqlite",
+        db_path=tmp_path / "smokestack.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
@@ -48,7 +48,7 @@ def test_history_since_filter(tmp_path, make_app):
 def test_live_websocket_streams_current_and_next_state(tmp_path, make_app):
     settings = Settings(
         source="fake",
-        db_path=tmp_path / "pitboss.sqlite",
+        db_path=tmp_path / "smokestack.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
@@ -71,7 +71,7 @@ def test_history_order_until_and_bucket_params(tmp_path, make_app):
 
     settings = Settings(
         source="fake",
-        db_path=tmp_path / "pitboss.sqlite",
+        db_path=tmp_path / "smokestack.sqlite",
         poll_seconds=0,
         start_collector=False,
     )

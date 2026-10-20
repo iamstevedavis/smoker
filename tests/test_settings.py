@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import time
@@ -5,26 +6,26 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from pitboss_bridge import overrides, runtime
-from pitboss_bridge import api
-from pitboss_bridge.config import EDITABLE_FIELDS, Settings
-from pitboss_bridge.sources.fake import FakeGrillSource
-from pitboss_bridge.state import normalize_state
-from pitboss_bridge.store import Database
+from smokestack import overrides, runtime
+from smokestack import api
+from smokestack.config import EDITABLE_FIELDS, Settings, env_name
+from smokestack.sources.fake import FakeGrillSource
+from smokestack.state import normalize_state
+from smokestack.store import Database
 from conftest import finish_setup
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
-    # Origins depend on the environment, so start every test without PITBOSS_*.
+    # Origins depend on the environment, so start every test without our variables.
     for name in list(os.environ):
-        if name.startswith("PITBOSS_"):
+        if name.startswith(("PITBOSS_", "SMOKESTACK_")):
             monkeypatch.delenv(name)
 
 
 @pytest.fixture(autouse=True)
 def _restore_log_level():
-    logger = logging.getLogger("pitboss_bridge")
+    logger = logging.getLogger("smokestack")
     level = logger.level
     yield
     logger.setLevel(level)
@@ -33,7 +34,7 @@ def _restore_log_level():
 def _settings(tmp_path, **kwargs) -> Settings:
     values = {
         "source": "fake",
-        "db_path": tmp_path / "pitboss.sqlite",
+        "db_path": tmp_path / "smokestack.sqlite",
         "poll_seconds": 0,
         "start_collector": False,
     }
@@ -57,8 +58,8 @@ def _fields(payload) -> dict:
 
 def _env_app(tmp_path, monkeypatch, **env):
     monkeypatch.setenv("PITBOSS_SOURCE", "fake")
-    monkeypatch.setenv("PITBOSS_DB", str(tmp_path / "pitboss.sqlite"))
-    monkeypatch.setenv("PITBOSS_START_COLLECTOR", "false")
+    monkeypatch.setenv("SMOKESTACK_DB", str(tmp_path / "smokestack.sqlite"))
+    monkeypatch.setenv("SMOKESTACK_START_COLLECTOR", "false")
     for name, value in env.items():
         monkeypatch.setenv(name, value)
     return create_app()
@@ -78,13 +79,22 @@ def test_lists_every_editable_field_once(tmp_path):
         "logging",
     ]
     assert "fake" in payload["sources"]
-    assert "PITBOSS_DB" in payload["env_only"]
+    assert "SMOKESTACK_DB" in payload["env_only"]
     assert "editable" not in payload
-    assert _fields(payload)["poll_seconds"]["env"] == "PITBOSS_POLL_SECONDS"
+    assert _fields(payload)["poll_seconds"]["env"] == "SMOKESTACK_POLL_SECONDS"
+
+
+def test_env_names_match_the_variables_settings_reads():
+    # The settings panel shows env_name(); it must be the variable from_env() reads.
+    source = inspect.getsource(Settings.from_env)
+    for name in EDITABLE_FIELDS:
+        assert f'"{env_name(name)}"' in source, name
+    assert env_name("host") == "PITBOSS_HOST"
+    assert env_name("mqtt_host") == "SMOKESTACK_MQTT_HOST"
 
 
 def test_layering_default_then_env_then_override(tmp_path, monkeypatch):
-    app = _env_app(tmp_path, monkeypatch, PITBOSS_POLL_SECONDS="5")
+    app = _env_app(tmp_path, monkeypatch, SMOKESTACK_POLL_SECONDS="5")
     with TestClient(app) as client:
         fields = _fields(client.get("/api/settings").json())
         assert (fields["poll_seconds"]["value"], fields["poll_seconds"]["origin"]) == (
@@ -374,13 +384,13 @@ def test_enabling_and_disabling_mqtt_and_alerts(tmp_path):
 def test_log_level_is_applied(tmp_path):
     with TestClient(create_app(_settings(tmp_path))) as client:
         client.put("/api/settings", json={"log_level": "DEBUG"})
-        assert logging.getLogger("pitboss_bridge").level == logging.DEBUG
+        assert logging.getLogger("smokestack").level == logging.DEBUG
         client.put("/api/settings", json={"log_level": "WARNING"})
-        assert logging.getLogger("pitboss_bridge").level == logging.WARNING
+        assert logging.getLogger("smokestack").level == logging.WARNING
 
 
 def test_bad_saved_values_fall_back_to_env(tmp_path):
-    store = Database(tmp_path / "pitboss.sqlite")
+    store = Database(tmp_path / "smokestack.sqlite")
     store.initialize()
     store.save_settings(
         {"source": "carrier-pigeon", "poll_seconds": 4, "db_path": "/elsewhere"}
@@ -389,7 +399,7 @@ def test_bad_saved_values_fall_back_to_env(tmp_path):
     app = create_app(_settings(tmp_path))
     assert app.state.settings.source == "fake"
     assert app.state.settings.poll_seconds == 4
-    assert app.state.settings.db_path == tmp_path / "pitboss.sqlite"
+    assert app.state.settings.db_path == tmp_path / "smokestack.sqlite"
 
 
 def test_settings_endpoints_require_login(tmp_path):

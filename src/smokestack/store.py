@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from pitboss_bridge.state import StateSnapshot, utc_now
+from smokestack.state import StateSnapshot, utc_now
 
 
 def _iso(dt: datetime) -> str:

@@ -18,12 +18,12 @@ from fastapi import (
 )
 from pydantic import BaseModel, ConfigDict, Field
 
-from pitboss_bridge import auth, overrides
-from pitboss_bridge.config import EDITABLE_FIELDS, Settings
-from pitboss_bridge.runtime import Runtime, configure_logging, make_source
-from pitboss_bridge.services.collector import StateHub
-from pitboss_bridge.store import Database
-from pitboss_bridge.web import mount_dashboard
+from smokestack import auth, overrides
+from smokestack.config import EDITABLE_FIELDS, Settings
+from smokestack.runtime import Runtime, configure_logging, make_source
+from smokestack.services.collector import StateHub
+from smokestack.store import Database
+from smokestack.web import mount_dashboard
 
 
 def _parse_time(value: str | None) -> datetime | None:
@@ -111,7 +111,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await app.state.runtime.stop()
 
-    auth.import_legacy_password(store)
     auth_state = auth.AuthState(
         store,
         auth.load_or_create_key(base_settings.db_path.parent / auth.KEY_FILENAME),

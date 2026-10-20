@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from pitboss_bridge.healthcheck import is_healthy
+from smokestack.healthcheck import is_healthy
 
 NOW = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
 
@@ -16,7 +16,7 @@ def test_connected_but_stale_is_unhealthy():
 
 
 def test_probes_the_container_port_not_the_published_one(monkeypatch):
-    from pitboss_bridge import healthcheck
+    from smokestack import healthcheck
 
     urls = []
 
@@ -24,7 +24,7 @@ def test_probes_the_container_port_not_the_published_one(monkeypatch):
         urls.append(url)
         raise OSError("refused")
 
-    monkeypatch.setenv("PITBOSS_PORT", "9000")
+    monkeypatch.setenv("SMOKESTACK_PORT", "9000")
     monkeypatch.setattr(healthcheck.urllib.request, "urlopen", fake_urlopen)
 
     assert healthcheck.main() == 1

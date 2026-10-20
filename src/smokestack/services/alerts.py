@@ -15,9 +15,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
-from pitboss_bridge.services.collector import CollectorHealth, StateHub
-from pitboss_bridge.state import StateSnapshot
-from pitboss_bridge.store import Database
+from smokestack.services.collector import CollectorHealth, StateHub
+from smokestack.state import StateSnapshot
+from smokestack.store import Database
 
 logger = logging.getLogger(__name__)
 

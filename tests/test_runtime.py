@@ -2,8 +2,8 @@ import socket
 
 import pytest
 
-from pitboss_bridge import runtime
-from pitboss_bridge.runtime import available_sources, system_bus_reachable
+from smokestack import runtime
+from smokestack.runtime import available_sources, system_bus_reachable
 
 
 @pytest.fixture

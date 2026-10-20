@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from pitboss_bridge.state import KNOWN_STATE_FIELDS, normalize_state
+from smokestack.state import KNOWN_STATE_FIELDS, normalize_state
 
 
 def test_normalize_state_wraps_each_known_value_with_timestamp():
@@ -74,7 +74,7 @@ def test_p1_target_other_than_firmware_default_is_kept():
 
 
 def test_fake_source_state_omits_unusable_fields():
-    from pitboss_bridge.sources.fake import FakeGrillSource
+    from smokestack.sources.fake import FakeGrillSource
 
     raw = FakeGrillSource(interval_seconds=0)._reading()
     snapshot = normalize_state(raw, source="fake")

@@ -1,4 +1,4 @@
-"""Container healthcheck: `python -m pitboss_bridge.healthcheck`.
+"""Container healthcheck: `python -m smokestack.healthcheck`.
 
 Healthy when the source is delivering fresh readings, or while the bridge is still
 inside its startup grace period (so a slow first connect is not reported as a
@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 DEFAULT_GRACE_SECONDS = 120.0
-# Uvicorn always listens on 8000 inside the container; PITBOSS_PORT only picks
+# Uvicorn always listens on 8000 inside the container; SMOKESTACK_PORT only picks
 # the published host port, so it must not be used here.
 CONTAINER_PORT = 8000
 
@@ -35,7 +35,7 @@ def is_healthy(
 
 
 def main() -> int:
-    grace = float(os.getenv("PITBOSS_HEALTH_GRACE_SECONDS", DEFAULT_GRACE_SECONDS))
+    grace = float(os.getenv("SMOKESTACK_HEALTH_GRACE_SECONDS", DEFAULT_GRACE_SECONDS))
     try:
         with urllib.request.urlopen(
             f"http://127.0.0.1:{CONTAINER_PORT}/api/health", timeout=4

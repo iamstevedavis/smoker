@@ -32,12 +32,8 @@ Managing it (behind the login when it is on; a wrong password answers 403):
 - `POST /api/auth/password` `{"current": "...", "new": "..."}` changes it (at
   least 8 characters). Every other session is signed out.
 
-Upgrading: if the database has no password yet and the old
-`PITBOSS_UI_PASSWORD` is set, it is imported (with the password on) at
-startup. After that the variable is ignored.
-
-Locked out? `python -m pitboss_bridge reset-password` (in Docker:
-`docker compose exec pitboss-bridge smokestack reset-password`) forgets the
+Locked out? `python -m smokestack reset-password` (in Docker:
+`docker compose exec smokestack smokestack reset-password`) forgets the
 password; restart the bridge and the next visit shows the setup form again.
 
 ## History
@@ -89,9 +85,9 @@ three endpoints sit behind the login.
   `{"set": true|false}`, never the value. Also the `sources` this image
   supports and the `env_only` variables.
 - `PUT /api/settings`: partial update, e.g. `{"poll_seconds": 5, "mqtt_host": "192.168.1.10"}`.
-  Field names are the variable names without `PITBOSS_`, lower case. The
-  whole update is validated first; any bad field returns 422 and nothing
-  changes. Otherwise the values are saved and the source, MQTT and alerts are
+  Field names are the variable names without the `PITBOSS_` or `SMOKESTACK_`
+  prefix, lower case. The whole update is validated first; any bad field
+  returns 422 and nothing changes. Otherwise the values are saved and the source, MQTT and alerts are
   restarted with them. Returns the same shape as `GET`. An empty `mqtt_host`
   or `ntfy_url` turns that service off.
 - `DELETE /api/settings/{name}`: drop the saved value so the field falls back
@@ -126,6 +122,6 @@ errors, and retries are also logged and recorded as health events in SQLite.
 
 ## Dashboard
 
-The dashboard at `/` updates live over `WS /api/live` and never writes to the grill; its settings panel edits bridge settings only. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `PITBOSS_STALE_AFTER_SECONDS`.
+The dashboard at `/` updates live over `WS /api/live` and never writes to the grill; its settings panel edits bridge settings only. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `SMOKESTACK_STALE_AFTER_SECONDS`.
 
 It works as an installable app (PWA), but browsers only offer install on `localhost` or HTTPS. Over plain `http://<host>:8000/` it works in the browser and iOS "Add to Home Screen" still gives a full-screen icon; Android/Chrome's install prompt needs HTTPS (for example behind a reverse proxy). The service worker caches only the page shell, never API data.

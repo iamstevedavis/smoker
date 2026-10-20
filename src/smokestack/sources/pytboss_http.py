@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
-from pitboss_bridge.sources._pytboss import poll_state
+from smokestack.sources._pytboss import poll_state
 
 logger = logging.getLogger(__name__)
 

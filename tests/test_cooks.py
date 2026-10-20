@@ -4,9 +4,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from pitboss_bridge.api import create_app
-from pitboss_bridge.config import Settings
-from pitboss_bridge.store import Database
+from smokestack.api import create_app
+from smokestack.config import Settings
+from smokestack.store import Database
 
 T0 = datetime(2026, 6, 2, 12, 0, tzinfo=UTC)
 
@@ -72,7 +72,7 @@ def test_cook_summary_stats_cover_only_the_cook_window(tmp_path):
 def client(tmp_path, make_app):
     settings = Settings(
         source="fake",
-        db_path=tmp_path / "pitboss.sqlite",
+        db_path=tmp_path / "smokestack.sqlite",
         poll_seconds=0,
         start_collector=False,
     )
