@@ -78,8 +78,10 @@ firmware clears its status cache, so the next state frame comes back blank.
   grill's current unit (as `pytboss` expects), is snapped to the board's
   accepted setpoints, and the snapped value is reported back. If the grill's
   unit is unknown, set-temperature is rejected.
-- **Unit only while off.** Set-unit is rejected while `moduleIsOn` is true,
-  so a running cook never switches unit part way.
+- **Unit only while off.** Set-unit is accepted only when the latest fresh
+  snapshot has `moduleIsOn` explicitly `false`; `true` or a missing field
+  rejects it, since a snapshot can carry any subset of fields. A running cook
+  never switches unit part way.
 - **Unit-safe alert thresholds.** Today the bridge's probe alert targets
   (#37) and the drift alert threshold are plain numbers in whatever unit the
   grill reports, and they survive between cooks: a 200 F probe target would
@@ -89,8 +91,13 @@ firmware clears its status cache, so the next state frame comes back blank.
   panel or in the vendor app) would leave them wrong with nothing to fix
   them. So they stop depending on the grill's unit at all:
   - Each probe target is stored with the unit it was entered in (a `unit`
-    column on `probe_targets`; existing rows are migrated as Fahrenheit,
-    pytboss's default when `isFahrenheit` is missing).
+    column on `probe_targets`). Existing rows were entered in whatever unit
+    the grill reported, so the migration takes their unit from the latest
+    stored reading with a known `isFahrenheit`. With no such reading, the
+    unit stays empty and is filled in from the first reading that has one;
+    until then the target is compared in the reading's own unit, as today.
+    A new target is saved in the unit of the latest reading, and saving is
+    rejected while that unit is unknown.
   - The drift threshold is defined in Fahrenheit degrees and scaled by 5/9
     when comparing Celsius readings.
   - The alert engine converts each threshold to the unit of the reading it is
@@ -131,7 +138,9 @@ A command is not "done" because the RPC returned. Flow:
    equals the snapped target, or `set-unit` when `isFahrenheit` already matches,
    returns `already_applied` without sending anything. These commands are
    absolute ("be in this state"), not relative, so a repeat is safe. `reboot`
-   has no target state and is always sent.
+   has no target state and is always sent. A missing field never counts as
+   already applied: the command is sent (or, for set-unit, rejected as
+   above).
 3. Send via the source's own connection (see Source support).
 4. **Ignore the blank frame.** A state frame with no known fields right after an
    MCU command is the firmware cache reset, not a reading: it must not be stored
@@ -203,7 +212,8 @@ while the grill is on.
   after a command, `Unauthorized` once, a reboot that never comes back).
 - Unit tests cover the session requirement (including login switched off),
   the enable setting and its save round-trip, snapping (including a Celsius
-  grill), unit-while-on rejection, rate limiting, the command lock,
+  grill), set-unit rejection while on or with `moduleIsOn` missing, idempotence
+  with missing fields, rate limiting, the command lock,
   idempotence, each result state (in the API and in the dashboard, including
   `already_applied`), the blank-frame handling, the held-back stale alert
   during a reboot, the retention exemption, and the audit rows, using
