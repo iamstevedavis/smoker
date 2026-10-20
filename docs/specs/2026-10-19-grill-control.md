@@ -80,19 +80,30 @@ firmware clears its status cache, so the next state frame comes back blank.
   unit is unknown, set-temperature is rejected.
 - **Unit only while off.** Set-unit is rejected while `moduleIsOn` is true,
   so a running cook never switches unit part way.
-- **Converting stored values on a unit change.** The bridge's probe alert
-  targets (#37) and the drift alert threshold are plain numbers in whatever
-  unit the grill reports, and they survive between cooks: a 200 F probe
-  target would be compared with Celsius readings after a switch. So when a
-  set-unit is `confirmed`, the bridge converts them in the same step: probe
-  targets as temperatures (`(F - 32) * 5/9` and back), and the drift
-  threshold as a difference (`* 5/9` or `* 9/5`), saved as a dashboard
-  override since an `.env` value cannot be rewritten. On `unconfirmed` or
-  `failed` nothing is converted, and a later reading that shows the new unit
-  does not trigger a conversion either; the UI says to check the targets.
-  Stored readings keep `isFahrenheit` with each snapshot, so history stays
-  readable and is not rewritten. Tests round-trip F to C to F and check the
-  values come back.
+- **Unit-safe alert thresholds.** Today the bridge's probe alert targets
+  (#37) and the drift alert threshold are plain numbers in whatever unit the
+  grill reports, and they survive between cooks: a 200 F probe target would
+  be compared with Celsius readings after a switch. Converting them when a
+  set-unit is confirmed is not enough, because a switch that the grill
+  applies but the bridge reports as `unconfirmed` (or one made at the grill's
+  panel or in the vendor app) would leave them wrong with nothing to fix
+  them. So they stop depending on the grill's unit at all:
+  - Each probe target is stored with the unit it was entered in (a `unit`
+    column on `probe_targets`; existing rows are migrated as Fahrenheit,
+    pytboss's default when `isFahrenheit` is missing).
+  - The drift threshold is defined in Fahrenheit degrees and scaled by 5/9
+    when comparing Celsius readings.
+  - The alert engine converts each threshold to the unit of the reading it is
+    comparing against (`isFahrenheit` on that snapshot), every time. Nothing is
+    rewritten when the unit changes, however it changes. A reading with no
+    known unit is not compared.
+
+  For a grill already in Celsius, this changes what an existing drift setting
+  means (25 becomes about 14 C), so the implementation PR carries the
+  `breaking` label and says so. Stored readings keep `isFahrenheit` with each
+  snapshot, so history stays readable and is not rewritten. Tests cover a
+  target saved in F and checked against C readings and the reverse, a unit
+  switch with no command at all, and the migration.
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise) and a
@@ -224,8 +235,8 @@ per `docs/specs/2026-10-19-grill-control.md`". Tasks: the `enable_control`
 setting (env, `EDITABLE_GROUPS`, `overrides.SettingsUpdate`, dashboard field,
 docs); `execute` on sources and the command queue; blank-frame handling in the
 collector; control service (validation, rate limit, idempotence, confirmation,
-audit); the control header and `Origin` check; converting stored probe
-targets and the drift threshold on a confirmed unit change; retention
+audit); the control header and `Origin` check; unit-safe alert thresholds
+(probe targets stored with their unit, drift threshold in F); retention
 exemption for audit rows; `/api/control` routes; fake-source
 commands with failure injection; dashboard Controls section; README and tests.
 It is not opened yet because the design is not approved.
