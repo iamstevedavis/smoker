@@ -69,9 +69,11 @@ PITBOSS_SOURCE=fake uvicorn smokestack.api:create_app --factory --reload
   A PR is listed once, under the first section it matches, so a breaking
   feature needs both `breaking` and `enhancement` but appears only under
   Breaking changes.
-- **Write the PR title for someone running Smokestack.** PRs are squash-merged
-  and the title becomes both the commit subject and the release-notes line.
-  `feat:`/`fix:`/`docs:` prefixes are fine but optional. Mark a breaking
-  change with `!` (`refactor!: ...`) as well as the label.
+- **Write the PR title for someone running Smokestack.** It becomes the
+  release-notes line.
+- PRs are rebase-merged (the only method the repo allows), so every commit
+  lands on `master` as-is. Keep each commit self-contained, with a clear
+  subject. `feat:`/`fix:`/`docs:` prefixes are fine but optional. Mark a
+  breaking change with `!` (`refactor!: ...`) as well as the label.
 - Changes that need the real grill to verify get the `needs-hardware` label
   on the issue, with what to check written down.
