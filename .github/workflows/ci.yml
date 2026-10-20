@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: python -m pip install -e ".[test,ble]"
+      - run: python -m pip install -e ".[test]"
       - run: pytest
 
   docker:

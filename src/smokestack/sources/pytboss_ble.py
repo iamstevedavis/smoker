@@ -35,13 +35,8 @@ class PytbossBleSource:
 
     async def readings(self) -> AsyncIterator[dict[str, Any]]:
         self.validate()
-        try:
-            from bleak import BleakScanner
-            from pytboss import BleConnection, PitBoss
-        except ImportError as exc:
-            raise RuntimeError(
-                "BLE source requires installing the bridge with the 'ble' extra"
-            ) from exc
+        from bleak import BleakScanner
+        from pytboss import BleConnection, PitBoss
 
         logger.info("Scanning for Pit Boss BLE device %r", self.device_name)
         device = await BleakScanner.find_device_by_filter(

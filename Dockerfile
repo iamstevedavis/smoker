@@ -3,22 +3,15 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# EXTRAS selects the pytboss source: "http" (WiFi, default) or "ble"
-# (needs BlueZ/D-Bus, see docker-compose.ble.yml).
-ARG EXTRAS=http
-
 WORKDIR /app
-
-RUN if [ "$EXTRAS" = "ble" ]; then \
-      apt-get update \
-      && apt-get install -y --no-install-recommends bluez dbus \
-      && rm -rf /var/lib/apt/lists/*; \
-    fi
 
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 
-RUN python -m pip install --no-cache-dir ".[${EXTRAS},mqtt]"
+# One image for WiFi and Bluetooth. Bluetooth needs no system packages: bleak
+# talks to the host's bluetoothd over the host's D-Bus socket, which
+# docker-compose.ble.yml mounts, using the pure-Python dbus-fast.
+RUN python -m pip install --no-cache-dir ".[mqtt]"
 
 # Fixed gid to match SMOKESTACK_RUN_AS in docker-compose.yml.
 RUN groupadd --system --gid 10001 smokestack \

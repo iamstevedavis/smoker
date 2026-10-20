@@ -92,7 +92,7 @@ if [[ -x .venv/bin/python ]] && ! .venv/bin/python -c \
 fi
 [[ -x .venv/bin/python ]] || "$PYTHON" -m venv .venv
 .venv/bin/python -m pip install --quiet --upgrade pip
-.venv/bin/python -m pip install --quiet -e ".[ble,test]"
+.venv/bin/python -m pip install --quiet -e ".[test]"
 
 say "Running tests"
 .venv/bin/python -m pytest -q

@@ -38,13 +38,8 @@ class PytbossHttpSource:
 
     async def readings(self) -> AsyncIterator[dict[str, Any]]:
         self.validate()
-        try:
-            from pytboss import HttpConnection, PitBoss
-            from pytboss.exceptions import NotConnectedError
-        except ImportError as exc:
-            raise RuntimeError(
-                "HTTP source requires installing the bridge with the 'http' extra"
-            ) from exc
+        from pytboss import HttpConnection, PitBoss
+        from pytboss.exceptions import NotConnectedError
 
         logger.info("Connecting to Pit Boss over HTTP at %s", self.host)
         boss = PitBoss(HttpConnection(self.host), self.model, password=self.password)
