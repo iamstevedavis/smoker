@@ -75,9 +75,16 @@ version, `AGPL-3.0-or-later`) and have SBOM and provenance attestations.
   docker rm -f smokestack-check
   ```
 
-## First release only
+## Image visibility
 
-GHCR creates the package private. After the first release, open the package
-(Your profile → Packages → smokestack) → Package settings → Change visibility
-→ **Public**, so `docker compose pull` works without logging in. This can't be
-done from the workflow.
+The package is public: the `v0.1.0` images pulled without logging in. To
+check after a release, inspect the image with an empty Docker config so no
+saved login is used:
+
+```bash
+DOCKER_CONFIG=$(mktemp -d) docker manifest inspect ghcr.io/iamstevedavis/smokestack:latest
+```
+
+If that is denied, open the package (Your profile → Packages → smokestack) →
+Package settings → Change visibility → **Public**. The workflow can't change
+it.
