@@ -1,0 +1,14 @@
+# Groups the notes GitHub generates for each release (see docs/releasing.md).
+# A PR lands in the first category whose label it has.
+changelog:
+  exclude:
+    labels: [duplicate, invalid, wontfix]
+  categories:
+    - title: Features
+      labels: [enhancement]
+    - title: Fixes
+      labels: [bug]
+    - title: Documentation
+      labels: [documentation]
+    - title: Other changes
+      labels: ["*"]

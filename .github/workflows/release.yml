@@ -1,4 +1,4 @@
-name: Publish image
+name: Release
 
 on:
   push:
@@ -6,13 +6,14 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  image:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Check the tag matches the package version
         run: |
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
@@ -20,6 +21,25 @@ jobs:
             echo "::error::Tag ${GITHUB_REF_NAME} does not match pyproject.toml version ${version}"
             exit 1
           fi
+      - name: Check the tagged commit is on master
+        run: |
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/master; then
+            echo "::error::Tag ${GITHUB_REF_NAME} points at a commit that isn't on master"
+            exit 1
+          fi
+
+  # The same tests and image build CI runs on master.
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -29,12 +49,22 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
         uses: docker/metadata-action@v5
+        env:
+          # Multi-arch images need the annotations on the index too, which is
+          # where GHCR reads the description and license from.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ghcr.io/${{ github.repository }}
+          # Pre-releases (v0.2.0-rc.1) get only their full version: the semver
+          # type skips X.Y and latest=auto skips latest for them.
+          flavor: latest=auto
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+          # The repository's detected license is AGPL-3.0; the project is
+          # AGPL-3.0-or-later.
+          labels: org.opencontainers.image.licenses=AGPL-3.0-or-later
+          annotations: org.opencontainers.image.licenses=AGPL-3.0-or-later
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -42,5 +72,25 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: mode=max
+          sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  github-release:
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Notes list the PRs merged since the previous release, grouped by
+      # label as set in .github/release.yml.
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease=
+          case "${GITHUB_REF_NAME}" in *-*) prerelease=--prerelease ;; esac
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag --generate-notes --title "${GITHUB_REF_NAME}" ${prerelease}
