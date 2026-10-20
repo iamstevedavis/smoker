@@ -5,7 +5,8 @@ implemented, and nothing may be until it is approved.
 
 Revised 2026-10-20 for what has landed since it was written: dashboard login
 (#36), settings saved from the dashboard, retention pruning, and bridge-side
-probe alert targets (#37).
+probe alert targets (#37). Revised again on 2026-10-20 with the owner's
+answers to the open decisions (see [Decisions](#decisions)).
 
 ## Goal
 
@@ -16,10 +17,12 @@ decision below favours "do less" over "do more".
 
 ## Scope
 
-In scope, in order of rollout:
+In scope, all in the first release:
 
 1. **Turn off** (lowest risk: it only ever reduces heat).
-2. **Set grill temperature**, bounded and snapped to values the board accepts.
+2. **Set grill temperature**, snapped to values the board accepts.
+3. **Set temperature unit** (F or C), only while the grill is off.
+4. **Reboot the WiFi module**, which leaves the grill itself running.
 
 Out of scope, deliberately:
 
@@ -28,68 +31,62 @@ Out of scope, deliberately:
   may be standing next to", and no board in the vendor catalogue declares a
   turn-on command. The bridge will not expose it. Reversing this is the owner's
   call, not an implementation detail.
+- **Grill password and WiFi changes.** Deferred, not rejected; tracked in its
+  own issue (#54). A wrong WiFi network or password cuts the grill off from the
+  bridge, which then cannot undo the change.
 - Writing probe targets to the grill (`p1Target` is unreliable, see
   `docs/fields.md`). The probe alert targets from #37 are stored in the bridge
-  and never sent to the grill, so they are unaffected. Temperature
-  unit, primer motor, light (the PB850PS2 has none), password and WiFi changes,
-  reboot.
+  and never sent to the grill, so they are unaffected. Primer motor, light
+  (the PB850PS2 has none).
 
 ## What pytboss supports for the PB850PS2
 
-The model uses the `PBL` control board, two probes, setpoints 180-500 F. Board
-commands relevant here:
+The model uses the `PBL` control board, two probes, setpoints 180-500 F.
+Commands relevant here (checked against pytboss 2026.8.6):
 
-| Action | pytboss call | MCU command | Notes |
+| Action | pytboss call | Command | Notes |
 | --- | --- | --- | --- |
-| Turn off | `turn_grill_off()` | `turn-off` `FE0102FF` | Worked first try in the 2026-10-18 test; the fan runs about 10 min afterwards (normal shutdown cycle) |
-| Set temperature | `set_grill_temperature(temp)` | `set-temperature` | Snapped to the nearest of `180/190/.../300/325/350/375/400/450/500`, in the grill's current unit |
+| Turn off | `turn_grill_off()` | MCU `turn-off` `FE0102FF` | Worked first try in the 2026-10-18 test; the fan runs about 10 min afterwards (normal shutdown cycle) |
+| Set temperature | `set_grill_temperature(temp)` | MCU `set-temperature` | Snapped to the nearest of `180/190/.../300/325/350/375/400/450/500`, in the grill's current unit |
+| Set unit | `set_temperature_unit(fahrenheit)` | MCU `set-fahrenheit` `FE0901FF` / `set-celsius` `FE0902FF` | The grill's own unit, shown on its panel and used by every value it reports |
+| Reboot WiFi module | `reboot()` | RPC `Sys.Reboot` | No answer: the module restarts before it can reply. The grill keeps running |
 
-Every command is an authenticated `PB.SendMCUCommand`. After one, the firmware
-clears its status cache, so the next state frame comes back blank.
+Every MCU command is an authenticated `PB.SendMCUCommand`. After one, the
+firmware clears its status cache, so the next state frame comes back blank.
 
 ## Safety
 
-- **Off by default.** Routes are not registered unless `SMOKESTACK_ENABLE_CONTROL=1`.
-  A test asserts that no `/api/control` route exists and no source command
-  method is ever called while it is unset.
-- **Environment only.** Every `SMOKESTACK_CONTROL_*` setting, and
-  `SMOKESTACK_ENABLE_CONTROL` itself, goes in `ENV_ONLY` and never in
-  `EDITABLE_GROUPS`. The dashboard can save other settings to the database
-  (`PUT /api/settings`), and a logged-in session must not be able to turn
-  control on, change the token or raise the temperature cap. Only someone who
-  can edit the host's `.env` and restart the container can.
-- **Separate auth.** Control requires `Authorization: Bearer <SMOKESTACK_CONTROL_TOKEN>`
-  even if the read API is open. If control is enabled and the token is empty or
-  shorter than 16 characters, the bridge refuses to start. Compared in constant
-  time; the token is never logged. When dashboard login (#36) is on, its
-  session cookie is checked first as for every route, and the token is still
-  required. The token is independent of login because login can be switched
-  off from the dashboard (`PUT /api/auth`). Because it travels in a header,
-  never a cookie, a page on another site cannot send a command through the
-  browser's session (no CSRF exposure).
-- **Bounds.** `SMOKESTACK_CONTROL_MIN_TEMP` (default 180) and
-  `SMOKESTACK_CONTROL_MAX_TEMP` (default **300**, hard-capped at the model's 500)
-  are always in **Fahrenheit**, whatever unit the grill is set to. A request is
-  in the grill's current unit (as `pytboss` expects), so it is first snapped to
-  the board's accepted setpoints, then the *snapped* target is converted to F
-  (using `isFahrenheit`) and compared with the bounds. Checking after snapping
-  means a bound that is not itself a setpoint (say 320) can never let a request
-  through that snaps past it (to 325); converting means a Celsius grill cannot
-  use 260 to get 500 F under a 300 cap. Out-of-bounds requests are rejected,
-  not clamped, and the snapped value is reported back. If the grill's unit is
-  unknown, set-temperature is rejected. Raising the max is an explicit owner
-  decision.
+- **Off by default.** `SMOKESTACK_ENABLE_CONTROL` (default off) is an ordinary
+  setting: it can be set in `.env` or switched on from the dashboard's
+  settings, in a `control` group. While it is off, the control routes answer
+  403 and no source command method is ever called; a test asserts both.
+- **Logged in only.** Control needs a valid dashboard session (#36). If
+  dashboard login is switched off (`PUT /api/auth`), control is unavailable
+  even when enabled: the dashboard is read-only to anyone who is not logged in.
+  There is no separate control token. The session cookie is `HttpOnly` and
+  `SameSite=Strict`, so a page on another site cannot send a command through
+  the browser's session.
+- **Temperature.** No bounds beyond the board's own: a request is in the
+  grill's current unit (as `pytboss` expects), is snapped to the board's
+  accepted setpoints, and the snapped value is reported back. If the grill's
+  unit is unknown, set-temperature is rejected.
+- **Unit only while off.** Set-unit is rejected while `moduleIsOn` is true.
+  Stored readings, the bridge's probe alert targets (#37) and the drift alert
+  threshold are plain numbers in whatever unit the grill reports, so changing
+  the unit mid-cook would make them wrong.
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
-- **Rate limiting.** One command in flight at a time (409 otherwise), a minimum
-  gap of 5 s, and at most 10 commands per hour (429).
+- **Rate limiting.** One command in flight at a time (409 otherwise) and a
+  minimum gap of 5 s between commands (429).
 - **Audit log.** Every attempt that reaches the control routes, accepted or
-  rejected (including a missing or wrong token), is a `health_events` row of
-  type `control_command` with command, arguments, client address, and outcome.
-  Requests the login gate rejects for a missing or expired session never reach
-  the routes and are not audited, the same as for every other route. The log is append-only from the API's point of view, and retention
-  pruning (`SMOKESTACK_RETENTION_DAYS`) skips `control_command` rows, so the
-  record of what was sent to the grill is never deleted automatically.
+  rejected, is a `health_events` row of type `control_command` with command,
+  arguments, client address, and outcome. Requests the login gate rejects for
+  a missing or expired session never reach the routes and are not audited, the
+  same as for every other route. The log is append-only from the control API's
+  point of view, and retention pruning (`SMOKESTACK_RETENTION_DAYS`) skips
+  `control_command` rows, so the record of what was sent to the grill is never
+  deleted automatically. Viewing the log and pruning it by hand from the
+  dashboard is a separate issue (#55).
 - **No remote ignition**, as above. A request that would require the grill to be
   off-to-on is not representable in the API.
 
@@ -97,12 +94,14 @@ clears its status cache, so the next state frame comes back blank.
 
 A command is not "done" because the RPC returned. Flow:
 
-1. Validate (auth, snap then bounds, rate limit, source health), then take the
-   command lock.
-2. **Idempotence check** against the current state: `turn-off` when `moduleIsOn`
-   is already false, or `set-temperature` when `grillSetTemp` already equals the
-   snapped target, returns `already_applied` without sending anything. Both
-   commands are absolute ("be in this state"), not relative, so a repeat is safe.
+1. Validate (session, enabled, snapping, unit-while-off, rate limit, source
+   health), then take the command lock.
+2. **Idempotence check** against the current state: `turn-off` when
+   `moduleIsOn` is already false, `set-temperature` when `grillSetTemp` already
+   equals the snapped target, or `set-unit` when `isFahrenheit` already matches,
+   returns `already_applied` without sending anything. These commands are
+   absolute ("be in this state"), not relative, so a repeat is safe. `reboot`
+   has no target state and is always sent.
 3. Send via the source's own connection (see Source support).
 4. **Ignore the blank frame.** A state frame with no known fields right after an
    MCU command is the firmware cache reset, not a reading: it must not be stored
@@ -110,86 +109,102 @@ A command is not "done" because the RPC returned. Flow:
    needs a small change to the collector, which today would persist an empty
    snapshot.
 5. Poll for up to 30 s (about 4 BLE polls) until the expected state appears
-   (`moduleIsOn == false`, or `grillSetTemp == target`).
+   (`moduleIsOn == false`, `grillSetTemp == target`, or `isFahrenheit ==
+   requested`). For `reboot`, wait up to 90 s for the source to drop and
+   reconnect and for a fresh frame to arrive; the stale-data alert is held
+   back for that window so a deliberate reboot does not page anyone.
 6. Result, returned and stored as `last_result`:
    - `confirmed`: expected state observed.
    - `unconfirmed`: command sent, state did not change in time. The UI says so
      plainly and tells the user to check the grill. No automatic retry.
    - `failed`: the RPC raised (timeout, Unauthorized, disconnect). One retry is
-     allowed only for `Unauthorized`, which is safe because commands are
-     idempotent.
+     allowed only for `Unauthorized`, and only for the idempotent commands.
+     For `reboot`, a disconnect after sending is expected, not a failure.
    - `already_applied`: nothing sent.
 
 ## Source support
 
-**BLE and `http` both, plus `fake`.** Both real sources drive the same `PitBoss`
-object, so the commands are identical. The source, not the API layer, owns the
-connection, and BLE allows one connection at a time. So commands go through a
-small `asyncio.Queue` that the source's polling loop services between polls;
-there is never a concurrent GATT or HTTP call. Sources gain an optional
+**BLE, `http` and `fake`, together.** Both real sources drive the same
+`PitBoss` object, so the commands are identical. The source, not the API layer,
+owns the connection, and BLE allows one connection at a time. So commands go
+through a small `asyncio.Queue` that the source's polling loop services between
+polls; there is never a concurrent GATT or HTTP call. Sources gain an optional
 `execute(command)` method; sources without it (or with control disabled) report
-control as unavailable. If the owner would rather limit the first release,
-`http` plus `fake` is the lower-risk subset, since it avoids BLE's
-`Unauthorized` flakiness (#9).
+control as unavailable. BLE's `Unauthorized` flakiness (#9) is covered by the
+single retry above.
 
 ## API
 
-Registered only when control is enabled:
+Always registered; every route needs a logged-in session:
 
-- `GET /api/control`: `{enabled, commands, min_temp, max_temp, last_result}`
-  (needs the token too, so the UI can discover capabilities).
+- `GET /api/control`: `{enabled, available, reason, commands, last_result}`.
+  `available` is false, with a `reason`, when control is disabled, login is
+  switched off, or the source does not support commands.
 - `POST /api/control/turn-off`
 - `POST /api/control/set-temperature` with `{"temp": 225}`
+- `POST /api/control/set-unit` with `{"unit": "F"}` or `{"unit": "C"}`
+- `POST /api/control/reboot`
 
 Each POST returns the result object above plus the audit event id.
 
 ## UI
 
-The dashboard shows a **Controls** section only when `/api/control` reports it
-enabled. The token is typed by the user and kept in `sessionStorage`, never in
-the page or URL. Each action opens a confirmation dialog stating exactly what
-will happen ("Turn the grill off. The fan will run for about 10 minutes."; "Set
-grill to 250 F, currently 225 F"). After sending, the panel shows the last
-command, its time, and its result until replaced, with a spinner while
-confirming. Every result state has its own wording: `confirmed`, `unconfirmed`,
-`failed`, and `already_applied` ("The grill was already off" / "already set to
-250 F"; nothing was sent), which also clears the spinner. The control buttons are disabled
-while the source is stale.
+The dashboard shows a **Controls** section when `/api/control` reports control
+enabled, and explains `reason` when it is not available. Each action opens a
+confirmation dialog stating exactly what will happen ("Turn the grill off. The
+fan will run for about 10 minutes."; "Set grill to 250 F, currently 225 F",
+showing the snapped value when it differs from what was typed; "Switch the
+grill to Celsius"; "Restart the grill's WiFi module. The grill keeps running;
+the dashboard goes blank for up to a minute."). After sending, the panel shows
+the last command, its time, and its result until replaced, with a spinner
+while confirming. Every result state has its own wording: `confirmed`,
+`unconfirmed`, `failed`, and `already_applied` ("The grill was already off" /
+"already set to 250 F"; nothing was sent), which also clears the spinner. The
+control buttons are disabled while the source is stale, and the unit buttons
+while the grill is on.
 
 ## Testing without a live fire
 
 - The **fake source implements the commands**: `turn-off` flips `moduleIsOn`
   and winds the simulated temperature down, `set-temperature` updates
-  `grillSetTemp`. It also supports failure injection (RPC error, ignored command
-  so the state never changes, blank frame after a command, `Unauthorized` once).
-- Unit tests cover auth, bounds and snapping (including a non-setpoint max and
-  a Celsius grill), rate limiting, the command lock, idempotence, each result
-  state (in the API and in the dashboard, including `already_applied`), the blank-frame handling, and the audit rows,
-  using `FakeBoss` objects in the style of `tests/test_ble_poll_state.py`.
+  `grillSetTemp`, `set-unit` flips `isFahrenheit` and converts its values,
+  `reboot` drops the stream briefly and reconnects. It also supports failure
+  injection (RPC error, ignored command so the state never changes, blank frame
+  after a command, `Unauthorized` once, a reboot that never comes back).
+- Unit tests cover the session requirement (including login switched off),
+  the enable setting and its save round-trip, snapping (including a Celsius
+  grill), unit-while-on rejection, rate limiting, the command lock,
+  idempotence, each result state (in the API and in the dashboard, including
+  `already_applied`), the blank-frame handling, the held-back stale alert
+  during a reboot, the retention exemption, and the audit rows, using
+  `FakeBoss` objects in the style of `tests/test_ble_poll_state.py`.
 - CI never talks to a real grill. The one hardware step is a manual
-  checklist, run by the owner standing at the grill: `turn-off` first, then a
-  single `set-temperature`, comparing the grill display with `confirmed`.
+  checklist, run by the owner standing at the grill, over both `http` and BLE:
+  `turn-off` first, then a single `set-temperature`, then `set-unit` both ways
+  with the grill off, then `reboot`, comparing the grill with each result.
 
-## Open decisions for the owner
+## Decisions
 
-1. Is `SMOKESTACK_CONTROL_MAX_TEMP` default 300 right, or should it start higher?
-2. Roll out BLE and `http` together, or `http` + `fake` first?
-3. Confirm remote power-on stays excluded.
-4. Is a shared bearer token enough, or should the UI require a second step such
-   as a PIN for set-temperature?
-5. Should enabling control also require dashboard login to be on (refusing to
-   start otherwise), or is the token alone enough? This design requires only
-   the token, since login can be switched off from the dashboard anyway.
-6. Keep `control_command` audit rows forever, as proposed, or prune them after
-   a longer, separate retention period?
+Answered by the owner on 2026-10-20:
+
+1. No configurable temperature bounds; the board's 180-500 F range applies.
+2. BLE, `http` and `fake` ship together.
+3. Remote power-on stays excluded.
+4. No PIN or separate token: a logged-in session plus the confirmation dialog.
+5. Control requires dashboard login to be on, and the enable setting is
+   editable from the dashboard rather than environment-only.
+6. `control_command` audit rows are kept until pruned by hand, from a
+   dashboard view tracked in #55.
+7. Set-unit and WiFi-module reboot are in scope; grill password and WiFi
+   changes are deferred to #54. The hourly rate limit is dropped.
 
 ## Follow-up implementation issue (to open after approval)
 
-Title: "Implement grill control (turn-off, set-temperature) per
-`docs/specs/2026-10-19-grill-control.md`". Tasks: env-only settings and
-startup checks;
-`execute` on sources and the command queue; blank-frame handling in the
+Title: "Implement grill control (turn-off, set-temperature, set-unit, reboot)
+per `docs/specs/2026-10-19-grill-control.md`". Tasks: the `enable_control`
+setting (env, `EDITABLE_GROUPS`, `overrides.SettingsUpdate`, dashboard field,
+docs); `execute` on sources and the command queue; blank-frame handling in the
 collector; control service (validation, rate limit, idempotence, confirmation,
-audit); retention exemption for audit rows; `/api/control` routes; fake-source commands with failure injection;
-dashboard Controls section; README and tests. It is not opened yet because the
-design is not approved.
+audit); retention exemption for audit rows; `/api/control` routes; fake-source
+commands with failure injection; dashboard Controls section; README and tests.
+It is not opened yet because the design is not approved.
