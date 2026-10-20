@@ -56,6 +56,21 @@ def test_probe_rule_needs_a_target_and_a_reading():
     assert AlertEngine(AlertConfig()).on_snapshot(snap(p1Temp=999)) == []
 
 
+def test_changing_a_probe_target_in_place_rearms_only_that_probe():
+    engine = AlertEngine(AlertConfig(probe1_target=200, probe2_target=150))
+
+    assert keys(engine.on_snapshot(snap(p1Temp=210, p2Temp=160))) == [
+        "probe1_target",
+        "probe2_target",
+    ]
+    engine.set_probe_targets(205, 150)
+    assert engine.config.probe1_target == 205
+    # The new probe 1 target is a new alert; probe 2 stays fired.
+    assert keys(engine.on_snapshot(snap(p1Temp=210, p2Temp=160))) == ["probe1_target"]
+    engine.set_probe_targets(None, 150)
+    assert engine.on_snapshot(snap(p1Temp=300, p2Temp=160)) == []
+
+
 def test_drift_requires_sustained_deviation_while_on():
     clock = Clock()
     engine = AlertEngine(AlertConfig(drift_degrees=25, drift_seconds=600), clock)

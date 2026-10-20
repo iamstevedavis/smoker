@@ -876,6 +876,120 @@
     }
   }
 
+  // Probe alert targets (ntfy) --------------------------------------------
+
+  const alerts = { targets: { 1: null, 2: null }, enabled: null, busy: false };
+
+  function probeAlert(probe) {
+    return document.querySelector('.probe-alert[data-probe="' + probe + '"]');
+  }
+
+  function renderAlertTargets() {
+    for (const probe of [1, 2]) {
+      const box = probeAlert(probe);
+      const target = alerts.targets[probe];
+      box.dataset.set = String(target !== null);
+      box.dataset.enabled = String(alerts.enabled !== false);
+      let label = target === null ? "Set alert" : "Alert at " + Math.round(target * 10) / 10 + "°";
+      if (target !== null && alerts.enabled === false) label += " (off)";
+      setText(box.querySelector("[data-alert-label]"), label);
+      const button = box.querySelector("[data-alert-open]");
+      button.title = alerts.enabled === false ? "ntfy isn't set up, so no alert will be sent" : "";
+    }
+  }
+
+  function applyAlertTargets(body) {
+    alerts.targets = { 1: num(body.probe1), 2: num(body.probe2) };
+    alerts.enabled = Boolean(body.alerts_enabled);
+    renderAlertTargets();
+  }
+
+  async function loadAlertTargets() {
+    try {
+      const res = await apiFetch("api/probe-targets", { cache: "no-store" });
+      if (res.ok) applyAlertTargets(await res.json());
+    } catch (e) { /* shown as unset until the bridge answers */ }
+  }
+
+  function alertNote(box, text, kind) {
+    const note = box.querySelector("[data-alert-note]");
+    note.textContent = text;
+    note.dataset.kind = kind || "";
+  }
+
+  function toggleAlertForm(probe, open) {
+    const box = probeAlert(probe);
+    const form = box.querySelector("[data-alert-form]");
+    const button = box.querySelector("[data-alert-open]");
+    form.hidden = !open;
+    button.hidden = open;
+    button.setAttribute("aria-expanded", String(open));
+    if (!open) {
+      button.focus();
+      return;
+    }
+    const input = form.querySelector("input");
+    const target = alerts.targets[probe];
+    input.value = target === null ? "" : String(target);
+    form.querySelector("[data-alert-clear]").hidden = target === null;
+    alertNote(box, alerts.enabled === false ? "ntfy isn't set up, so no alert will be sent. Add a topic URL in Settings." : "", "");
+    input.focus();
+    input.select();
+  }
+
+  async function saveAlertTarget(probe, value) {
+    if (alerts.busy) return;
+    const box = probeAlert(probe);
+    alerts.busy = true;
+    box.querySelector(".alert-save").disabled = true;
+    try {
+      const res = await apiFetch("api/probe-targets", {
+        method: "PUT",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ["probe" + probe]: value }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alertNote(box, res.status === 422 ? "Enter a temperature from 1 to 1000." : "Save failed (HTTP " + res.status + ").", "error");
+        return;
+      }
+      applyAlertTargets(body);
+      toggleAlertForm(probe, false);
+    } catch (e) {
+      if (e.message !== "not authenticated") alertNote(box, "Can't reach the bridge.", "error");
+    } finally {
+      alerts.busy = false;
+      box.querySelector(".alert-save").disabled = false;
+    }
+  }
+
+  function setupAlertTargets() {
+    for (const probe of [1, 2]) {
+      const box = probeAlert(probe);
+      const form = box.querySelector("[data-alert-form]");
+      box.querySelector("[data-alert-open]").addEventListener("click", () => toggleAlertForm(probe, true));
+      box.querySelector("[data-alert-cancel]").addEventListener("click", () => toggleAlertForm(probe, false));
+      box.querySelector("[data-alert-clear]").addEventListener("click", () => saveAlertTarget(probe, null));
+      form.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") toggleAlertForm(probe, false);
+      });
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const raw = form.querySelector("input").value.trim();
+        if (raw === "") return saveAlertTarget(probe, null);
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value <= 0 || value > 1000) {
+          alertNote(box, "Enter a temperature from 1 to 1000.", "error");
+          return;
+        }
+        saveAlertTarget(probe, value);
+      });
+    }
+    renderAlertTargets();
+    loadAlertTargets();
+  }
+
   // Settings -------------------------------------------------------------
 
   const SETTING_GROUPS = {
@@ -892,7 +1006,7 @@
   const APPLY_WATCH_MS = 30000;
   const PASSWORD_MIN_LENGTH = 8;
 
-  // type: text | number | int | optnumber (blank = none) | secret | source | log
+  // type: text | number | int | secret | source | log
   const SETTING_META = {
     source: { label: "Source", type: "source", hint: "Bluetooth is listed only when the bridge can reach the host's Bluetooth (docker-compose.ble.yml)." },
     model: { label: "Grill model", type: "text" },
@@ -906,10 +1020,8 @@
     mqtt_user: { label: "User", type: "text" },
     mqtt_password: { label: "Password", type: "secret" },
     mqtt_prefix: { label: "Topic prefix", type: "text" },
-    ntfy_url: { label: "ntfy topic URL", type: "text", inputmode: "url", hint: "Blank turns alerts off." },
+    ntfy_url: { label: "ntfy topic URL", type: "text", inputmode: "url", hint: "Blank turns alerts off. Probe targets are set on each probe's card." },
     ntfy_token: { label: "Access token", type: "secret" },
-    alert_probe1_target: { label: "Probe 1 target", type: "optnumber", unit: "°", hint: "Blank: no alert." },
-    alert_probe2_target: { label: "Probe 2 target", type: "optnumber", unit: "°", hint: "Blank: no alert." },
     alert_drift_degrees: { label: "Drift alert at", type: "number", unit: "°", min: 0 },
     alert_drift_minutes: { label: "…sustained for", type: "number", unit: "min", min: 0 },
     alert_stale_seconds: { label: "No-data alert after", type: "number", unit: "s", min: 0 },
@@ -949,7 +1061,7 @@
       return el("select", { id, name: field.name }, options.map((option) =>
         el("option", { value: option, textContent: SOURCE_LABELS[option] && meta.type === "source" ? SOURCE_LABELS[option] : option, selected: option === value })));
     }
-    const numeric = meta.type === "number" || meta.type === "int" || meta.type === "optnumber";
+    const numeric = meta.type === "number" || meta.type === "int";
     const input = el("input", {
       id,
       name: field.name,
@@ -1054,9 +1166,8 @@
       }
       const raw = input.value.trim();
       let value = raw;
-      if (meta.type === "number" || meta.type === "int" || meta.type === "optnumber") {
-        if (raw === "" && meta.type === "optnumber") value = null;
-        else if (raw === "" || !Number.isFinite(Number(raw))) {
+      if (meta.type === "number" || meta.type === "int") {
+        if (raw === "" || !Number.isFinite(Number(raw))) {
           errors[name] = "Enter a number.";
           continue;
         } else value = Number(raw);
@@ -1370,7 +1481,11 @@
   function setupSettings() {
     $("settings-open").addEventListener("click", openSettings);
     $("settings-close").addEventListener("click", closeSettings);
-    $("settings").addEventListener("close", () => { settings.watchToken++; });
+    $("settings").addEventListener("close", () => {
+      settings.watchToken++;
+      // Saving may have turned ntfy on or off.
+      loadAlertTargets();
+    });
     $("settings-form").addEventListener("submit", (event) => {
       event.preventDefault();
       saveSettings();
@@ -1384,6 +1499,7 @@
     setupLogout();
     setupSettings();
     setupProfile();
+    setupAlertTargets();
     renderReadings();
     renderStatus();
     // History's time window is based on the bridge clock, so learn the clock
@@ -1399,6 +1515,7 @@
       if (document.visibilityState !== "visible") return;
       if (!state.ws) connectLive();
       pollHealth();
+      loadAlertTargets();
       scheduleChart();
     });
 

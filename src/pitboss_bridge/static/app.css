@@ -344,6 +344,78 @@ main.is-stale .probe-target { opacity: 0.55; }
 
 .probe[data-state="done"] .probe-target { color: var(--text); font-weight: 650; }
 
+/* The ntfy alert target, set per probe from its card. */
+.probe-alert { margin-top: 12px; }
+
+.alert-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.alert-btn svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.alert-btn[hidden] { display: none; }
+.alert-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.probe-alert[data-set="true"] .alert-btn { color: var(--text); border-color: var(--text-2); }
+.probe-alert[data-enabled="false"][data-set="true"] .alert-btn { color: var(--muted); border-style: dashed; }
+
+.alert-form { display: grid; gap: 8px; }
+.alert-form[hidden] { display: none; }
+.alert-form label { font-size: 14px; color: var(--text-2); }
+
+.alert-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.alert-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 14px; }
+
+.alert-save {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.alert-save:disabled { opacity: 0.6; cursor: progress; }
+.alert-note { margin: 0; font-size: 13px; color: var(--muted); }
+.alert-note:empty { display: none; }
+.alert-note[data-kind="error"] { color: var(--critical); }
+
 /* Indicators ------------------------------------------------------------ */
 
 .indicators {

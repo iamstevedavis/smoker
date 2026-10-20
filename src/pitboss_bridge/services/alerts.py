@@ -120,9 +120,18 @@ class AlertEngine:
         old collector's health.
         """
         self._rules = {key: replace(state) for key, state in previous._rules.items()}
+        self._forget_changed_targets(previous.config)
+
+    def set_probe_targets(self, probe1: float | None, probe2: float | None) -> None:
+        """Change the probe targets in place, keeping every other rule's state."""
+        previous = self.config
+        self.config = replace(previous, probe1_target=probe1, probe2_target=probe2)
+        self._forget_changed_targets(previous)
+
+    def _forget_changed_targets(self, previous: AlertConfig) -> None:
         for number in (1, 2):
             attr = f"probe{number}_target"
-            if getattr(self.config, attr) != getattr(previous.config, attr):
+            if getattr(self.config, attr) != getattr(previous, attr):
                 self._rules.pop(attr, None)
 
     def _fire(self, key: str, notification: Notification) -> list[Notification]:

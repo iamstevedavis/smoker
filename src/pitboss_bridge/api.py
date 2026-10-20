@@ -16,7 +16,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from pitboss_bridge import auth, overrides
 from pitboss_bridge.config import EDITABLE_FIELDS, Settings
@@ -68,6 +68,15 @@ class AuthUpdate(BaseModel):
     required: bool
     # Needed to turn the password back on, so the caller can be signed in.
     password: str | None = None
+
+
+class ProbeTargetsUpdate(BaseModel):
+    """A partial update; null clears a probe's alert."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    probe1: float | None = Field(default=None, gt=0, le=1000)
+    probe2: float | None = Field(default=None, gt=0, le=1000)
 
 
 # Re-exported under its old name; tests import it from here.
@@ -269,6 +278,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 store.delete_setting(name)
                 await swap(new, new_overrides)
         return current_settings_payload()
+
+    def probe_targets_payload() -> dict[str, Any]:
+        targets = store.load_probe_targets()
+        return {
+            "probe1": targets.get(1),
+            "probe2": targets.get(2),
+            # Targets are kept either way, but only sent while ntfy is set up.
+            "alerts_enabled": app.state.runtime.alerts is not None,
+        }
+
+    @app.get("/api/probe-targets")
+    async def get_probe_targets() -> dict[str, Any]:
+        return probe_targets_payload()
+
+    @app.put("/api/probe-targets")
+    async def put_probe_targets(body: ProbeTargetsUpdate) -> dict[str, Any]:
+        changes = body.model_dump(exclude_unset=True)
+        # Under the apply lock so a settings swap can't build its runtime
+        # from targets that are about to change.
+        async with apply_lock:
+            store.save_probe_targets(
+                {int(name.removeprefix("probe")): value for name, value in changes.items()}
+            )
+            targets = store.load_probe_targets()
+            app.state.runtime.set_probe_targets(targets.get(1), targets.get(2))
+        return probe_targets_payload()
 
     @app.get("/api/state")
     async def state_endpoint() -> dict[str, Any]:

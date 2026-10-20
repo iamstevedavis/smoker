@@ -8,7 +8,6 @@ and override `.env`; see [Changing settings from the dashboard](../README.md#cha
 
 - `PITBOSS_MQTT_HOST`, `PITBOSS_MQTT_PORT` (default `1883`), `PITBOSS_MQTT_USER`, `PITBOSS_MQTT_PASSWORD`, `PITBOSS_MQTT_PREFIX` (default `pitboss`): MQTT publishing, disabled when the host is unset
 - `PITBOSS_NTFY_URL`, `PITBOSS_NTFY_TOKEN`: ntfy topic URL and optional access token; alerts are off when the URL is unset
-- `PITBOSS_ALERT_PROBE1_TARGET`, `PITBOSS_ALERT_PROBE2_TARGET`: probe alert temperatures, in the grill's unit; unset disables that alert
 - `PITBOSS_ALERT_DRIFT_DEGREES` (default `25`), `PITBOSS_ALERT_DRIFT_MINUTES` (default `10`): grill-vs-set-temp drift alert
 - `PITBOSS_ALERT_STALE_SECONDS` (default `60`): seconds without data before a disconnect alert
 - `PITBOSS_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
@@ -77,8 +76,10 @@ one or self-host.
 
 Alerts, each sent once per incident and re-armed when the condition clears:
 
-- a probe reaches its target (`PITBOSS_ALERT_PROBE1_TARGET` / `..._PROBE2_TARGET`;
-  the grill's own `p1Target` is not used). Re-arms 5 degrees below the target.
+- a probe reaches its alert target, set with the bell button on each probe's
+  card on the dashboard (in the grill's unit; the grill's own `p1Target` is not
+  used). Changing a target applies at once, without reconnecting to the grill.
+  Re-arms 5 degrees below the target.
 - the grill is more than 25 degrees from its set temperature for 10 minutes while on
 - no data for 60 seconds, plus a "recovered" message
 - an error flag turns on (`noPellets` is sent as urgent)

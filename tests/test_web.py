@@ -78,7 +78,7 @@ def test_api_and_docs_still_work_with_dashboard(app):
 
 
 def test_bridge_exposes_no_write_endpoints(app):
-    # Only cook sessions, bridge settings and the login may write, all in the
+    # Only cook sessions, bridge settings, probe alert targets and the login may write, all in the
     # bridge's own database; nothing reaches the grill.
     write_paths = set()
     for route in app.routes:
@@ -88,7 +88,15 @@ def test_bridge_exposes_no_write_endpoints(app):
     assert write_paths
     assert all(
         path.startswith(
-            ("/api/cooks", "/api/settings", "/api/setup", "/api/login", "/api/logout", "/api/auth")
+            (
+                "/api/cooks",
+                "/api/settings",
+                "/api/probe-targets",
+                "/api/setup",
+                "/api/login",
+                "/api/logout",
+                "/api/auth",
+            )
         )
         for path in write_paths
     )

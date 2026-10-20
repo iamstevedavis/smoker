@@ -144,3 +144,27 @@ def test_prune_removes_old_rows_and_events(tmp_path):
     assert deleted == {"readings": 5, "health_events": 1}
     assert len(db.list_history()) == 5
     assert [e["event_type"] for e in db.list_health_events()] == ["new"]
+
+
+def test_probe_targets_are_set_and_cleared(tmp_path):
+    db = Database(tmp_path / "pitboss.sqlite")
+    db.initialize()
+
+    db.save_probe_targets({1: 203, 2: 165})
+    db.save_probe_targets({1: 205})
+    assert db.load_probe_targets() == {1: 205, 2: 165}
+    db.save_probe_targets({2: None})
+    assert db.load_probe_targets() == {1: 205}
+
+
+def test_probe_targets_saved_as_settings_are_carried_over(tmp_path):
+    db = Database(tmp_path / "pitboss.sqlite")
+    db.initialize()
+    db.save_settings(
+        {"alert_probe1_target": 203, "alert_probe2_target": None, "poll_seconds": 3}
+    )
+
+    db.initialize()
+
+    assert db.load_probe_targets() == {1: 203}
+    assert db.load_settings() == {"poll_seconds": 3}
