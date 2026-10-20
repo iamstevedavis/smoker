@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Smokestack: self-hosted dashboard and alerts for Pit Boss pellet grills"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
   # The API uses the Pydantic 2 model API (model_dump); FastAPI alone
