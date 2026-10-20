@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in Smokestack doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grill not reading at all, and it isn't a `PB850PS2`? A
+        [grill report](https://github.com/iamstevedavis/smokestack/issues/new?template=grill-report.yml) is the better fit.
+        Questions go in [Discussions](https://github.com/iamstevedavis/smokestack/discussions).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Grill model
+      description: The `PITBOSS_MODEL` you use.
+      placeholder: PB850PS2
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source
+      options:
+        - WiFi (http)
+        - Bluetooth (ble)
+        - fake
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you run it
+      options:
+        - Docker, docker-compose.yml
+        - Docker, docker-compose.ble.yml
+        - Laptop scripts (scripts/run.sh)
+        - From source (uvicorn)
+    validations:
+      required: true
+  - type: textarea
+    id: health
+    attributes:
+      label: /api/health output
+      description: "`curl http://<server>:8000/api/health`. It includes the version and the last error."
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        `docker compose logs --tail 100`, ideally with `SMOKESTACK_LOG_LEVEL=DEBUG`.
+        Remove any passwords or tokens first.
+      render: text
