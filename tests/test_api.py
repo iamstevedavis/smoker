@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from smokestack import __version__
 from smokestack.config import Settings
 
 
@@ -21,6 +22,7 @@ def test_health_state_and_history_endpoints(tmp_path, make_app):
 
     assert health["source"] == "fake"
     assert health["connected"] is True
+    assert health["version"] == __version__
     assert state["available"] is True
     assert state["fields"]["grillSetTemp"]["value"] == 225
     assert history["count"] == 1

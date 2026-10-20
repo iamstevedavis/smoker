@@ -540,6 +540,7 @@
     const source = state.source || (state.health && state.health.source);
     if (source) parts.push("Source: " + source);
     if (state.health && state.health.reconnect_count) parts.push("Reconnects: " + state.health.reconnect_count);
+    if (state.health && state.health.version) parts.push("v" + state.health.version);
     setText($("foot-source"), parts.join(" · "));
   }
 
