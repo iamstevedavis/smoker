@@ -40,8 +40,13 @@ PITBOSS_SOURCE=fake uvicorn smokestack.api:create_app --factory --reload
   describe the grill use the `PITBOSS_` prefix (`GRILL_FIELDS`); everything
   else uses `SMOKESTACK_`. Document each one in
   [`docs/integrations.md`](docs/integrations.md#settings). A setting editable
-  from the dashboard goes in `EDITABLE_GROUPS`, and a secret also in
-  `SECRET_FIELDS`.
+  from the dashboard also needs:
+  - its group in `EDITABLE_GROUPS` (and `SECRET_FIELDS` if it's a secret);
+  - a field with its validation in `overrides.SettingsUpdate`, which rejects
+    unknown fields, so leaving it out makes the setting impossible to save;
+  - its label and input type in the settings field list in
+    `src/smokestack/static/app.js`;
+  - a save round-trip test in `tests/test_settings.py`.
 - `pyproject.toml` is the only place the version is written.
 
 ## Pull requests
