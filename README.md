@@ -67,6 +67,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - [Home Assistant and alerts](docs/integrations.md)
 - [Bluetooth setup](docs/ble.md)
 - [Docker operations](docs/docker.md): upgrade, backup, migrating the old `./data` mount
+- [Releasing](docs/releasing.md): versions, tags, release notes and images
 
 ## Development
 
