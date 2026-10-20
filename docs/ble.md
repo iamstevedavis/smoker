@@ -8,6 +8,9 @@ The WiFi source is simpler; use BLE only if your grill has no local HTTP server.
 docker compose -f docker-compose.ble.yml up -d --build
 ```
 
+Or use the published image, the same one the WiFi setup uses:
+`docker compose -f docker-compose.ble.yml pull && docker compose -f docker-compose.ble.yml up -d`.
+
 Needs a Linux host with a Bluetooth adapter and `bluetoothd` running. Docker
 Desktop on macOS or Windows can't reach the host's Bluetooth.
 
@@ -85,7 +88,7 @@ Python 3.14 cannot currently resolve the BLE dependencies used by this repo.
 python3.13 -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip
-python -m pip install -e ".[ble,test]"
+python -m pip install -e ".[test]"
 bluetoothctl scan on
 ```
 

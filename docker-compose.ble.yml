@@ -1,12 +1,12 @@
 # Bluetooth variant: talks to the host's BlueZ over the host's D-Bus socket.
 # Needs a Linux host with a Bluetooth adapter and bluetoothd running.
-#   docker compose -f docker-compose.ble.yml up -d --build
+#   docker compose -f docker-compose.ble.yml up -d
+# Same image as docker-compose.yml; add --build to build it from this checkout.
 services:
   smokestack:
     build:
       context: .
-      args:
-        EXTRAS: ble
+    image: ghcr.io/iamstevedavis/smokestack:latest
     restart: unless-stopped
     # Starts as root only so the entrypoint can hand /data to SMOKESTACK_RUN_AS;
     # it then drops root before the bridge starts. The host's D-Bus only

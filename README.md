@@ -19,7 +19,7 @@ Open `http://<server>:8000/`, or check `curl http://<server>:8000/api/health`.
 No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up --build`.
 
 - Find the grill's IP in your router's DHCP list and give it a reservation.
-- Multi-arch images (amd64, arm64) are published to `ghcr.io/iamstevedavis/smokestack` on each `v*` tag: `docker compose pull && docker compose up -d`.
+- Multi-arch images (amd64, arm64) are published to `ghcr.io/iamstevedavis/smokestack` on each `v*` tag, one image for WiFi and Bluetooth: `docker compose pull && docker compose up -d`.
 - Data lives on the `smokestack-data` volume. Upgrading, backup and migration: [docs/docker.md](docs/docker.md).
 - Not every grill serves local HTTP (ESP-IDF boards such as `PBL2`/`PBC2` don't). If the bridge says so, use [Bluetooth](docs/ble.md): `docker compose -f docker-compose.ble.yml up -d --build`.
 
@@ -59,7 +59,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
 - The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
 - **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`.
-- The source list only offers what can actually run: `fake` always, `http` (WiFi) in every image, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
+- The source list only offers what can actually run: `fake` and `http` (WiFi) always, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
 
 ## More
 

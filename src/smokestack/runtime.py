@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # readings and alert state belong to another grill.
 GRILL_FIELDS = ("source", "model", "host", "device_name")
 
-# The modules each source needs, so the UI only offers what the image has.
+# The modules each source needs, so the UI only offers what this install can run.
 _SOURCE_MODULES = {
     "fake": (),
     "http": ("pytboss.http",),
@@ -51,8 +51,9 @@ def system_bus_reachable(
 ) -> bool:
     """Whether bleak can reach BlueZ: on Linux, the system D-Bus socket exists.
 
-    pytboss always installs bleak, so imports alone would offer Bluetooth in
-    the WiFi image, which has no D-Bus. Other platforms don't use D-Bus.
+    bleak is always installed, so imports alone would offer Bluetooth in a
+    container without the host's D-Bus socket mounted (docker-compose.yml).
+    Other platforms don't use D-Bus.
     """
     platform = sys.platform if platform is None else platform
     env = os.environ if env is None else env
