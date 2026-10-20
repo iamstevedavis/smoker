@@ -1,7 +1,7 @@
 # Grill Control Design
 
-Status: **proposed, awaiting owner approval** (issue #17). Nothing here is
-implemented, and nothing may be until it is approved.
+Status: **approved** by the owner on 2026-10-20 (issue #17). Implementation
+is tracked in #59.
 
 Revised 2026-10-20 for what has landed since it was written: dashboard login
 (#36), settings saved from the dashboard, retention pruning, and bridge-side
@@ -200,13 +200,6 @@ Answered by the owner on 2026-10-20:
    deferred to #54, and switching the temperature unit to #58 (after #57).
    The hourly rate limit is dropped.
 
-## Follow-up implementation issue (to open after approval)
+## Implementation
 
-Title: "Implement grill control (turn-off, set-temperature, reboot) per `docs/specs/2026-10-19-grill-control.md`". Tasks: the `enable_control`
-setting (env, `EDITABLE_GROUPS`, `overrides.SettingsUpdate`, dashboard field,
-docs); `execute` on sources and the command queue; blank-frame handling in the
-collector; control service (validation, rate limit, idempotence, confirmation,
-audit); the control header and `Origin` check; retention
-exemption for audit rows; `/api/control` routes; fake-source
-commands with failure injection; dashboard Controls section; README and tests.
-It is not opened yet because the design is not approved.
+Tracked in #59, which carries the task list and the hardware checklist.

@@ -22,11 +22,13 @@ PITBOSS_SOURCE=fake uvicorn smokestack.api:create_app --factory --reload
 
 ## Rules
 
-- **The bridge is read-only towards the grill.** Never add anything that
-  sends commands to it (power, temperature, probe targets). Grill control is
-  only designed so far, in
-  [`docs/specs/2026-10-19-grill-control.md`](docs/specs/2026-10-19-grill-control.md),
-  and is not to be built until the owner approves it on #17.
+- **Only the approved grill commands.** The bridge may send exactly the
+  commands in
+  [`docs/specs/2026-10-19-grill-control.md`](docs/specs/2026-10-19-grill-control.md)
+  (turn off, set temperature, reboot the WiFi module), built as that spec
+  says (#59). Never add any other command that writes to the grill, above
+  all power-on/ignition. Unit switching (#58) and password/WiFi changes (#54)
+  need their own approval first.
 - Don't push tags, create releases or bump the version unless asked. Releases
   follow [`docs/releasing.md`](docs/releasing.md).
 - Never commit secrets, `.env` files or grill passwords.
