@@ -187,7 +187,25 @@ Every attempt that reaches these routes, sent or refused, is recorded as a
 `control_command` health event with the command, its arguments, the client
 address and the outcome; `audit_id` is its id. Requests the login turns away
 (401 before reaching the route) and malformed bodies (422) are not recorded.
-`SMOKESTACK_RETENTION_DAYS` never deletes these events.
+`SMOKESTACK_RETENTION_DAYS` never deletes these events; only pruning the
+command log does.
+
+### Command log
+
+The `control_command` events, behind the login like the controls (`403` while
+the login is off). `GET /api/control` reports their number as `log_count`.
+
+- `GET /api/control-log?limit=100&before=<id>`: newest first.
+  `{"count": 2, "total": 57, "next_before": 812, "items": [{"id": 813, "at": "...", "command": "set-temperature", "args": {"temp": 250, "unit": "F"}, "client": "192.168.1.20", "outcome": "rejected", "status_code": 429, "detail": "wait 3 s between commands"}, ...]}`.
+  Each item is the result above plus `at` and `client`, or for a refusal
+  `outcome: "rejected"` with its `status_code` and `detail`. Pass
+  `next_before` as `before` for the next, older page; it is `null` on the last.
+- `POST /api/control-log/prune` `{"older_than_days": 90}` deletes entries
+  older than that; `{}` deletes them all. Add `"dry_run": true` to only
+  count them. Answers `{"matching": 12, "deleted": 12, "total": 45}`. Needs
+  the same `X-Smokestack-Control: 1` header and same-host `Origin` as the
+  controls. Each prune is recorded as a `control_log_pruned` health event
+  (outside the log itself).
 
 ## Health
 

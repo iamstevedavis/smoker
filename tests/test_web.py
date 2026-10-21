@@ -124,8 +124,24 @@ def test_dashboard_controls_confirm_first_and_word_every_result(app):
     assert 'id="controls"' in html and 'id="control-confirm"' in html
     # Sent with the header the control routes require, after the dialog.
     assert '"X-Smokestack-Control": "1"' in js
-    assert js.count("await confirmControl(") == 3
+    # One for each grill command, plus pruning the command log.
+    assert js.count("await confirmControl(") == 4
     for outcome in ("confirmed", "unconfirmed", "failed", "already_applied"):
         assert f'case "{outcome}":' in js
     assert "The grill was already off." in js
     assert "Controls are paused until the grill is reporting again." in html
+
+
+def test_dashboard_command_log_prunes_only_after_counting_and_confirming(app):
+    with TestClient(app) as client:
+        html = client.get("/").text
+        js = client.get("/static/app.js").text
+
+    assert 'id="control-log"' in html and 'id="control-log-prune"' in html
+    prune = js.split("async function pruneCommandLog()", 1)[1].split("\n  }\n", 1)[0]
+    # A dry run first, then the dialog, then the real prune.
+    assert prune.index("dry_run: true") < prune.index("await confirmControl(") < prune.index(
+        "await pruneRequest(scope)"
+    )
+    for outcome in ("confirmed", "unconfirmed", "failed", "already_applied", "rejected"):
+        assert f"{outcome}: " in js.split("const OUTCOME_LABELS", 1)[1].split("};", 1)[0]

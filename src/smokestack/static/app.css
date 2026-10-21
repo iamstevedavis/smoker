@@ -995,6 +995,48 @@ main.login {
   .spinner { animation-duration: 3s; }
 }
 
+.controls-log-btn { justify-self: start; font-size: 14px; }
+
+.log-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+.log-list li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.log-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.log-head strong { font-weight: 650; }
+.log-outcome { font-weight: 650; }
+.log-outcome[data-outcome="confirmed"] { color: var(--good); }
+.log-outcome[data-outcome="failed"],
+.log-outcome[data-outcome="unconfirmed"],
+.log-outcome[data-outcome="rejected"] { color: var(--critical); }
+.log-meta { color: var(--muted); font-size: 13px; }
+
+.log-prune { flex-wrap: wrap; justify-content: flex-start; }
+.log-prune label { font-weight: 650; font-size: 14px; color: var(--text-2); }
+
+.log-prune select,
+.log-prune input {
+  min-height: 44px;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.log-prune input { width: 5.5em; }
+.log-prune .with-unit[hidden] { display: none; }
+.log-prune .login-btn { margin: 0; padding: 0 20px; }
+.log-prune .settings-status { flex-basis: 100%; margin: 0; }
+
 .confirm {
   width: min(calc(100% - 32px), 420px);
   padding: 0;
