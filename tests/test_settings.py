@@ -11,7 +11,7 @@ from smokestack import api
 from smokestack.config import EDITABLE_FIELDS, Settings, env_name
 from smokestack.sources.fake import FakeGrillSource
 from smokestack.state import normalize_state
-from smokestack.store import Database
+from smokestack.store import Database, ProbeTarget
 from conftest import finish_setup
 
 
@@ -227,27 +227,79 @@ def test_probe_targets_are_not_settings(tmp_path):
     assert response.status_code == 422
 
 
+def _report_unit(app, fahrenheit: bool | None) -> None:
+    """Put a reading on the hub in the given unit (None: a reading that
+    doesn't say)."""
+    values = {"grillTemp": 225}
+    if fahrenheit is not None:
+        values["isFahrenheit"] = fahrenheit
+    app.state.hub.current = normalize_state(values, source="fake")
+
+
 def test_probe_targets_are_set_and_cleared(tmp_path):
     app = create_app(_settings(tmp_path))
     with TestClient(app) as client:
         assert client.get("/api/probe-targets").json() == {
             "probe1": None,
+            "probe1_unit": None,
             "probe2": None,
+            "probe2_unit": None,
             "alerts_enabled": False,
         }
+        _report_unit(app, True)
         runtime = app.state.runtime
         body = client.put("/api/probe-targets", json={"probe1": 203}).json()
-        assert body == {"probe1": 203, "probe2": None, "alerts_enabled": False}
-        # Partial: probe 1 keeps its target.
-        body = client.put("/api/probe-targets", json={"probe2": 165}).json()
-        assert body["probe1"] == 203 and body["probe2"] == 165
+        assert body == {
+            "probe1": 203,
+            "probe1_unit": "F",
+            "probe2": None,
+            "probe2_unit": None,
+            "alerts_enabled": False,
+        }
+        # Partial: probe 1 keeps its target. New targets take the grill's
+        # current unit.
+        _report_unit(app, False)
+        body = client.put("/api/probe-targets", json={"probe2": 74}).json()
+        assert body["probe1"] == 203 and body["probe1_unit"] == "F"
+        assert body["probe2"] == 74 and body["probe2_unit"] == "C"
         body = client.put("/api/probe-targets", json={"probe1": None}).json()
-        assert body["probe1"] is None and body["probe2"] == 165
+        assert body["probe1"] is None and body["probe2"] == 74
 
     # Applied in place, without restarting the grill connection.
     assert app.state.runtime is runtime
-    assert app.state.store.load_probe_targets() == {2: 165}
+    assert app.state.store.load_probe_targets() == {2: ProbeTarget(74, "C")}
     assert app.state.store.load_settings() == {}
+
+
+@pytest.mark.parametrize("fahrenheit", [None, "no reading"])
+def test_probe_targets_need_a_known_unit_to_be_set(tmp_path, fahrenheit):
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        if fahrenheit is None:
+            _report_unit(app, None)
+        assert client.put("/api/probe-targets", json={"probe1": 203}).status_code == 409
+        assert app.state.store.load_probe_targets() == {}
+
+        # Clearing doesn't need one.
+        _report_unit(app, True)
+        client.put("/api/probe-targets", json={"probe1": 203})
+        app.state.hub.current = None
+        response = client.put("/api/probe-targets", json={"probe1": None})
+        assert response.status_code == 200
+        assert app.state.store.load_probe_targets() == {}
+
+
+def test_probe_targets_saved_before_units_are_reported_with_no_unit(tmp_path):
+    settings = _settings(tmp_path)
+    Database(settings.db_path).initialize()
+    with Database(settings.db_path).connect() as conn:
+        conn.execute(
+            "INSERT INTO probe_targets (probe, target, updated_at) VALUES (1, 203, 'x')"
+        )
+    with TestClient(create_app(settings)) as client:
+        body = client.get("/api/probe-targets").json()
+
+    assert body["probe1"] == 203 and body["probe1_unit"] is None
 
 
 @pytest.mark.parametrize(
@@ -265,17 +317,21 @@ def test_probe_targets_reach_the_alert_engine_and_survive_a_swap(tmp_path):
     app = create_app(_settings(tmp_path, ntfy_url="http://ntfy.test/t"))
     with TestClient(app) as client:
         assert client.get("/api/probe-targets").json()["alerts_enabled"] is True
+        _report_unit(app, True)
         client.put("/api/probe-targets", json={"probe1": 203})
-        assert app.state.runtime.alerts.engine.config.probe1_target == 203
+        target = ProbeTarget(203, "F")
+        assert app.state.runtime.alerts.engine.config.probe1_target == target
 
         client.put("/api/settings", json={"alert_drift_degrees": 30})
-        assert app.state.runtime.alerts.engine.config.probe1_target == 203
+        assert app.state.runtime.alerts.engine.config.probe1_target == target
 
         # Turning ntfy off keeps the targets for when it comes back.
         client.put("/api/settings", json={"ntfy_url": ""})
         assert client.get("/api/probe-targets").json() == {
             "probe1": 203,
+            "probe1_unit": "F",
             "probe2": None,
+            "probe2_unit": None,
             "alerts_enabled": False,
         }
 
@@ -436,7 +492,7 @@ def test_saving_settings_does_not_resend_active_alerts(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "NtfySender", RecordingSender)
     settings = _settings(tmp_path, ntfy_url="http://ntfy.test/t")
     Database(settings.db_path).initialize()
-    Database(settings.db_path).save_probe_targets({1: 130})
+    Database(settings.db_path).save_probe_targets({1: 130}, "F")
     app = create_app(settings)
     with TestClient(app) as client:
         # Probe 1 reads 140, past its 130 target. A new runtime's alert

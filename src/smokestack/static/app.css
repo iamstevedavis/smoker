@@ -380,6 +380,7 @@ main.is-stale .probe-target { opacity: 0.55; }
 
 .probe-alert[data-set="true"] .alert-btn { color: var(--text); border-color: var(--text-2); }
 .probe-alert[data-enabled="false"][data-set="true"] .alert-btn { color: var(--muted); border-style: dashed; }
+.probe-alert[data-stale="true"] .alert-btn { border-color: var(--warning); border-style: solid; }
 
 .alert-form { display: grid; gap: 8px; }
 .alert-form[hidden] { display: none; }

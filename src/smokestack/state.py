@@ -67,6 +67,33 @@ ERROR_FLAGS_FOR_PROBLEM = (
 )
 
 
+def temperature_unit(values: dict[str, Any]) -> str | None:
+    """The unit ("F" or "C") a reading's temperatures are in, or None when the
+    reading doesn't say."""
+    flag = values.get("isFahrenheit")
+    if flag is True:
+        return "F"
+    if flag is False:
+        return "C"
+    return None
+
+
+def convert_temperature(value: float, from_unit: str, to_unit: str) -> float:
+    """Convert a temperature between "F" and "C"."""
+    if from_unit == to_unit:
+        return value
+    if to_unit == "C":
+        return (value - 32) * 5 / 9
+    return value * 9 / 5 + 32
+
+
+def convert_degrees(degrees: float, from_unit: str, to_unit: str) -> float:
+    """Convert a temperature difference (no offset) between "F" and "C"."""
+    if from_unit == to_unit:
+        return degrees
+    return degrees * 5 / 9 if to_unit == "C" else degrees * 9 / 5
+
+
 def utc_now() -> datetime:
     """Return a timezone-aware UTC timestamp."""
     return datetime.now(UTC)

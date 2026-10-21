@@ -33,10 +33,11 @@ Out of scope, deliberately:
 - **Grill password and WiFi changes.** Deferred, not rejected; tracked in its
   own issue (#54). A wrong WiFi network or password cuts the grill off from the
   bridge, which then cannot undo the change.
-- **Switching the grill's temperature unit.** Deferred to #58. It depends on
-  #57: the bridge's probe and drift alert thresholds are stored without a
-  unit, so a unit switch (already possible from the grill's panel) silently
-  breaks them.
+- **Switching the grill's temperature unit.** Deferred to #58. It depended on
+  #57, now fixed: the bridge's probe targets keep the unit they were entered
+  in and the drift threshold is in Fahrenheit degrees, both converted to each
+  reading's unit, so a unit switch (already possible from the grill's panel)
+  no longer changes what they mean.
 - Writing probe targets to the grill (`p1Target` is unreliable, see
   `docs/fields.md`). The probe alert targets from #37 are stored in the bridge
   and never sent to the grill, so they are unaffected. Primer motor, light
