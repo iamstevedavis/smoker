@@ -76,6 +76,7 @@ def test_lists_every_editable_field_once(tmp_path):
         "mqtt",
         "alerts",
         "data",
+        "control",
         "logging",
     ]
     assert "fake" in payload["sources"]
@@ -140,6 +141,40 @@ def test_overrides_survive_a_restart(tmp_path):
     with TestClient(app) as client:
         fields = _fields(client.get("/api/settings").json())
     assert fields["retention_days"]["origin"] == "ui"
+
+
+def test_enable_control_round_trips_and_survives_a_restart(tmp_path, monkeypatch):
+    app = _env_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        field = _fields(client.get("/api/settings").json())["enable_control"]
+        assert (field["value"], field["origin"], field["env"]) == (
+            False,
+            "default",
+            "SMOKESTACK_ENABLE_CONTROL",
+        )
+        field = _fields(
+            client.put("/api/settings", json={"enable_control": True}).json()
+        )["enable_control"]
+        assert (field["value"], field["origin"]) == (True, "ui")
+        assert app.state.settings.enable_control is True
+        assert client.put(
+            "/api/settings", json={"enable_control": "maybe"}
+        ).status_code == 422
+
+    restarted = _env_app(tmp_path, monkeypatch)
+    assert restarted.state.settings.enable_control is True
+    with TestClient(restarted) as client:
+        field = _fields(client.delete("/api/settings/enable_control").json())[
+            "enable_control"
+        ]
+    assert (field["value"], field["origin"]) == (False, "default")
+
+
+def test_enable_control_from_env(tmp_path, monkeypatch):
+    app = _env_app(tmp_path, monkeypatch, SMOKESTACK_ENABLE_CONTROL="true")
+    with TestClient(app) as client:
+        field = _fields(client.get("/api/settings").json())["enable_control"]
+    assert (field["value"], field["origin"]) == (True, "env")
 
 
 def test_values_passed_to_create_app_count_as_env(tmp_path):
