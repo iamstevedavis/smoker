@@ -16,7 +16,7 @@ from conftest import finish_setup
 from smokestack import auth
 from smokestack.api import create_app
 from smokestack.config import Settings
-from smokestack.services.passwords import PASSWORD_EVENT
+from smokestack.services.passwords import PASSWORD_EVENT, set_pending_passwords
 from smokestack.sources.commands import Command
 from smokestack.store import CONTROL_EVENT, Database
 
@@ -398,6 +398,48 @@ def test_a_password_change_starts_the_gap_between_commands(tmp_path):
 
     assert changed.json()["outcome"] == "confirmed"
     assert other.status_code == 429
+
+
+def test_the_source_forgets_the_recovery_candidates_when_a_change_settles(tmp_path):
+    """A settled change leaves nothing to fall back on: the source must not
+    quietly reconnect with a password the grill may have dropped."""
+    app = _app(tmp_path)
+    app.state.passwords.retry_seconds = 0.05
+    source = _source(app)
+    # The grill took the change; the bridge does not know that yet.
+    source.password = NEW
+    app.state.store.save_pending_password(OLD, NEW)
+    app.state.passwords.pending = app.state.store.load_pending_password()
+    set_pending_passwords(source, app.state.passwords.candidates)
+
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        _wait(
+            lambda: app.state.store.load_pending_password() is None,
+            timeout=10.0,
+        )
+
+    assert source.pending_passwords == ()
+    assert app.state.settings.password == NEW
+
+
+def test_resetting_the_password_in_settings_ends_the_pending_change(tmp_path):
+    app = _app(tmp_path)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        # A password saved from the dashboard, so there is something to
+        # reset.
+        client.put("/api/settings", json={"password": "from-settings"})
+        source = _source(app)
+        # And a change in flight, which the reset has to end.
+        app.state.store.save_pending_password(OLD, NEW)
+        app.state.passwords.pending = app.state.store.load_pending_password()
+        set_pending_passwords(source, app.state.passwords.candidates)
+        response = client.delete("/api/settings/password")
+
+    assert response.status_code == 200
+    assert app.state.store.load_pending_password() is None
+    assert _source(app).pending_passwords == ()
 
 
 def test_a_change_uses_the_runtime_that_is_running_after_a_settings_save(tmp_path):

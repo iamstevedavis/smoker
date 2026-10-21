@@ -189,6 +189,10 @@ class PasswordChange:
             if self.pending is None:
                 logger.info("Grill password change settled: %s", outcome[0])
                 self.record(*outcome)
+                # The change is settled, so the source has no recovery
+                # candidates left: it must not fall back to a password the
+                # grill may have dropped.
+                set_pending_passwords(source, self.candidates)
             else:
                 # Still not settled: the grill could not be reached.
                 await asyncio.sleep(self.interval)
