@@ -930,6 +930,87 @@ main.login {
 .settings-status[data-kind="ok"] { color: var(--good); font-weight: 600; }
 .settings-status[data-kind="error"] { color: var(--critical); font-weight: 600; }
 
+/* Grill controls ------------------------------------------------------- */
+
+.controls { display: grid; gap: 12px; }
+.controls[hidden] { display: none; }
+.controls-note { margin: 0; font-size: 14px; color: var(--muted); }
+.controls-note[hidden] { display: none; }
+.controls-actions { display: grid; gap: 12px; }
+.controls-actions[hidden] { display: none; }
+.control-temp { display: grid; gap: 6px; }
+.control-temp label { font-size: 14px; color: var(--text-2); }
+
+.control-temp input {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.control-temp .alert-save { flex: none; min-height: 44px; }
+.control-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.control-buttons .theme-btn { min-height: 44px; padding: 0 16px; font-weight: 650; }
+.controls [data-control]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.control-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 14px;
+}
+
+.control-result[hidden] { display: none; }
+.control-result strong { margin-right: 4px; }
+.control-result[data-outcome="confirmed"] strong { color: var(--good); }
+.control-result[data-outcome="failed"] strong,
+.control-result[data-outcome="unconfirmed"] strong,
+.control-result[data-outcome="rejected"] strong { color: var(--critical); }
+.control-meta { margin-top: 2px; color: var(--muted); font-size: 13px; }
+
+.spinner {
+  display: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: 2px solid var(--line);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.control-result[data-outcome="pending"] .spinner { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 3s; }
+}
+
+.confirm {
+  width: min(calc(100% - 32px), 420px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.confirm::backdrop { background: rgb(0 0 0 / 0.45); }
+.confirm-form { display: grid; gap: 12px; padding: 20px; }
+.confirm-form h2 { margin: 0; font-size: 20px; }
+.confirm-form p { margin: 0; color: var(--text-2); line-height: 1.45; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.confirm-actions .login-btn { margin: 0; padding: 0 20px; }
+
 @media (forced-colors: active) {
   .key, .meter-fill { forced-color-adjust: none; }
   .ind[data-on="true"] { border-width: 3px; }

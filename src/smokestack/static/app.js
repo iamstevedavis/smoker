@@ -1,5 +1,7 @@
 /* Smokestack dashboard: live view over /api/live, /api/history and /api/health,
-   plus the bridge settings panel (/api/settings). Nothing here writes to the grill. */
+   plus the bridge settings panel (/api/settings). The only writes to the grill
+   are the Controls section's turn-off, set-temperature and WiFi restart
+   (/api/control), each confirmed in a dialog first. */
 "use strict";
 
 (() => {
@@ -544,6 +546,8 @@
     if (state.health && state.health.reconnect_count) parts.push("Reconnects: " + state.health.reconnect_count);
     if (state.health && state.health.version) parts.push("v" + state.health.version);
     setText($("foot-source"), parts.join(" · "));
+    // Controls pause while the data is stale.
+    if (control.status) renderControls();
   }
 
   // Rendering: chart -----------------------------------------------------
@@ -1022,6 +1026,192 @@
     }
     renderAlertTargets();
     loadAlertTargets();
+  }
+
+  // Grill controls (/api/control) ---------------------------------------
+
+  const CONTROL_POLL_MS = 5000;
+  const COMMAND_LABELS = { "turn-off": "Turn off", "set-temperature": "Set temperature", reboot: "Restart WiFi" };
+
+  // `notice` is a request the bridge refused, shown until the next command.
+  const control = { status: null, sending: null, notice: null };
+
+  async function loadControl() {
+    try {
+      const res = await apiFetch("api/control", { cache: "no-store" });
+      if (res.ok) control.status = await res.json();
+    } catch (e) { /* keep the last status */ }
+    renderControls();
+  }
+
+  function controlUnit() {
+    const unit = control.status && control.status.unit;
+    return unit === "C" ? "°C" : unit === "F" ? "°F" : unitSymbol();
+  }
+
+  // Nearest accepted setpoint, ties to the lower one, as the bridge snaps.
+  function snapTemp(value) {
+    const points = control.status && control.status.setpoints;
+    if (!Array.isArray(points) || !points.length) return null;
+    return points.reduce((best, p) => (Math.abs(p - value) < Math.abs(best - value) ? p : best), points[0]);
+  }
+
+  function controlLive() {
+    const kind = computeStatus().kind;
+    return kind === "live" || kind === "reconnecting";
+  }
+
+  function describeCommand(result) {
+    const label = COMMAND_LABELS[result.command] || result.command;
+    if (result.command !== "set-temperature" || num(result.target) === null) return label;
+    return label + " " + result.target + (result.unit ? "°" + result.unit : "");
+  }
+
+  // Every result state has its own wording.
+  function resultWording(result) {
+    const unit = result.unit ? "°" + result.unit : "";
+    switch (result.outcome) {
+      case "confirmed":
+        if (result.command === "turn-off") return ["Done.", "The grill is off. The fan runs for about 10 minutes."];
+        if (result.command === "set-temperature") return ["Done.", "The grill is set to " + result.target + unit + "."];
+        return ["Done.", "The WiFi module restarted and the grill is reporting again."];
+      case "already_applied":
+        if (result.command === "turn-off") return ["Nothing sent.", "The grill was already off."];
+        return ["Nothing sent.", "The grill was already set to " + result.target + unit + "."];
+      case "unconfirmed":
+        return ["Not confirmed.", "The command was sent, but the grill didn't report the change in time. Check the grill."];
+      case "failed":
+        return ["Failed.", (result.detail || "The grill didn't take the command.") + " Check the grill."];
+      default:
+        return [result.outcome || "", result.detail || ""];
+    }
+  }
+
+  function renderControlResult() {
+    const box = $("control-result");
+    const s = control.status;
+    const inFlight = control.sending || (s && s.in_flight);
+    let outcome = null;
+    let title = "";
+    let detail = "";
+    let meta = "";
+    if (inFlight) {
+      outcome = "pending";
+      title = describeCommand({ command: inFlight.command, target: inFlight.args && inFlight.args.temp, unit: s && s.unit }) + ":";
+      detail = control.sending ? "sending and waiting for the grill to confirm…" : "another device is sending this command…";
+    } else if (control.notice) {
+      outcome = "rejected";
+      title = "Not sent.";
+      detail = control.notice;
+    } else if (s && s.last_result) {
+      const result = s.last_result;
+      outcome = result.outcome;
+      [title, detail] = resultWording(result);
+      const at = Date.parse(result.finished_at || result.started_at);
+      meta = describeCommand(result) + (Number.isNaN(at) ? "" : " · " + fmtTimeSeconds(at));
+    }
+    box.hidden = outcome === null;
+    if (outcome === null) return;
+    box.dataset.outcome = outcome;
+    setText($("control-result-title"), title);
+    setText($("control-result-detail"), detail);
+    setText($("control-result-meta"), meta);
+  }
+
+  function renderControls() {
+    const s = control.status;
+    const section = $("controls");
+    section.hidden = !s || !s.enabled;
+    if (section.hidden) return;
+    const reason = $("controls-reason");
+    reason.hidden = s.available;
+    setText(reason, s.available ? "" : s.reason || "Grill control isn't available.");
+    $("controls-actions").hidden = !s.available;
+    const live = controlLive();
+    $("controls-stale").hidden = live;
+    const busy = Boolean(control.sending || s.in_flight);
+    section.querySelectorAll("[data-control]").forEach((node) => { node.disabled = !live || busy; });
+    renderControlResult();
+  }
+
+  function confirmControl(title, text, action) {
+    const dialog = $("control-confirm");
+    if (typeof dialog.showModal !== "function") return Promise.resolve(confirm(text));
+    setText($("control-confirm-title"), title);
+    setText($("control-confirm-text"), text);
+    setText($("control-confirm-ok"), action);
+    dialog.returnValue = "";
+    dialog.showModal();
+    $("control-confirm-ok").focus();
+    return new Promise((resolve) => {
+      dialog.addEventListener("close", () => resolve(dialog.returnValue === "ok"), { once: true });
+    });
+  }
+
+  // `target` is the snapped temperature, shown while the command is sent.
+  async function sendControl(command, body, target) {
+    if (control.sending) return;
+    control.sending = { command, args: target === undefined ? {} : { temp: target } };
+    control.notice = null;
+    renderControls();
+    try {
+      const res = await apiFetch("api/control/" + command, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json", "X-Smokestack-Control": "1" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (control.status) control.status.last_result = data;
+      } else {
+        let message = typeof data.detail === "string" ? data.detail : "HTTP " + res.status;
+        if (res.status === 409 && !data.detail) message = "Another command is still being confirmed.";
+        control.notice = message.charAt(0).toUpperCase() + message.slice(1) + ".";
+      }
+    } catch (e) {
+      if (e.message !== "not authenticated") control.notice = "Can't reach the bridge, so it's unknown whether the command was sent. Check the grill.";
+    } finally {
+      control.sending = null;
+      await loadControl();
+    }
+  }
+
+  function setupGrillControls() {
+    $("control-off").addEventListener("click", async () => {
+      const ok = await confirmControl("Turn the grill off?", "Turn the grill off. The fan will run for about 10 minutes.", "Turn off");
+      if (ok) sendControl("turn-off");
+    });
+    $("control-reboot").addEventListener("click", async () => {
+      const ok = await confirmControl(
+        "Restart the WiFi module?",
+        "Restart the grill's WiFi module. The grill keeps running; the dashboard goes blank for up to a minute.",
+        "Restart",
+      );
+      if (ok) sendControl("reboot");
+    });
+    $("control-temp-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const typed = Number($("control-temp").value.trim());
+      if (!$("control-temp").value.trim() || !Number.isFinite(typed) || typed <= 0 || typed > 1000) {
+        control.notice = "Enter a temperature.";
+        renderControls();
+        return;
+      }
+      const snapped = snapTemp(typed);
+      if (snapped === null) {
+        control.notice = "The grill hasn't reported its temperature unit yet.";
+        renderControls();
+        return;
+      }
+      const unit = controlUnit();
+      const current = num(state.fields.grillSetTemp);
+      let text = "Set grill to " + snapped + unit + (current === null ? "." : ", currently " + Math.round(current) + unit + ".");
+      if (snapped !== typed) text += " " + snapped + unit + " is the nearest setting the grill accepts to " + typed + unit + ".";
+      const ok = await confirmControl("Set the grill temperature?", text, "Set " + snapped + unit);
+      if (ok) sendControl("set-temperature", { temp: typed }, snapped);
+    });
+    loadControl();
   }
 
   // Settings -------------------------------------------------------------
@@ -1524,8 +1714,9 @@
     $("settings-close").addEventListener("click", closeSettings);
     $("settings").addEventListener("close", () => {
       settings.watchToken++;
-      // Saving may have turned ntfy on or off.
+      // Saving may have turned ntfy or grill control on or off.
       loadAlertTargets();
+      loadControl();
     });
     $("settings-form").addEventListener("submit", (event) => {
       event.preventDefault();
@@ -1541,6 +1732,7 @@
     setupSettings();
     setupProfile();
     setupAlertTargets();
+    setupGrillControls();
     renderReadings();
     renderStatus();
     // History's time window is based on the bridge clock, so learn the clock
@@ -1549,6 +1741,7 @@
     connectLive();
     pollHealth();
     setInterval(pollHealth, HEALTH_POLL_MS);
+    setInterval(() => { if (!control.sending) loadControl(); }, CONTROL_POLL_MS);
     setInterval(renderStatus, 1000);
     // Slide the chart window forward even when no readings arrive.
     setInterval(scheduleChart, 15000);
@@ -1557,6 +1750,7 @@
       if (!state.ws) connectLive();
       pollHealth();
       loadAlertTargets();
+      loadControl();
       scheduleChart();
     });
 

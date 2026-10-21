@@ -113,3 +113,18 @@ def test_dashboard_answers_head_requests(app):
     with TestClient(app) as client:
         assert client.head("/").status_code == 200
         assert client.head("/manifest.webmanifest").status_code == 200
+
+
+def test_dashboard_controls_confirm_first_and_word_every_result(app):
+    with TestClient(app) as client:
+        html = client.get("/").text
+        js = client.get("/static/app.js").text
+
+    assert 'id="controls"' in html and 'id="control-confirm"' in html
+    # Sent with the header the control routes require, after the dialog.
+    assert '"X-Smokestack-Control": "1"' in js
+    assert js.count("await confirmControl(") == 3
+    for outcome in ("confirmed", "unconfirmed", "failed", "already_applied"):
+        assert f'case "{outcome}":' in js
+    assert "The grill was already off." in js
+    assert "Controls are paused until the grill is reporting again." in html
