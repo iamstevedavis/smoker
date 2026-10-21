@@ -189,8 +189,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         await app.state.runtime.start()
-        # A password change that was in flight when the bridge stopped is
-        # settled here: the grill is asked which password it accepts.
+        # A password change is settled here, whenever there is one: the
+        # grill is asked which password it accepts.
         settle = asyncio.create_task(
             passwords.watch(lambda: app.state.runtime.collector.source)
         )
@@ -374,16 +374,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def reset_setting(name: str) -> dict[str, Any]:
         if name not in EDITABLE_FIELDS:
             raise HTTPException(status_code=404, detail="not an editable setting")
-        async with apply_lock:
-            if name in app.state.overrides:
-                new_overrides = {
-                    key: value
-                    for key, value in app.state.overrides.items()
-                    if key != name
-                }
-                new = build_runtime(new_overrides, {name: None})
-                store.delete_setting(name)
-                await swap(new, new_overrides)
+        # The password lock comes before the apply lock, as in put_settings.
+        async with passwords.locked():
+            async with apply_lock:
+                if name in app.state.overrides:
+                    new_overrides = {
+                        key: value
+                        for key, value in app.state.overrides.items()
+                        if key != name
+                    }
+                    new = build_runtime(new_overrides, {name: None})
+                    store.delete_setting(name)
+                    if name == "password":
+                        # Resetting the password ends a pending change too:
+                        # the bridge is back to the password from .env, and
+                        # the source that replaces this one gets no recovery
+                        # candidates.
+                        passwords.clear()
+                        set_pending_passwords(new.collector.source, ())
+                    await swap(new, new_overrides)
         return current_settings_payload()
 
     def probe_targets_payload() -> dict[str, Any]:
