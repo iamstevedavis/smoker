@@ -139,6 +139,8 @@ class GrillControl:
             "setpoints": self._setpoints(unit) if reason is None else None,
             "in_flight": self.in_flight,
             "last_result": self.last_result,
+            # Entries in the command log (#55), kept until pruned by hand.
+            "log_count": self.store.count_control_events(),
         }
 
     def _unit(self) -> str | None:
@@ -217,7 +219,7 @@ class GrillControl:
             logger.exception("Could not record the %s command in the audit log", name)
             return 0
 
-    def _check_request(self, request: ControlRequest) -> None:
+    def check_request(self, request: ControlRequest) -> None:
         # The session cookie is SameSite=Strict, but another service on the
         # same site could still send it. The custom header forces a CORS
         # preflight, which the bridge never grants.
@@ -235,7 +237,7 @@ class GrillControl:
     ) -> dict[str, Any]:
         if name not in COMMANDS:
             raise ControlRejected(404, "not a grill command")
-        self._check_request(request)
+        self.check_request(request)
         if self._lock.locked():
             raise ControlRejected(409, "another command is still being confirmed")
         async with self._lock:

@@ -98,11 +98,12 @@ def test_only_the_control_routes_can_write_to_the_grill(app):
                 "/api/logout",
                 "/api/auth",
                 "/api/control/",
+                "/api/control-log/",
             )
         )
         for path in write_paths
     )
-    assert {path for path in write_paths if path.startswith("/api/control")} == {
+    assert {path for path in write_paths if path.startswith("/api/control/")} == {
         "/api/control/turn-off",
         "/api/control/set-temperature",
         "/api/control/reboot",
