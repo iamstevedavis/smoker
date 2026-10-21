@@ -72,6 +72,22 @@ def celsius_setpoints(fahrenheit: tuple[int, ...] | list[int]) -> list[int]:
     return [math.floor((value - 32) / 1.8) for value in fahrenheit]
 
 
+# How long a command may wait for the polling loop to reach it, on top of the
+# poll interval itself.
+QUEUE_TIMEOUT_SECONDS = 15.0
+
+
+def queue_timeout_for(poll_seconds: float) -> float:
+    """How long a command may wait for a source that polls every
+    `poll_seconds`.
+
+    The polling loop serves the queue between polls, so a command waits for
+    the next one. A bridge that polls every 30 seconds must not give up on a
+    command after 15 and report it as never sent.
+    """
+    return poll_seconds + QUEUE_TIMEOUT_SECONDS
+
+
 @dataclass
 class _Pending:
     command: Command
@@ -90,6 +106,9 @@ class CommandQueue:
 
     _items: asyncio.Queue[_Pending] = field(default_factory=asyncio.Queue)
     _open: bool = False
+    # How long a command may wait for the polling loop. The source sets this
+    # from its poll interval, so a slow poll is not a dead connection.
+    timeout: float = QUEUE_TIMEOUT_SECONDS
 
     @property
     def is_open(self) -> bool:
@@ -107,19 +126,22 @@ class CommandQueue:
                     CommandNotSent("the grill connection closed first")
                 )
 
-    async def submit(self, command: Command, queue_timeout: float = 15.0) -> Any:
+    async def submit(
+        self, command: Command, queue_timeout: float | None = None
+    ) -> Any:
         """Queue `command` and wait for the polling loop to send it.
 
         Raises `CommandNotSent` when the source isn't connected or doesn't
-        reach the command within `queue_timeout`; once sending has begun it
-        waits for the outcome.
+        reach the command within `queue_timeout` (the queue's own timeout
+        unless one is given); once sending has begun it waits for the outcome.
         """
         if not self._open:
             raise CommandNotSent("the grill isn't connected")
         pending = _Pending(command, asyncio.get_running_loop().create_future())
         self._items.put_nowait(pending)
+        timeout = self.timeout if queue_timeout is None else queue_timeout
         try:
-            return await asyncio.wait_for(asyncio.shield(pending.future), queue_timeout)
+            return await asyncio.wait_for(asyncio.shield(pending.future), timeout)
         except TimeoutError:
             if pending.started:
                 return await pending.future

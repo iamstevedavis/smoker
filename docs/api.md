@@ -151,8 +151,9 @@ curl -b jar -X POST localhost:8000/api/control/set-temperature \
 
 The bridge sends the command between polls, then waits for the grill to
 report the change: 30 s, or 90 s for a reboot (the module drops off and
-reconnects; the no-data alert is held back meanwhile). The answer, `200`,
-is the result:
+reconnects; the no-data alert is held back meanwhile). The wait is longer
+when the source polls slowly, since the grill's answer arrives one poll at a
+time. The answer, `200`, is the result:
 
 ```json
 {"command": "set-temperature", "args": {"temp": 245}, "target": 240, "requested": 245,

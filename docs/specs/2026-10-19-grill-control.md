@@ -117,7 +117,11 @@ A command is not "done" because the RPC returned. Flow:
    needs a small change to the collector, which today would persist an empty
    snapshot.
 5. Poll for up to 30 s (about 4 BLE polls) until the expected state appears
-   (`moduleIsOn == false` or `grillSetTemp == target`). For `reboot`, wait up to 90 s for the source to drop and
+   (`moduleIsOn == false` or `grillSetTemp == target`). The window is longer
+   when the source polls slowly: the command goes out between polls and the
+   grill's answer comes back in the frames after it, one poll apart, so a
+   bridge that polls every 30 s needs more than 30 s to see the change it
+   made. For `reboot`, wait up to 90 s for the source to drop and
    reconnect and for a fresh frame to arrive; the stale-data alert is held
    back for that window so a deliberate reboot does not page anyone.
 6. Result, returned and stored as `last_result`:

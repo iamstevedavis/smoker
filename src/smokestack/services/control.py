@@ -44,6 +44,12 @@ RETRYABLE = frozenset({"turn-off", "set-temperature"})
 
 OUTCOMES = ("confirmed", "unconfirmed", "failed", "already_applied")
 
+# The command goes out between polls and the grill's answer comes back in the
+# frames after it (the frame right after an MCU command is the blank one), so
+# the confirmation window has to cover a few polls. A bridge that polls slowly
+# would otherwise report a change the grill did make as unconfirmed.
+POLL_INTERVALS = 3
+
 _REASONS = {
     "disabled": "Grill control is off. Turn it on in Settings "
     "(SMOKESTACK_ENABLE_CONTROL).",
@@ -341,7 +347,9 @@ class GrillControl:
         health = runtime.health
         reconnects = health.reconnect_count
         reboot = command.name == "reboot"
-        window = self.reboot_confirm_seconds if reboot else self.confirm_seconds
+        window = self._window(
+            runtime, self.reboot_confirm_seconds if reboot else self.confirm_seconds
+        )
         # Subscribe first so no frame after the send can be missed.
         frames = self.hub.subscribe()
         try:
@@ -390,6 +398,16 @@ class GrillControl:
             }
         finally:
             self.hub.unsubscribe(frames)
+
+    def _window(self, runtime: Runtime, seconds: float) -> float:
+        """The confirmation window: `seconds`, or longer when the source polls
+        slowly.
+
+        The grill's answer arrives in the frames after the command, one poll
+        apart, so a source that polls every 30 seconds needs more than the
+        default window to see the change it made.
+        """
+        return max(seconds, POLL_INTERVALS * runtime.settings.poll_seconds)
 
     @staticmethod
     def _confirmed(command: Command, unit: str | None) -> str:
