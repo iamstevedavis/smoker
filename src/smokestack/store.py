@@ -36,6 +36,19 @@ class ProbeTarget:
     unit: str | None
 
 
+@dataclass(frozen=True)
+class PendingPassword:
+    """A grill password change that may be in flight.
+
+    Both passwords are kept until the change is settled: the bridge has to
+    be able to reconnect whichever one the grill ended up with.
+    """
+
+    old_password: str
+    new_password: str
+    updated_at: datetime
+
+
 class Database:
     """Small SQLite wrapper for one-grill bridge history."""
 
@@ -121,6 +134,16 @@ class Database:
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     password_hash TEXT NOT NULL,
                     required INTEGER NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pending_password (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    old_password TEXT NOT NULL,
+                    new_password TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
@@ -266,6 +289,46 @@ class Database:
     def delete_auth(self) -> bool:
         with self.connect() as conn:
             cursor = conn.execute("DELETE FROM auth")
+        return cursor.rowcount > 0
+
+    def load_pending_password(self) -> PendingPassword | None:
+        """The grill password change in flight, if there is one."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT old_password, new_password, updated_at
+                FROM pending_password WHERE id = 1
+                """
+            ).fetchone()
+        if row is None:
+            return None
+        return PendingPassword(
+            old_password=row["old_password"],
+            new_password=row["new_password"],
+            updated_at=_parse_dt(row["updated_at"]),
+        )
+
+    def save_pending_password(self, old_password: str, new_password: str) -> None:
+        """Record a password change, before anything is sent to the grill."""
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO pending_password (
+                    id, old_password, new_password, updated_at
+                )
+                VALUES (1, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    old_password = excluded.old_password,
+                    new_password = excluded.new_password,
+                    updated_at = excluded.updated_at
+                """,
+                (old_password, new_password, _iso(utc_now())),
+            )
+
+    def clear_pending_password(self) -> bool:
+        """Forget the password change in flight; True if there was one."""
+        with self.connect() as conn:
+            cursor = conn.execute("DELETE FROM pending_password WHERE id = 1")
         return cursor.rowcount > 0
 
     def insert_reading(self, snapshot: StateSnapshot) -> None:

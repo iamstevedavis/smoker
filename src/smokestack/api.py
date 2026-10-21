@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
@@ -29,6 +30,7 @@ from smokestack.services.control import (
     ControlRequest,
     GrillControl,
 )
+from smokestack.services.passwords import PasswordChange
 from smokestack.state import temperature_unit, utc_now
 from smokestack.store import Database
 from smokestack.web import mount_dashboard
@@ -67,7 +69,7 @@ class NewPassword(BaseModel):
     password: str = Field(min_length=auth.PASSWORD_MIN_LENGTH)
 
 
-class PasswordChange(BaseModel):
+class DashboardPasswordChange(BaseModel):
     current: str
     new: str = Field(min_length=auth.PASSWORD_MIN_LENGTH)
 
@@ -98,6 +100,21 @@ class SetTemperatureBody(BaseModel):
     temp: float = Field(gt=0, le=1000)
     # The unit `temp` was meant in; refused (409) if the grill's unit differs.
     unit: Literal["F", "C"] | None = None
+
+
+class SetPasswordBody(BaseModel):
+    """A new password for the grill itself.
+
+    The dashboard password comes along: this is the one command whose
+    failure can lock the bridge out, so it takes more than a session.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1)
+    # The same password again, so a typo isn't sent to the grill.
+    confirm: str = Field(min_length=1)
+    dashboard_password: str = Field(min_length=1)
 
 
 class ControlLogPrune(BaseModel):
@@ -154,12 +171,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.collector = new.collector
         hub.stale_after_seconds = new.settings.stale_after_seconds
 
+    def apply_grill_password(password: str) -> None:
+        """Take a new grill password as the bridge's own setting.
+
+        The source keeps using the password the grill accepted, so nothing
+        is restarted: the bridge is already talking to the grill with it.
+        """
+        app.state.overrides = {**app.state.overrides, "password": password}
+        app.state.settings = replace(app.state.settings, password=password)
+        app.state.runtime.settings = replace(
+            app.state.runtime.settings, password=password
+        )
+
+    passwords = PasswordChange(store, apply_grill_password)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         await app.state.runtime.start()
+        # A password change that was in flight when the bridge stopped is
+        # settled here: the grill is asked which password it accepts.
+        settle = asyncio.create_task(
+            passwords.watch(lambda: app.state.runtime.collector.source)
+        )
         try:
             yield
         finally:
+            settle.cancel()
+            try:
+                await settle
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                # The change stays pending; the next start tries again.
+                pass
             await app.state.runtime.stop()
 
     auth_state = auth.AuthState(
@@ -257,7 +301,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return response
 
     @app.post("/api/auth/password", status_code=204)
-    async def change_password(body: PasswordChange) -> Response:
+    async def change_password(body: DashboardPasswordChange) -> Response:
         async with login_lock:
             await require_password(body.current, 403)
             await asyncio.to_thread(auth_state.set_password, body.new)
@@ -310,6 +354,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             new_overrides = {**app.state.overrides, **changes}
             new = build_runtime(new_overrides, changes)
             store.save_settings(changes)
+            if "password" in changes:
+                # Saving a grill password ends a pending change: the value
+                # the user typed is the one the grill has.
+                passwords.clear()
             await swap(new, new_overrides)
         return current_settings_payload()
 
@@ -376,14 +424,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.runtime.set_probe_targets(targets.get(1), targets.get(2))
         return probe_targets_payload()
 
-    control = GrillControl(store, hub, lambda: app.state.runtime, auth_state)
+    control = GrillControl(store, hub, lambda: app.state.runtime, auth_state, passwords)
     app.state.control = control
+    app.state.passwords = passwords
 
     async def run_control(
         name: str,
         request: Request,
         temp: float | None = None,
         unit: str | None = None,
+        password: str | None = None,
+        dashboard_password: str | None = None,
     ) -> Any:
         info = ControlRequest(
             client=request.client.host if request.client else None,
@@ -393,7 +444,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             host=request.headers.get("host"),
         )
         try:
-            return await control.run(name, info, temp, unit)
+            return await control.run(
+                name, info, temp, unit, password, dashboard_password
+            )
         except ControlRejected as exc:
             return JSONResponse(
                 {"detail": exc.detail, "audit_id": exc.audit_id},
@@ -401,8 +454,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 headers=exc.headers,
             )
 
-    # Grill control (docs/specs/2026-10-19-grill-control.md). These are the
-    # only routes that write to the grill, and there is no power-on.
+    # Grill control (docs/specs/2026-10-19-grill-control.md and
+    # docs/specs/2026-10-20-grill-password-wifi.md). These are the only
+    # routes that write to the grill, and there is no power-on.
     @app.get("/api/control")
     async def get_control() -> dict[str, Any]:
         return control.status()
@@ -422,6 +476,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/control/reboot")
     async def control_reboot(request: Request) -> Any:
         return await run_control("reboot", request)
+
+    @app.post("/api/control/set-password")
+    async def control_set_password(request: Request, body: SetPasswordBody) -> Any:
+        if body.password != body.confirm:
+            return JSONResponse(
+                {"detail": "the two passwords are not the same"},
+                status_code=422,
+            )
+        return await run_control(
+            "set-password",
+            request,
+            password=body.password,
+            dashboard_password=body.dashboard_password,
+        )
 
     # The grill command log (#55): the control_command health events. Like
     # the controls, it needs the login on; the gate has already checked the

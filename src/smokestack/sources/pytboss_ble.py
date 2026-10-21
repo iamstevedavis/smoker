@@ -15,13 +15,16 @@ from smokestack.sources._pytboss import (
     PollStats,
     UptimeRefresher,
     accepted_setpoints,
+    check_password,
     poll_state,
     run_command,
 )
 from smokestack.sources.commands import (
     MCU_COMMANDS,
     Command,
-    CommandQueue,
+    Job,
+    JobQueue,
+    PasswordCheck,
     queue_timeout_for,
 )
 
@@ -39,9 +42,11 @@ class PytbossBleSource:
     name: str = "ble"
     uptime_refresh_seconds: float = 20.0
     stats: PollStats = field(default_factory=PollStats)
-    commands: CommandQueue = field(default_factory=CommandQueue)
+    commands: JobQueue = field(default_factory=JobQueue)
     # Set when an MCU command was sent; the collector skips the blank frame.
     blank_frame_expected: bool = False
+    # The passwords a pending password change may have left the grill with.
+    pending_passwords: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if not self.device_name:
@@ -58,6 +63,13 @@ class PytbossBleSource:
     async def execute(self, command: Command) -> None:
         """Send `command` between polls, on the polling loop's connection."""
         await self.commands.submit(command)
+
+    async def check_password(self, password: str) -> bool:
+        """Whether the grill accepts `password`, on the polling loop's connection."""
+        accepted = await self.commands.submit(PasswordCheck(password))
+        if accepted:
+            self.password = password
+        return bool(accepted)
 
     async def readings(self) -> AsyncIterator[dict[str, Any]]:
         self.validate()
@@ -81,17 +93,36 @@ class PytbossBleSource:
             logger.info("Connected to %s", self.device_name)
             self.commands.open()
             while True:
-                yield dict(await poll_state(boss, self.stats, refresher))
+                yield dict(await self._poll(boss, refresher))
                 await self.commands.serve(
-                    lambda command: self._send(boss, command), self.poll_seconds
+                    lambda job: self._send(boss, job), self.poll_seconds
                 )
         finally:
             self.commands.close()
             logger.info("Disconnecting from %s", self.device_name)
             await boss.stop()
 
-    async def _send(self, boss: Any, command: Command) -> None:
-        if command.name in MCU_COMMANDS:
-            self.blank_frame_expected = True
-        await run_command(boss, command)
+    async def _poll(self, boss: Any, refresher: UptimeRefresher) -> Any:
+        """One reading, with a pending password change as a fallback.
 
+        While a password change is pending the grill may hold either
+        password, so a rejected one is retried with the others: the bridge
+        reconnects whichever one the grill ended up with.
+        """
+        from pytboss.exceptions import Unauthorized
+
+        try:
+            return await poll_state(boss, self.stats, refresher)
+        except Unauthorized:
+            for candidate in self.pending_passwords:
+                if await check_password(boss, candidate):
+                    self.password = candidate
+                    return await poll_state(boss, self.stats, refresher)
+            raise
+
+    async def _send(self, boss: Any, job: Job) -> Any:
+        if isinstance(job, PasswordCheck):
+            return await check_password(boss, job.password)
+        if job.name in MCU_COMMANDS:
+            self.blank_frame_expected = True
+        await run_command(boss, job)

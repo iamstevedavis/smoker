@@ -12,11 +12,18 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from smokestack.sources._pytboss import accepted_setpoints, poll_state, run_command
+from smokestack.sources._pytboss import (
+    accepted_setpoints,
+    check_password,
+    poll_state,
+    run_command,
+)
 from smokestack.sources.commands import (
     MCU_COMMANDS,
     Command,
-    CommandQueue,
+    Job,
+    JobQueue,
+    PasswordCheck,
     queue_timeout_for,
 )
 
@@ -37,9 +44,11 @@ class PytbossHttpSource:
     password: str
     poll_seconds: float = 2.0
     name: str = "http"
-    commands: CommandQueue = field(default_factory=CommandQueue)
+    commands: JobQueue = field(default_factory=JobQueue)
     # Set when an MCU command was sent; the collector skips the blank frame.
     blank_frame_expected: bool = False
+    # The passwords a pending password change may have left the grill with.
+    pending_passwords: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if not self.host:
@@ -57,6 +66,13 @@ class PytbossHttpSource:
         """Send `command` between polls, on the polling loop's connection."""
         await self.commands.submit(command)
 
+    async def check_password(self, password: str) -> bool:
+        """Whether the grill accepts `password`, on the polling loop's connection."""
+        accepted = await self.commands.submit(PasswordCheck(password))
+        if accepted:
+            self.password = password
+        return bool(accepted)
+
     async def readings(self) -> AsyncIterator[dict[str, Any]]:
         self.validate()
         from pytboss import HttpConnection, PitBoss
@@ -70,11 +86,11 @@ class PytbossHttpSource:
             logger.info("Connected to %s", self.host)
             self.commands.open()
             while True:
-                state = await poll_state(boss)
+                state = await self._poll(boss)
                 polled = True
                 yield dict(state)
                 await self.commands.serve(
-                    lambda command: self._send(boss, command), self.poll_seconds
+                    lambda job: self._send(boss, job), self.poll_seconds
                 )
         except NotConnectedError as exc:
             if polled:
@@ -87,7 +103,27 @@ class PytbossHttpSource:
             logger.info("Disconnecting from %s", self.host)
             await boss.stop()
 
-    async def _send(self, boss: Any, command: Command) -> None:
-        if command.name in MCU_COMMANDS:
+    async def _poll(self, boss: Any) -> Any:
+        """One reading, with a pending password change as a fallback.
+
+        While a password change is pending the grill may hold either
+        password, so a rejected one is retried with the others: the bridge
+        reconnects whichever one the grill ended up with.
+        """
+        from pytboss.exceptions import Unauthorized
+
+        try:
+            return await poll_state(boss)
+        except Unauthorized:
+            for candidate in self.pending_passwords:
+                if await check_password(boss, candidate):
+                    self.password = candidate
+                    return await poll_state(boss)
+            raise
+
+    async def _send(self, boss: Any, job: Job) -> Any:
+        if isinstance(job, PasswordCheck):
+            return await check_password(boss, job.password)
+        if job.name in MCU_COMMANDS:
             self.blank_frame_expected = True
-        await run_command(boss, command)
+        await run_command(boss, job)

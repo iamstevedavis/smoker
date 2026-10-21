@@ -108,6 +108,7 @@ def test_only_the_control_routes_can_write_to_the_grill(app):
         "/api/control/set-temperature",
         "/api/control/reboot",
         "/api/control/set-unit",
+        "/api/control/set-password",
     }
 
 
@@ -126,11 +127,26 @@ def test_dashboard_controls_confirm_first_and_word_every_result(app):
     # Sent with the header the control routes require, after the dialog.
     assert '"X-Smokestack-Control": "1"' in js
     # One for each grill command, plus pruning the command log.
-    assert js.count("await confirmControl(") == 5
+    assert js.count("await confirmControl(") == 6
     for outcome in ("confirmed", "unconfirmed", "failed", "already_applied"):
         assert f'case "{outcome}":' in js
     assert "The grill was already off." in js
     assert "Controls are paused until the grill is reporting again." in html
+
+
+def test_the_dashboard_can_change_the_grill_password(app):
+    with TestClient(app) as client:
+        html = client.get("/").text
+        js = client.get("/static/app.js").text
+
+    assert 'id="control-password"' in html and 'id="password-dialog"' in html
+    # The dashboard password is asked for again: this command can lock the
+    # bridge out.
+    assert 'name="dashboard_password"' in html
+    assert 'sendControl("set-password"' in js
+    assert "The bridge doesn't know which password the grill has." in js
+    # A password change the bridge hasn't settled says so.
+    assert "The grill's password may have changed." in html
 
 
 def test_dashboard_command_log_prunes_only_after_counting_and_confirming(app):

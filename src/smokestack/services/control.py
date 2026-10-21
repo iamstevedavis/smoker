@@ -3,8 +3,11 @@
 Built as docs/specs/2026-10-19-grill-control.md says. The commands are
 turn-off, set-temperature, a WiFi-module reboot and (#58) switching the
 grill's unit while it is off; there is no power-on.
-Every attempt that reaches the control routes is recorded as a
-`control_command` health event, accepted or rejected.
+The grill's own password is changed too
+(docs/specs/2026-10-20-grill-password-wifi.md), which is settled by
+authenticating rather than by what the command returned. Every attempt that
+reaches the control routes is recorded as a `control_command` health event,
+accepted or rejected.
 """
 
 from __future__ import annotations
@@ -18,7 +21,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
+from smokestack import auth
 from smokestack.services.collector import StateHub
+from smokestack.services.passwords import PasswordChange, set_pending_passwords
 from smokestack.sources.commands import (
     COMMANDS,
     Command,
@@ -40,7 +45,8 @@ CONFIRM_SECONDS = 30.0
 REBOOT_CONFIRM_SECONDS = 90.0
 MIN_GAP_SECONDS = 5.0
 # Absolute commands: sending one twice is safe, so an Unauthorized may be
-# retried once. A reboot is not.
+# retried once. A reboot is not, and neither is a password change: the
+# reply says nothing about whether the grill took it.
 RETRYABLE = frozenset({"turn-off", "set-temperature", "set-unit"})
 
 OUTCOMES = ("confirmed", "unconfirmed", "failed", "already_applied")
@@ -100,6 +106,7 @@ class GrillControl:
         hub: StateHub,
         runtime: Callable[[], Runtime],
         auth: AuthState,
+        passwords: PasswordChange | None = None,
         clock: Callable[[], float] = time.monotonic,
         confirm_seconds: float = CONFIRM_SECONDS,
         reboot_confirm_seconds: float = REBOOT_CONFIRM_SECONDS,
@@ -109,6 +116,7 @@ class GrillControl:
         self.hub = hub
         self.runtime = runtime
         self.auth = auth
+        self.passwords = passwords or PasswordChange(store)
         self.clock = clock
         self.confirm_seconds = confirm_seconds
         self.reboot_confirm_seconds = reboot_confirm_seconds
@@ -136,6 +144,7 @@ class GrillControl:
         unavailable = self.unavailable()
         reason = unavailable[1] if unavailable else None
         unit = self._unit()
+        pending = self.passwords.pending
         return {
             "enabled": self.runtime().settings.enable_control,
             "available": reason is None,
@@ -148,6 +157,11 @@ class GrillControl:
             "last_result": self.last_result,
             # Entries in the command log (#55), kept until pruned by hand.
             "log_count": self.store.count_control_events(),
+            # A password change the bridge hasn't settled yet: it needs the
+            # user to say which password the grill has.
+            "pending_password_change": (
+                {"started_at": pending.updated_at.isoformat()} if pending else None
+            ),
         }
 
     def _unit(self) -> str | None:
@@ -168,6 +182,8 @@ class GrillControl:
         request: ControlRequest,
         temp: float | None = None,
         unit: str | None = None,
+        password: str | None = None,
+        dashboard_password: str | None = None,
     ) -> dict[str, Any]:
         """Check, send and confirm one command, and audit the attempt.
 
@@ -176,6 +192,9 @@ class GrillControl:
         change on the grill's panel can't reinterpret a confirmed
         temperature. For set-unit it is the unit to switch to.
 
+        `password` is the new grill password, for `set-password`; it never
+        reaches the log or the audit row.
+
         Returns the result (with `audit_id`); raises `ControlRejected`, also
         audited, when nothing was sent.
         """
@@ -183,7 +202,9 @@ class GrillControl:
         if unit is not None:
             args["unit"] = unit
         try:
-            result = await self._run(name, request, temp, unit)
+            result = await self._run(
+                name, request, temp, unit, password, dashboard_password
+            )
         except ControlRejected as exc:
             exc.audit_id = self._audit(
                 name,
@@ -242,6 +263,8 @@ class GrillControl:
         request: ControlRequest,
         temp: float | None,
         unit: str | None = None,
+        password: str | None = None,
+        dashboard_password: str | None = None,
     ) -> dict[str, Any]:
         if name not in COMMANDS:
             raise ControlRejected(404, "not a grill command")
@@ -257,6 +280,11 @@ class GrillControl:
             unavailable = self.unavailable()
             if unavailable is not None:
                 raise ControlRejected(*unavailable)
+            if name == "set-password":
+                # This is the only command whose failure can lock the bridge
+                # out, so it takes the dashboard password again, not just a
+                # session.
+                await self._check_dashboard_password(dashboard_password)
             if self._last_sent_at is not None:
                 wait = self.min_gap_seconds - (self.clock() - self._last_sent_at)
                 if wait > 0:
@@ -278,7 +306,7 @@ class GrillControl:
                     503, "the grill isn't connected or its data is stale"
                 )
             values = current.values_dict()
-            command = self._command(name, temp, values, unit)
+            command = self._command(name, temp, values, unit, password)
             started = utc_now()
             self.in_flight = {
                 "command": name,
@@ -286,7 +314,10 @@ class GrillControl:
                 "started_at": started.isoformat(),
             }
             try:
-                result = await self._send_and_confirm(runtime, command, values)
+                if name == "set-password":
+                    result = await self._change_password(runtime, command)
+                else:
+                    result = await self._send_and_confirm(runtime, command, values)
             finally:
                 self.in_flight = None
             unit = temperature_unit(values)
@@ -302,12 +333,22 @@ class GrillControl:
                 "finished_at": utc_now().isoformat(),
             }
 
+    async def _check_dashboard_password(self, password: str | None) -> None:
+        """Check the dashboard password again, for the commands that can
+        lock the bridge out."""
+        if not password or not await asyncio.to_thread(
+            self.auth.check_password, password
+        ):
+            await asyncio.sleep(auth.LOGIN_FAILURE_DELAY_SECONDS)
+            raise ControlRejected(403, "wrong dashboard password")
+
     def _command(
         self,
         name: str,
         temp: float | None,
         values: dict[str, Any],
         expected_unit: str | None = None,
+        password: str | None = None,
     ) -> Command:
         if name == "set-unit":
             if expected_unit not in ("F", "C"):
@@ -319,6 +360,10 @@ class GrillControl:
                     409, "turn the grill off before switching its unit"
                 )
             return Command("set-unit", fahrenheit=expected_unit == "F")
+        if name == "set-password":
+            if not password:
+                raise ControlRejected(422, "password is required")
+            return Command("set-password", password=password)
         if name != "set-temperature":
             return Command(name)  # type: ignore[arg-type]
         if temp is None:
@@ -338,6 +383,34 @@ class GrillControl:
         # Ties go to the lower setpoint, the same as pytboss.
         snapped = min(setpoints, key=lambda value: abs(value - temp))
         return Command("set-temperature", snapped)
+
+    async def _change_password(
+        self, runtime: Runtime, command: Command
+    ) -> dict[str, Any]:
+        """Change the grill's password, and settle it by authenticating.
+
+        What the send returns is only a hint: a reply lost after the grill
+        applied the change looks like a failure but isn't, so what decides is
+        which password the grill accepts afterwards.
+        """
+        source = runtime.collector.source
+        new = command.password or ""
+        old = runtime.settings.password
+        async with self.passwords.changing():
+            # The recovery state first: both passwords are recorded before
+            # anything is sent, so a bridge that stops mid-change comes back
+            # knowing both and can reconnect without anyone at the grill.
+            self.passwords.begin(old, new)
+            set_pending_passwords(source, self.passwords.candidates)
+            sent = await self._send(runtime, command)
+            outcome, detail = await self.passwords.settle_by_asking(source)
+        set_pending_passwords(source, self.passwords.candidates)
+        return {
+            "outcome": outcome,
+            "detail": detail,
+            "sent": sent["sent"],
+            "attempts": sent.get("attempts", 1),
+        }
 
     async def _send_and_confirm(
         self, runtime: Runtime, command: Command, values: dict[str, Any]

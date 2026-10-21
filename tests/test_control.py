@@ -88,7 +88,13 @@ def test_status_when_available(tmp_path):
     assert status["enabled"] is True
     assert status["available"] is True
     assert status["reason"] is None
-    assert status["commands"] == ["turn-off", "set-temperature", "reboot", "set-unit"]
+    assert status["commands"] == [
+        "turn-off",
+        "set-temperature",
+        "reboot",
+        "set-unit",
+        "set-password",
+    ]
     assert status["unit"] == "F"
     assert status["setpoints"] == list(PB850PS2_SETPOINTS)
     assert status["last_result"] is None

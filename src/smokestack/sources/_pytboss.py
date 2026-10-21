@@ -120,6 +120,11 @@ async def run_command(boss: Any, command: Command) -> None:
             await boss.reboot()
         elif command.name == "set-unit":
             await boss.set_temperature_unit(command.fahrenheit)
+        elif command.name == "set-password":
+            # What this returns is only a hint: a reply lost after the grill
+            # applied the change looks like a failure but isn't, so the
+            # bridge settles the change by authenticating, not by this.
+            await boss.set_grill_password(command.password)
         else:  # Command rejects anything else; never fall through to a send
             raise ValueError(f"not a grill command: {command.name!r}")
     except Unauthorized as exc:
@@ -127,3 +132,25 @@ async def run_command(boss: Any, command: Command) -> None:
         raise CommandUnauthorized(str(exc) or "Unauthorized") from exc
     except lost as exc:
         raise ConnectionLost(str(exc) or type(exc).__name__) from exc
+
+
+async def check_password(boss: Any, password: str) -> bool:
+    """Whether the grill accepts `password`, on the current connection.
+
+    The connection keeps the password that worked. One that does not work
+    leaves the previous one in place, so a failed check never locks the
+    bridge out.
+    """
+    from pytboss.exceptions import Unauthorized
+
+    previous = boss._password
+    boss._password = password.encode("utf-8")
+    # A fresh uptime, so the key is derived from the grill's own clock.
+    boss._last_uptime = None
+    try:
+        await boss.get_state()
+    except Unauthorized:
+        boss._password = previous
+        boss._last_uptime = None
+        return False
+    return True

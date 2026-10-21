@@ -9,9 +9,10 @@ from smokestack.sources.commands import (
     COMMANDS,
     Command,
     CommandNotSent,
-    CommandQueue,
     CommandUnauthorized,
     ConnectionLost,
+    JobQueue,
+    PasswordCheck,
     celsius_setpoints,
 )
 from smokestack.sources.commands import PB850PS2_SETPOINTS
@@ -23,7 +24,13 @@ from smokestack.store import Database
 
 
 def test_only_the_approved_commands_exist():
-    assert COMMANDS == ("turn-off", "set-temperature", "reboot", "set-unit")
+    assert COMMANDS == (
+        "turn-off",
+        "set-temperature",
+        "reboot",
+        "set-unit",
+        "set-password",
+    )
     for name in ("turn-on", "power-on", "set-celsius", "set-fahrenheit", ""):
         with pytest.raises(ValueError):
             Command(name)  # type: ignore[arg-type]
@@ -37,6 +44,14 @@ def test_only_the_approved_commands_exist():
         Command("turn-off", fahrenheit=True)
     assert Command("set-temperature", 250).args == {"temp": 250}
     assert Command("set-unit", fahrenheit=False).args == {"unit": "C"}
+
+
+def test_only_set_password_takes_a_password():
+    assert Command("set-password", password="secret").args == {}
+    with pytest.raises(ValueError):
+        Command("set-password")
+    with pytest.raises(ValueError):
+        Command("turn-off", password="secret")
 
 
 def test_no_power_on_anywhere_in_the_bridge():
@@ -61,7 +76,7 @@ def test_the_command_wait_covers_a_poll_interval():
 
 async def test_queue_refuses_commands_while_closed():
     with pytest.raises(CommandNotSent):
-        await CommandQueue().submit(Command("turn-off"))
+        await JobQueue().submit(Command("turn-off"))
 
 
 async def test_a_command_waits_for_the_next_poll(monkeypatch):
@@ -98,7 +113,7 @@ def test_the_real_sources_wait_for_their_poll_interval():
 
 
 async def test_queue_hands_commands_to_the_polling_loop():
-    queue = CommandQueue()
+    queue = JobQueue()
     queue.open()
     ran = []
 
@@ -116,7 +131,7 @@ async def test_queue_hands_commands_to_the_polling_loop():
 
 
 async def test_queue_errors_go_to_the_caller_not_the_loop():
-    queue = CommandQueue()
+    queue = JobQueue()
     queue.open()
 
     async def run(command):
@@ -130,7 +145,7 @@ async def test_queue_errors_go_to_the_caller_not_the_loop():
 
 
 async def test_closing_the_queue_fails_waiting_commands():
-    queue = CommandQueue()
+    queue = JobQueue()
     queue.open()
     submitted = asyncio.create_task(queue.submit(Command("reboot")))
     await asyncio.sleep(0)
@@ -140,7 +155,7 @@ async def test_closing_the_queue_fails_waiting_commands():
 
 
 async def test_a_command_the_loop_never_reaches_is_not_sent():
-    queue = CommandQueue()
+    queue = JobQueue()
     queue.open()
     with pytest.raises(CommandNotSent):
         await queue.submit(Command("turn-off"), queue_timeout=0.01)
@@ -149,6 +164,22 @@ async def test_a_command_the_loop_never_reaches_is_not_sent():
         raise AssertionError("sent after giving up")
 
     assert await queue.serve(run, timeout=0) is None
+
+
+async def test_the_queue_carries_a_password_check_too():
+    queue = JobQueue()
+    queue.open()
+    ran = []
+
+    async def run(job):
+        ran.append(job)
+        return True
+
+    submitted = asyncio.create_task(queue.submit(PasswordCheck("secret")))
+    await asyncio.sleep(0)
+    assert await queue.serve(run, timeout=1) == PasswordCheck("secret")
+    assert await submitted is True
+    assert ran == [PasswordCheck("secret")]
 
 
 # pytboss sources -----------------------------------------------------------
@@ -405,6 +436,93 @@ async def test_fake_source_can_ignore_commands():
 
     assert after["grillSetTemp"] == 225
     assert source.executed == [Command("set-temperature", 300)]
+
+
+async def test_fake_source_changes_the_password():
+    source = FakeGrillSource(interval_seconds=0, password="old")
+    stream = source.readings()
+    await anext(stream)
+
+    await _send(source, stream, Command("set-password", password="new"))
+
+    assert source.password == "new"
+    assert source.executed == [Command("set-password", password="new")]
+
+
+async def test_fake_source_password_change_whose_reply_was_lost():
+    source = FakeGrillSource(interval_seconds=0, password="old")
+    source.faults.add("password_reply_lost")
+    stream = source.readings()
+    await anext(stream)
+
+    task = asyncio.create_task(source.execute(Command("set-password", password="new")))
+    await anext(stream)
+    with pytest.raises(ConnectionError):
+        await task
+
+    # The change took, even though the reply never arrived.
+    assert source.password == "new"
+
+
+async def test_fake_source_answers_password_checks():
+    source = FakeGrillSource(interval_seconds=0, password="old")
+    stream = source.readings()
+    await anext(stream)
+
+    task = asyncio.create_task(source.check_password("old"))
+    await anext(stream)
+    assert await task is True
+
+    task = asyncio.create_task(source.check_password("new"))
+    await anext(stream)
+    assert await task is False
+
+
+# A pending password change -------------------------------------------------
+
+
+class PasswordBoss:
+    """A boss that only answers for the right password."""
+
+    def __init__(self, password: str = "new") -> None:
+        self.password = password
+        self._password = b""
+        self._last_uptime = 12.0
+
+    async def get_state(self):
+        if self._password.decode() != self.password:
+            raise pytest.importorskip("pytboss.exceptions").Unauthorized(
+                "Unauthorized", 401
+            )
+        return {"grillTemp": 225}
+
+
+async def test_the_source_retries_the_pending_passwords_after_unauthorized():
+    from smokestack.sources._pytboss import UptimeRefresher
+    from smokestack.sources.pytboss_ble import PytbossBleSource
+
+    source = PytbossBleSource(model="PB850PS2", device_name="PBL-1", password="old")
+    source.pending_passwords = ("new", "old")
+
+    state = await source._poll(PasswordBoss("new"), UptimeRefresher())
+
+    assert state == {"grillTemp": 225}
+    # The connection keeps the password that worked.
+    assert source.password == "new"
+
+
+async def test_the_source_gives_up_when_no_pending_password_works():
+    exceptions = pytest.importorskip("pytboss.exceptions")
+    from smokestack.sources._pytboss import UptimeRefresher
+    from smokestack.sources.pytboss_ble import PytbossBleSource
+
+    source = PytbossBleSource(model="PB850PS2", device_name="PBL-1", password="old")
+    source.pending_passwords = ("new", "old")
+
+    with pytest.raises(exceptions.Unauthorized):
+        await source._poll(PasswordBoss("something else"), UptimeRefresher())
+
+    assert source.password == "old"
 
 
 # The blank frame -------------------------------------------------------------
