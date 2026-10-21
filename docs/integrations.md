@@ -69,7 +69,8 @@ control**), the dashboard gets a **Controls** section that can:
   (180-500 F on the PB850PS2), in the grill's current unit;
 - switch the grill between °F and °C, only while it is off (the panel and
   every reading change unit; probe alerts keep working);
-- restart the grill's WiFi module, which leaves the grill itself running.
+- restart the grill's WiFi module, which leaves the grill itself running;
+- change the grill's own password, which the bridge then uses to talk to it.
 
 There is no way to turn the grill on: the bridge never sends power-on or
 ignition. Control also needs the dashboard login switched on, and each
@@ -86,6 +87,16 @@ works at any **Poll every** setting, but a long interval also means a long
 wait before the grill hears anything, and readings that are already stale
 when the next poll is due: keep **Poll every** below **Stale after**, or the
 controls stay disabled because the readings look old.
+
+Changing the password asks for the dashboard password again, because it is
+the one command whose failure can lock the bridge out. What settles it is
+which password the grill accepts afterwards, never what the command
+returned: a reply lost after the grill applied the change looks like a
+failure but isn't. Both passwords are kept until the change is settled, so a
+bridge that stops mid-change comes back knowing both and reconnects on its
+own. If it still cannot tell, the Controls card says so, and saving the
+password in **Settings** ends it. The passwords never appear in the log or
+the command log.
 
 Every attempt is kept in the database as a `control_command` health event,
 and retention pruning leaves those alone. **Command log** on the Controls card
