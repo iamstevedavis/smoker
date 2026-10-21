@@ -14,6 +14,7 @@ from smokestack.sources.commands import (
     ConnectionLost,
     celsius_setpoints,
 )
+from smokestack.sources.commands import PB850PS2_SETPOINTS
 from smokestack.sources.fake import FakeGrillSource
 from smokestack.store import Database
 
@@ -462,9 +463,25 @@ async def test_fake_source_switches_unit_and_converts_its_values():
     back = await _send(source, stream, Command("set-unit", fahrenheit=True))
 
     assert after["isFahrenheit"] is False
-    assert after["grillSetTemp"] == 107
+    # 225 F is 107.2 C; the nearest Celsius setpoint is 110 (230 F).
+    assert after["grillSetTemp"] == 110
     assert after["p1Temp"] < before["p1Temp"]
     assert after["p1Target"] == round((165 - 32) * 5 / 9, 1)
     assert back["isFahrenheit"] is True
-    assert back["grillSetTemp"] == 225
+    assert back["grillSetTemp"] == 230
     assert source.blank_frame_expected is True
+
+
+@pytest.mark.parametrize("fahrenheit", PB850PS2_SETPOINTS)
+async def test_fake_unit_switch_keeps_setpoints_on_the_board_list(fahrenheit):
+    source = FakeGrillSource(interval_seconds=0)
+    source.set_temp = fahrenheit
+    stream = source.readings()
+    await anext(stream)
+
+    after = await _send(source, stream, Command("set-unit", fahrenheit=False))
+    back = await _send(source, stream, Command("set-unit", fahrenheit=True))
+
+    assert after["grillSetTemp"] in source.accepted_setpoints(False)
+    # The board's floored list maps each Celsius setpoint back to its own.
+    assert back["grillSetTemp"] == fahrenheit

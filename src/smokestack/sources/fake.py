@@ -125,7 +125,11 @@ class FakeGrillSource:
             # The setpoint and cool-down temperature are kept in the grill's
             # unit, so they convert with it.
             before, after = self._unit(), "F" if command.fahrenheit else "C"
-            self.set_temp = round(convert_temperature(self.set_temp, before, after))
+            # Snapped like any setpoint, so it stays one the board accepts
+            # (it floors Celsius: 190 F is 87 C, not 88).
+            converted = convert_temperature(self.set_temp, before, after)
+            accepted = self.accepted_setpoints(command.fahrenheit)
+            self.set_temp = min(accepted, key=lambda value: abs(value - converted))
             if self._off_temp is not None:
                 self._off_temp = convert_temperature(self._off_temp, before, after)
             self.fahrenheit = bool(command.fahrenheit)

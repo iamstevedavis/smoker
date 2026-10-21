@@ -617,8 +617,9 @@ def test_set_unit_switches_the_grill_while_it_is_off(tmp_path):
     assert source.executed[-1] == Command("set-unit", fahrenheit=False)
     values = app.state.hub.current.values_dict()
     assert values["isFahrenheit"] is False
-    # The fake converts its values with the unit: 225 F is 107 C.
-    assert values["grillSetTemp"] == 107
+    # The fake converts its values with the unit, snapping the setpoint to
+    # the board's list: 225 F is 107.2 C, so 110.
+    assert values["grillSetTemp"] == 110
     assert status["unit"] == "C"
     assert status["setpoints"] == celsius_setpoints(PB850PS2_SETPOINTS)
 
