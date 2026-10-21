@@ -1034,12 +1034,25 @@
   const COMMAND_LABELS = { "turn-off": "Turn off", "set-temperature": "Set temperature", reboot: "Restart WiFi" };
 
   // `notice` is a request the bridge refused, shown until the next command.
-  const control = { status: null, sending: null, notice: null };
+  // `asked` and `applied` count the status requests, so a slow answer to an
+  // older request cannot undo a newer one.
+  const control = { status: null, sending: null, notice: null, asked: 0, applied: 0 };
 
   async function loadControl() {
+    const asked = ++control.asked;
     try {
       const res = await apiFetch("api/control", { cache: "no-store" });
-      if (res.ok) control.status = await res.json();
+      if (res.ok) {
+        const status = await res.json();
+        // A poll asked for earlier can land after a later one, and the older
+        // status would put the panel back into a state the bridge has already
+        // left: "still sending" after the command is done, or the result
+        // before it.
+        if (asked > control.applied) {
+          control.applied = asked;
+          control.status = status;
+        }
+      }
     } catch (e) { /* keep the last status */ }
     renderControls();
   }
