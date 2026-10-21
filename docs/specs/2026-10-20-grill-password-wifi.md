@@ -1,8 +1,8 @@
 # Grill Password and WiFi Design
 
-Status: **proposed**, not approved (issue #54). Nothing here may be built
-until the owner approves it; until then AGENTS.md keeps these commands off
-the approved list.
+Status: **approved** by the owner on 2026-10-21 (issue #54). The password
+change is built (see [Implementation](#implementation)); the WiFi move
+follows once the unknowns below have been answered at the grill.
 
 ## Goal
 
@@ -84,13 +84,13 @@ changes.
    - Only old works: the change didn't take; keep the old setting, clear
      *pending*, report `failed`.
    - Neither works, or the grill can't be reached: stay *pending*, report
-     `unconfirmed`, and show a banner saying how to recover (set the
-     password in Settings, or reset it at the grill).
+     `unconfirmed`, and say how to recover (set the password in Settings,
+     or reset it at the grill).
      While *pending*, an `Unauthorized` poll retries with the other
      password, so whichever the grill ends up with, the bridge reconnects
      without anyone touching it.
    - **Saving a grill password in Settings ends the pending change.** That
-     is what the banner asks for, so the user's value wins: the pending row
+     is what the recovery asks for, so the user's value wins: the pending row
      (both recorded passwords) is deleted, the saved value becomes the
      `password` setting, and the bridge polls with it as usual, with no
      reconciliation. If it is wrong, that shows as an ordinary
@@ -183,10 +183,33 @@ app at hand to recover.
 
 ## Decisions for the owner
 
-1. WiFi changes over Bluetooth only (recommended), or also over `http` with
-   no automatic undo?
-2. Re-enter the dashboard password for these two (recommended)?
-3. The 60 s join window and automatic revert by restarting the module
-   (recommended)?
-4. Approve the password change first and WiFi after the unknowns are
-   answered (recommended), or both together?
+Answered by the owner on 2026-10-21:
+
+1. WiFi changes over Bluetooth only (recommended): over `http` the bridge's
+   own connection is the thing being changed, so it could neither watch the
+   join nor undo it.
+2. Yes, re-enter the dashboard password for these two (recommended): they
+   are the only commands whose failure can lock the bridge out.
+3. Yes, the 60 s join window and the automatic revert by restarting the
+   module (recommended).
+4. The password change is approved and built first; the WiFi move waits
+   until the unknowns below have been answered at the grill (recommended).
+
+## Implementation
+
+The password change is built:
+
+- `set-password` in `sources/commands.py`, sent with `PB.SetDevicePassword`
+  through `sources/_pytboss.py`.
+- The pending change (both passwords) in the `pending_password` table, and
+  the settling in `services/passwords.py`: the grill is asked which password
+  it accepts, and the bridge keeps that one. Nothing is sent until the
+  pending row is written.
+- `POST /api/control/set-password`, which takes the dashboard password
+  again, and the dashboard's **Change password** dialog.
+- The source retries the pending passwords when the grill rejects the one
+  it is using, so the bridge reconnects on its own.
+
+The WiFi move (the scan, and moving the grill to another network) is not
+built yet: it needs the answer to unknown 3 below, which only the grill can
+give.

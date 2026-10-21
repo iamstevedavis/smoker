@@ -11,8 +11,10 @@ from smokestack.sources.commands import (
     MCU_COMMANDS,
     PB850PS2_SETPOINTS,
     Command,
-    CommandQueue,
     CommandUnauthorized,
+    Job,
+    JobQueue,
+    PasswordCheck,
     celsius_setpoints,
     queue_timeout_for,
 )
@@ -26,6 +28,7 @@ FAULTS = frozenset(
         "blank_frame",  # the frame after an MCU command is blank, as on the grill
         "unauthorized_once",  # the next command is rejected as Unauthorized
         "reboot_never_returns",  # after a reboot the source stays unreachable
+        "password_reply_lost",  # the password changed, but the reply never came
     }
 )
 AMBIENT_TEMP = 70
@@ -36,8 +39,9 @@ class FakeGrillSource:
 
     It also takes the grill commands: turning off winds the temperature down,
     setting the temperature changes `grillSetTemp`, switching the unit flips
-    `isFahrenheit` and converts every value, and a reboot drops the stream
-    for `reboot_seconds`.
+    `isFahrenheit` and converts every value, a reboot drops the stream for
+    `reboot_seconds`, and changing the password changes the one the grill
+    answers to.
     """
 
     name = "fake"
@@ -47,6 +51,7 @@ class FakeGrillSource:
         interval_seconds: float = 2.0,
         reboot_seconds: float = 3.0,
         clock: Callable[[], float] = time.monotonic,
+        password: str = "",
     ) -> None:
         self.interval_seconds = interval_seconds
         self.reboot_seconds = reboot_seconds
@@ -57,11 +62,15 @@ class FakeGrillSource:
         self.fahrenheit = True
         self.faults: set[str] = set()
         self.executed: list[Command] = []
-        self.commands = CommandQueue()
+        self.commands = JobQueue()
         # The loop serves commands between polls, so the wait for one has to
         # cover a poll interval.
         self.commands.timeout = queue_timeout_for(self.interval_seconds)
         self.blank_frame_expected = False
+        # The password the grill answers to, and the ones a pending password
+        # change may have left it with.
+        self.password = password
+        self.pending_passwords: tuple[str, ...] = ()
         self._off_temp: float | None = None
         self._blank_next = False
         self._drop_next = False
@@ -74,6 +83,10 @@ class FakeGrillSource:
 
     async def execute(self, command: Command) -> None:
         await self.commands.submit(command)
+
+    async def check_password(self, password: str) -> bool:
+        """Whether the grill accepts `password`."""
+        return bool(await self.commands.submit(PasswordCheck(password)))
 
     async def readings(self) -> AsyncIterator[dict[str, Any]]:
         if self._down_until is not None:
@@ -102,7 +115,10 @@ class FakeGrillSource:
         finally:
             self.commands.close()
 
-    async def _run(self, command: Command) -> None:
+    async def _run(self, job: Job) -> Any:
+        if isinstance(job, PasswordCheck):
+            return job.password == self.password
+        command = job
         if command.name in MCU_COMMANDS:
             self.blank_frame_expected = True
             self._blank_next = "blank_frame" in self.faults
@@ -133,6 +149,11 @@ class FakeGrillSource:
             if self._off_temp is not None:
                 self._off_temp = convert_temperature(self._off_temp, before, after)
             self.fahrenheit = bool(command.fahrenheit)
+        elif command.name == "set-password" and command.password is not None:
+            self.password = command.password
+            if "password_reply_lost" in self.faults:
+                # The grill took the change, but the reply never arrived.
+                raise ConnectionError("the connection dropped")
 
     def _unit(self) -> str:
         return "F" if self.fahrenheit else "C"

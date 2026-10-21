@@ -26,6 +26,7 @@ from smokestack.services.alerts import (
 )
 from smokestack.services.collector import Collector, CollectorHealth, StateHub
 from smokestack.services.mqtt import MqttConfig, MqttPublisher
+from smokestack.services.passwords import set_pending_passwords
 from smokestack.sources.fake import FakeGrillSource
 from smokestack.store import Database, ProbeTarget
 
@@ -94,7 +95,10 @@ def available_sources() -> tuple[str, ...]:
 
 def make_source(settings: Settings) -> Any:
     if settings.source == "fake":
-        return FakeGrillSource(interval_seconds=settings.poll_seconds)
+        return FakeGrillSource(
+            interval_seconds=settings.poll_seconds,
+            password=settings.password,
+        )
     if settings.source == "ble":
         from smokestack.sources.pytboss_ble import PytbossBleSource
 
@@ -136,6 +140,13 @@ class Runtime:
     def __init__(self, settings: Settings, store: Database, hub: StateHub) -> None:
         self.settings = settings
         source = make_source(settings)
+        # A password change that was in flight when the bridge stopped: the
+        # grill may hold either password, so the source retries them.
+        pending = store.load_pending_password()
+        if pending is not None:
+            set_pending_passwords(
+                source, (pending.new_password, pending.old_password)
+            )
         self.health = CollectorHealth(
             source=source.name,
             stale_after_seconds=settings.stale_after_seconds,

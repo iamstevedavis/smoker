@@ -130,6 +130,35 @@
     </form>
   </dialog>
 
+  <dialog id="password-dialog" class="settings" aria-labelledby="password-dialog-title">
+    <form id="password-form" class="settings-form" novalidate>
+      <div class="settings-head">
+        <h2 id="password-dialog-title">Change the grill's password</h2>
+        <button id="password-close" class="theme-btn" type="button">Close</button>
+      </div>
+      <div class="settings-body">
+        <p class="settings-intro">The bridge connects to the grill with this password, so it changes to match. Nothing else about the grill changes.</p>
+        <div class="setting">
+          <label for="password-new">New grill password</label>
+          <input id="password-new" name="password" type="password" autocomplete="new-password" required>
+        </div>
+        <div class="setting">
+          <label for="password-confirm">Confirm new password</label>
+          <input id="password-confirm" name="confirm" type="password" autocomplete="new-password" required>
+        </div>
+        <div class="setting">
+          <label for="password-dashboard">Your dashboard password</label>
+          <input id="password-dashboard" name="dashboard_password" type="password" autocomplete="current-password" required>
+          <p class="setting-hint">Asked again, because this is the one change that can lock the bridge out.</p>
+        </div>
+      </div>
+      <div class="settings-foot">
+        <p id="password-status" class="settings-status" role="status" aria-live="polite"></p>
+        <button id="password-save" class="login-btn" type="submit">Change password</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="banner" class="banner" role="alert" hidden>
     <span class="banner-icon" aria-hidden="true">!</span>
     <div>
@@ -257,6 +286,7 @@
         <div class="control-buttons">
           <button type="button" class="theme-btn" id="control-off" data-control>Turn off</button>
           <button type="button" class="theme-btn" id="control-reboot" data-control>Restart WiFi</button>
+          <button type="button" class="theme-btn" id="control-password" data-control>Change password</button>
         </div>
         <div class="control-unit">
           <span id="control-unit-label">Grill unit</span>
@@ -267,6 +297,7 @@
         </div>
         <p id="control-unit-hint" class="controls-note" hidden>Turn the grill off to switch its unit.</p>
         <p id="controls-stale" class="controls-note" hidden>Controls are paused until the grill is reporting again.</p>
+        <p id="controls-pending" class="controls-note" hidden>The grill's password may have changed. Set it in Settings, or reset it at the grill.</p>
       </div>
       <div id="control-result" class="control-result" role="status" aria-live="polite" hidden>
         <span class="spinner" aria-hidden="true"></span>

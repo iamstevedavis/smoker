@@ -1,7 +1,8 @@
 /* Smokestack dashboard: live view over /api/live, /api/history and /api/health,
    plus the bridge settings panel (/api/settings). The only writes to the grill
-   are the Controls section's turn-off, set-temperature, unit switch and WiFi
-   restart (/api/control), each confirmed in a dialog first. */
+   are the Controls section's turn-off, set-temperature, unit switch, WiFi
+   restart and password change (/api/control), each confirmed in a dialog
+   first. */
 "use strict";
 
 (() => {
@@ -1032,7 +1033,13 @@
   // Grill controls (/api/control) ---------------------------------------
 
   const CONTROL_POLL_MS = 5000;
-  const COMMAND_LABELS = { "turn-off": "Turn off", "set-temperature": "Set temperature", reboot: "Restart WiFi", "set-unit": "Switch unit" };
+  const COMMAND_LABELS = {
+    "turn-off": "Turn off",
+    "set-temperature": "Set temperature",
+    reboot: "Restart WiFi",
+    "set-unit": "Switch unit",
+    "set-password": "Change password",
+  };
   const UNIT_NAMES = { F: "Fahrenheit", C: "Celsius" };
 
   // `notice` is a request the bridge refused, shown until the next command.
@@ -1092,14 +1099,21 @@
         if (result.command === "turn-off") return ["Done.", "The grill is off. The fan runs for about 10 minutes."];
         if (result.command === "set-temperature") return ["Done.", "The grill is set to " + result.target + unit + "."];
         if (result.command === "set-unit") return ["Done.", "The grill now uses °" + result.args.unit + "."];
+        if (result.command === "set-password") return ["Done.", "The grill now uses the new password, and the bridge matches it."];
         return ["Done.", "The WiFi module restarted and the grill is reporting again."];
       case "already_applied":
         if (result.command === "turn-off") return ["Nothing sent.", "The grill was already off."];
         if (result.command === "set-unit") return ["Nothing sent.", "The grill already uses °" + result.args.unit + "."];
         return ["Nothing sent.", "The grill was already set to " + result.target + unit + "."];
       case "unconfirmed":
+        if (result.command === "set-password") {
+          return ["Not confirmed.", "The bridge doesn't know which password the grill has. Set it in Settings, or reset it at the grill."];
+        }
         return ["Not confirmed.", "The command was sent, but the grill didn't report the change in time. Check the grill."];
       case "failed":
+        if (result.command === "set-password") {
+          return ["Failed.", "The grill still uses the old password, so nothing changed."];
+        }
         return ["Failed.", (result.detail || "The grill didn't take the command.") + " Check the grill."];
       default:
         return [result.outcome || "", result.detail || ""];
@@ -1150,6 +1164,8 @@
     $("controls-actions").hidden = !s.available;
     const live = controlLive();
     $("controls-stale").hidden = live;
+    // A password change the bridge hasn't settled: it needs the user.
+    $("controls-pending").hidden = !s.pending_password_change;
     const busy = Boolean(control.sending || s.in_flight);
     section.querySelectorAll("[data-control]").forEach((node) => { node.disabled = !live || busy; });
     // The unit can only be switched while the grill is off (#58).
@@ -1177,12 +1193,21 @@
     });
   }
 
+  // The arguments are shown while the command is in flight, so the password
+  // change never shows one.
+  function controlArgs(command, body, target) {
+    if (command === "set-password") return {};
+    if (target !== undefined) return { temp: target };
+    return body || {};
+  }
+
   // `target` is the snapped temperature, shown while the command is sent.
   async function sendControl(command, body, target) {
-    if (control.sending) return;
-    control.sending = { command, args: target === undefined ? body || {} : { temp: target } };
+    if (control.sending) return null;
+    control.sending = { command, args: controlArgs(command, body, target) };
     control.notice = null;
     renderControls();
+    let sent = null;
     try {
       const res = await apiFetch("api/control/" + command, {
         method: "POST",
@@ -1192,6 +1217,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        sent = data;
         if (control.status) control.status.last_result = data;
       } else {
         let message = typeof data.detail === "string" ? data.detail : "HTTP " + res.status;
@@ -1203,6 +1229,64 @@
     } finally {
       control.sending = null;
       await loadControl();
+    }
+    return sent;
+  }
+
+  // Changing the grill's own password ----------------------------------------
+
+  function passwordStatus(text, kind) {
+    const status = $("password-status");
+    status.textContent = text;
+    status.dataset.kind = kind || "";
+  }
+
+  function openPasswordDialog() {
+    const dialog = $("password-dialog");
+    $("password-form").reset();
+    passwordStatus("", "");
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    $("password-new").focus();
+  }
+
+  function closePasswordDialog() {
+    const dialog = $("password-dialog");
+    if (typeof dialog.close === "function") dialog.close();
+    else dialog.removeAttribute("open");
+  }
+
+  async function changeGrillPassword() {
+    const form = $("password-form");
+    const password = form.password.value;
+    const dashboard = form.dashboard_password.value;
+    if (!password) return passwordStatus("Enter a new password.", "error");
+    if (password !== form.confirm.value) return passwordStatus("The two passwords don't match.", "error");
+    if (!dashboard) return passwordStatus("Enter your dashboard password.", "error");
+    const ok = await confirmControl(
+      "Change the grill's password?",
+      "The grill will use the new password, and the bridge will use it too. If the grill ends up with the other one, the bridge works it out on its own.",
+      "Change password",
+    );
+    if (!ok) return;
+    const button = $("password-save");
+    button.disabled = true;
+    passwordStatus("Sending…", "busy");
+    try {
+      const result = await sendControl("set-password", {
+        password,
+        confirm: password,
+        dashboard_password: dashboard,
+      });
+      if (result) {
+        form.reset();
+        closePasswordDialog();
+      } else if (control.notice) {
+        // The dialog is over the result panel, so say it here too.
+        passwordStatus(control.notice, "error");
+      }
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -1366,6 +1450,12 @@
       );
       if (ok) sendControl("reboot");
     });
+    $("control-password").addEventListener("click", openPasswordDialog);
+    $("password-close").addEventListener("click", closePasswordDialog);
+    $("password-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      changeGrillPassword();
+    });
     $("control-temp-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const typed = Number($("control-temp").value.trim());
@@ -1416,7 +1506,7 @@
     model: { label: "Grill model", type: "text" },
     host: { label: "Grill address", type: "text", hint: "WiFi source: IP or host:port." },
     device_name: { label: "Bluetooth name", type: "text", hint: "Bluetooth source only." },
-    password: { label: "Grill password", type: "secret" },
+    password: { label: "Grill password", type: "secret", hint: "The password the bridge uses to talk to the grill. Saving it here also ends a password change the bridge hasn't settled." },
     poll_seconds: { label: "Poll every", type: "number", unit: "s", min: 0.1 },
     stale_after_seconds: { label: "Stale after", type: "int", unit: "s", min: 1 },
     mqtt_host: { label: "Broker host", type: "text", hint: "Blank turns MQTT off." },

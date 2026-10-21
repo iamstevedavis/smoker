@@ -213,3 +213,24 @@ def test_probe_targets_saved_as_settings_are_carried_over(tmp_path):
     # Their unit was never recorded, so they must be entered again.
     assert db.load_probe_targets() == {1: ProbeTarget(203, None)}
     assert db.load_settings() == {"poll_seconds": 3}
+
+
+def test_the_pending_password_change_is_kept_until_it_is_cleared(tmp_path):
+    db = Database(tmp_path / "smokestack.sqlite")
+    db.initialize()
+
+    assert db.load_pending_password() is None
+
+    db.save_pending_password("old", "new")
+    pending = db.load_pending_password()
+
+    assert (pending.old_password, pending.new_password) == ("old", "new")
+    assert pending.updated_at is not None
+
+    # Only one change is kept: a new one replaces the old.
+    db.save_pending_password("older", "newer")
+    assert db.load_pending_password().old_password == "older"
+
+    assert db.clear_pending_password() is True
+    assert db.load_pending_password() is None
+    assert db.clear_pending_password() is False

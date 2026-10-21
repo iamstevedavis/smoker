@@ -27,8 +27,10 @@ PITBOSS_SOURCE=fake uvicorn smokestack.api:create_app --factory --reload
   [`docs/specs/2026-10-19-grill-control.md`](docs/specs/2026-10-19-grill-control.md)
   (turn off, set temperature, reboot the WiFi module, and switching the
   unit while the grill is off, approved for #58), built as that spec says
-  (#59). Never add any other command that writes to the grill, above all
-  power-on/ignition. Password/WiFi changes (#54) need their own approval
+  (#59), plus the grill password change in
+  [`docs/specs/2026-10-20-grill-password-wifi.md`](docs/specs/2026-10-20-grill-password-wifi.md)
+  (#54). Never add any other command that writes to the grill, above all
+  power-on/ignition. The WiFi move (the rest of #54) needs its own approval
   first.
 - Don't push tags, create releases or bump the version unless asked. Releases
   follow [`docs/releasing.md`](docs/releasing.md).
