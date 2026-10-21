@@ -395,7 +395,6 @@ class GrillControl:
         """
         source = runtime.collector.source
         new = command.password or ""
-        old = runtime.settings.password
         async with self.passwords.locked():
             if self.passwords.pending is not None:
                 # A change that has not settled yet is holding on to the
@@ -406,6 +405,10 @@ class GrillControl:
                     "a password change is still in flight; save the password "
                     "in Settings, or wait for it to settle",
                 )
+            # The password the bridge has now, read under the lock: a
+            # reconcile that adopted one while this request waited has
+            # changed it, and that is the password to fall back on.
+            old = runtime.settings.password
             # The recovery state first: both passwords are recorded before
             # anything is sent, so a bridge that stops mid-change comes back
             # knowing both and can reconnect without anyone at the grill.
