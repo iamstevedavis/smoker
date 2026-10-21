@@ -387,8 +387,9 @@ def test_reboot_is_confirmed_when_the_source_comes_back(tmp_path, monkeypatch):
 
     assert body["outcome"] == "confirmed"
     assert after == before + 1
-    # Held for the reboot window, released once readings are back.
-    assert holds == [3, 0]
+    # Held while queued, held again for the full window once sent, then
+    # released once readings are back.
+    assert holds == [3, 3, 0]
 
 
 def test_a_reboot_that_never_comes_back_is_unconfirmed(tmp_path, monkeypatch):
@@ -403,7 +404,7 @@ def test_a_reboot_that_never_comes_back_is_unconfirmed(tmp_path, monkeypatch):
 
     assert body["outcome"] == "unconfirmed"
     # The hold runs out on its own, so the stale alert follows.
-    assert holds == [0.5]
+    assert holds == [0.5, 0.5]
 
 
 # Rate limiting and the lock --------------------------------------------------------
@@ -548,3 +549,25 @@ def test_a_command_that_was_never_sent_does_not_start_the_gap(tmp_path, monkeypa
     assert (first["outcome"], first["sent"]) == ("failed", False)
     assert retry.status_code == 200
     assert retry.json()["outcome"] == "confirmed"
+
+
+def test_the_reboot_hold_restarts_once_the_command_is_sent(tmp_path, monkeypatch):
+    app = _app(tmp_path)
+    events = []
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        source = _source(app)
+        execute = source.execute
+
+        async def slow_execute(command):
+            events.append("sending")
+            await execute(command)
+            events.append("sent")
+
+        monkeypatch.setattr(source, "execute", slow_execute)
+        monkeypatch.setattr(
+            app.state.runtime, "hold_stale_alert", lambda s: events.append(("hold", s))
+        )
+        assert _post(client, "reboot").json()["outcome"] == "confirmed"
+
+    assert events == [("hold", 3), "sending", "sent", ("hold", 3), ("hold", 0)]

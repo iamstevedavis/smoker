@@ -349,6 +349,10 @@ class GrillControl:
             if sent["sent"]:
                 # Only a command that may have reached the grill starts the gap.
                 self._last_sent_at = self.clock()
+            if reboot and sent["outcome"] != "failed":
+                # Waiting in the queue and sending can take a while; restart
+                # the hold so it covers the same window as the deadline below.
+                runtime.hold_stale_alert(window)
             if sent["outcome"] == "failed":
                 if reboot:
                     runtime.hold_stale_alert(0)
