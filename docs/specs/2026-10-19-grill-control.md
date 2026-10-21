@@ -223,6 +223,9 @@ no longer changes what they mean.
 - **UI:** °F/°C buttons in the Controls section, disabled while the grill is
   on, with the dialog "Switch the grill to Celsius".
 - **Fake source:** flips `isFahrenheit` and converts its values.
+- **The unset probe target follows the unit:** the PB850PS2's firmware default
+  of `50` is sent as `10` on a Celsius grill, so the bridge hides it in both
+  units instead of showing a target of 10 °C.
 - **Hardware check:** switch both ways with the grill off, over `http` and
   BLE.
 

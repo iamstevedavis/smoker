@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -48,8 +49,10 @@ UNUSABLE_FIELDS: dict[str, frozenset[str]] = {
 }
 
 # Per-model firmware defaults that mean "not set"; a field holding exactly this
-# value is treated like an unusable field.
-UNSET_DEFAULTS: dict[str, dict[str, Any]] = {
+# value is treated like an unusable field. The value is the Fahrenheit one: a
+# grill working in Celsius sends the same default converted, so 50 F arrives
+# as 10 C.
+UNSET_DEFAULTS: dict[str, dict[str, float]] = {
     "PB850PS2": {"p1Target": 50},
 }
 
@@ -92,6 +95,29 @@ def convert_degrees(degrees: float, from_unit: str, to_unit: str) -> float:
     if from_unit == to_unit:
         return degrees
     return degrees * 5 / 9 if to_unit == "C" else degrees * 9 / 5
+
+
+def _unset_values(sentinel: float, unit: str | None) -> tuple[float, ...]:
+    """The values a frame can use for a field that is not set.
+
+    The default is a Fahrenheit value. A grill working in Celsius sends it
+    converted the way the board converts (`floor((f - 32) / 1.8)`), so the
+    50 F default of `p1Target` arrives as 10 C. Without a unit flag either
+    form counts, since the frame could be in either.
+    """
+    celsius = math.floor((sentinel - 32) / 1.8)
+    if unit == "F":
+        return (sentinel,)
+    if unit == "C":
+        return (celsius,)
+    return (sentinel, celsius)
+
+
+def _is_unset(value: Any, sentinel: float, unit: str | None) -> bool:
+    """Whether a field holds its model's "not set" default."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return value in _unset_values(sentinel, unit)
 
 
 def utc_now() -> datetime:
@@ -176,12 +202,13 @@ def normalize_state(
     received = received_at or utc_now()
     unusable = UNUSABLE_FIELDS.get(model, frozenset())
     unset = UNSET_DEFAULTS.get(model, {})
+    unit = temperature_unit(raw)
     fields = {
         name: FieldReading(value=value, observed_at=observed)
         for name, value in raw.items()
         if name in KNOWN_STATE_FIELDS
         and name not in unusable
-        and not (name in unset and value == unset[name])
+        and not (name in unset and _is_unset(value, unset[name], unit))
     }
     unknown = {
         name: value
