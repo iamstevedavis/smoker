@@ -13,7 +13,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from smokestack.sources._pytboss import accepted_setpoints, poll_state, run_command
-from smokestack.sources.commands import MCU_COMMANDS, Command, CommandQueue
+from smokestack.sources.commands import (
+    MCU_COMMANDS,
+    Command,
+    CommandQueue,
+    queue_timeout_for,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +44,11 @@ class PytbossHttpSource:
     def validate(self) -> None:
         if not self.host:
             raise ValueError("host is required for PITBOSS_SOURCE=http")
+
+    def __post_init__(self) -> None:
+        # The loop serves commands between polls, so the wait for one has to
+        # cover a poll interval.
+        self.commands.timeout = queue_timeout_for(self.poll_seconds)
 
     def accepted_setpoints(self, fahrenheit: bool) -> list[int]:
         return accepted_setpoints(self.model, fahrenheit)

@@ -1,4 +1,5 @@
 import time
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -408,6 +409,23 @@ def test_a_reboot_that_never_comes_back_is_unconfirmed(tmp_path, monkeypatch):
 
 
 # Rate limiting and the lock --------------------------------------------------------
+
+
+def test_the_confirmation_window_covers_the_source_poll_interval(tmp_path):
+    app = _app(tmp_path)
+    control = app.state.control
+    runtime = app.state.runtime
+
+    # The default window is enough for a source that polls every 2 seconds.
+    assert control._window(runtime, 30) == 30
+
+    # A source that polls every 20 seconds needs longer: the grill's answer
+    # comes back one poll at a time, and the frame right after an MCU
+    # command is the blank one.
+    runtime.settings = replace(runtime.settings, poll_seconds=20)
+    assert control._window(runtime, 30) == 60
+    # The reboot's window is already the longer one.
+    assert control._window(runtime, 90) == 90
 
 
 def test_commands_need_a_gap_between_them(tmp_path):

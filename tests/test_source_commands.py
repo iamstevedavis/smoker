@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from smokestack.services.collector import Collector, CollectorHealth, StateHub
+from smokestack.sources import commands
 from smokestack.sources.commands import (
     COMMANDS,
     Command,
@@ -44,12 +45,50 @@ def test_celsius_setpoints_floor_like_the_board():
     assert celsius_setpoints([180, 190, 500]) == [82, 87, 260]
 
 
+def test_the_command_wait_covers_a_poll_interval():
+    assert commands.queue_timeout_for(30) >= 30
+    assert commands.queue_timeout_for(0.5) > 0.5
+
+
 # The queue ---------------------------------------------------------------
 
 
 async def test_queue_refuses_commands_while_closed():
     with pytest.raises(CommandNotSent):
         await CommandQueue().submit(Command("turn-off"))
+
+
+async def test_a_command_waits_for_the_next_poll(monkeypatch):
+    """A slow polling loop must not look like a dead connection.
+
+    The loop serves the queue between polls, so the wait for a command has to
+    cover a poll interval. Otherwise a bridge that polls every 30 seconds
+    gives up on every command and reports it as never sent.
+    """
+    # The queue's own default, for a source that says nothing about how
+    # often it polls.
+    monkeypatch.setattr(commands, "QUEUE_TIMEOUT_SECONDS", 0.05)
+    source = FakeGrillSource(interval_seconds=0.2)
+    assert source.commands.timeout == pytest.approx(0.25)
+
+    stream = source.readings()
+    await anext(stream)  # the first frame, before the command
+    frame = await _send(source, stream, Command("turn-off"))
+    assert frame["moduleIsOn"] is False
+
+
+def test_the_real_sources_wait_for_their_poll_interval():
+    from smokestack.sources.pytboss_ble import PytbossBleSource
+    from smokestack.sources.pytboss_http import PytbossHttpSource
+
+    http = PytbossHttpSource(
+        model="PB850PS2", host="grill", password="", poll_seconds=30
+    )
+    ble = PytbossBleSource(
+        model="PB850PS2", device_name="PBL-1", password="", poll_seconds=30
+    )
+    assert http.commands.timeout >= 30
+    assert ble.commands.timeout >= 30
 
 
 async def test_queue_hands_commands_to_the_polling_loop():

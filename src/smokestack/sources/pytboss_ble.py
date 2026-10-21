@@ -18,7 +18,12 @@ from smokestack.sources._pytboss import (
     poll_state,
     run_command,
 )
-from smokestack.sources.commands import MCU_COMMANDS, Command, CommandQueue
+from smokestack.sources.commands import (
+    MCU_COMMANDS,
+    Command,
+    CommandQueue,
+    queue_timeout_for,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +46,11 @@ class PytbossBleSource:
     def validate(self) -> None:
         if not self.device_name:
             raise ValueError("device_name is required for PITBOSS_SOURCE=ble")
+
+    def __post_init__(self) -> None:
+        # The loop serves commands between polls, so the wait for one has to
+        # cover a poll interval.
+        self.commands.timeout = queue_timeout_for(self.poll_seconds)
 
     def accepted_setpoints(self, fahrenheit: bool) -> list[int]:
         return accepted_setpoints(self.model, fahrenheit)

@@ -14,6 +14,7 @@ from smokestack.sources.commands import (
     CommandQueue,
     CommandUnauthorized,
     celsius_setpoints,
+    queue_timeout_for,
 )
 
 # Failures `faults` can inject, for testing grill control without a fire.
@@ -55,6 +56,9 @@ class FakeGrillSource:
         self.faults: set[str] = set()
         self.executed: list[Command] = []
         self.commands = CommandQueue()
+        # The loop serves commands between polls, so the wait for one has to
+        # cover a poll interval.
+        self.commands.timeout = queue_timeout_for(self.interval_seconds)
         self.blank_frame_expected = False
         self._off_temp: float | None = None
         self._blank_next = False

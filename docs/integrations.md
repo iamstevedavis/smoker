@@ -78,6 +78,13 @@ buttons are disabled while readings are stale. Commands go over the same
 connection as the readings, so they work with the `http` and `ble` sources
 alike (and the `fake` one).
 
+A command goes out between two polls, and the grill's answer comes back in
+the frames after it, so the bridge waits for as many polls as it needs. That
+works at any **Poll every** setting, but a long interval also means a long
+wait before the grill hears anything, and readings that are already stale
+when the next poll is due: keep **Poll every** below **Stale after**, or the
+controls stay disabled because the readings look old.
+
 Every attempt is kept in the database as a `control_command` health event,
 and retention pruning leaves those alone. **Command log** on the Controls card
 lists them, newest first, with the time, command, client address and outcome
