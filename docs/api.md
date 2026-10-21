@@ -131,9 +131,12 @@ design is [docs/specs/2026-10-19-grill-control.md](specs/2026-10-19-grill-contro
   login is off, or the source can't send commands. `setpoints` are what a
   set-temperature is snapped to, in the grill's current `unit`.
 - `POST /api/control/turn-off`
-- `POST /api/control/set-temperature` `{"temp": 250}`, in the grill's current
-  unit, snapped to the nearest setpoint the board accepts (ties go to the
-  lower one).
+- `POST /api/control/set-temperature` `{"temp": 250, "unit": "F"}`, in the
+  grill's current unit, snapped to the nearest setpoint the board accepts
+  (ties go to the lower one). `unit` is optional but recommended: when it no
+  longer matches the grill's unit (changed on the grill's panel since you
+  looked), the request is refused with `409` instead of being read in the new
+  unit. The dashboard always sends it.
 - `POST /api/control/reboot`
 
 Each POST must carry an `X-Smokestack-Control: 1` header, and is refused when
@@ -143,7 +146,7 @@ can't send one with the dashboard's cookie:
 ```bash
 curl -b jar -X POST localhost:8000/api/control/set-temperature \
   -H 'X-Smokestack-Control: 1' -H 'content-type: application/json' \
-  -d '{"temp": 250}'
+  -d '{"temp": 250, "unit": "F"}'
 ```
 
 The bridge sends the command between polls, then waits for the grill to
@@ -175,9 +178,9 @@ Refusals send nothing and answer `{"detail": "...", "audit_id": 813}`:
 | --- | --- |
 | `401` | No valid session |
 | `403` | Control is off, the login is off, the header is missing, or a cross-site `Origin` |
-| `409` | Another command is still being confirmed, or (set-temperature) the grill's unit isn't known yet |
+| `409` | Another command is still being confirmed, or (set-temperature) the grill's unit isn't known yet or isn't the `unit` sent |
 | `422` | Bad body (`temp` must be above 0 and at most 1000) |
-| `429` | Less than 5 s since the last command was sent; see `Retry-After` |
+| `429` | Less than 5 s since the last command that may have reached the grill; see `Retry-After` |
 | `503` | The grill isn't connected, its data is stale, or the source can't send commands |
 
 Every attempt that reaches these routes, sent or refused, is recorded as a

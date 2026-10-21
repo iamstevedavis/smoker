@@ -154,16 +154,26 @@ class GrillControl:
     # Commands -------------------------------------------------------------
 
     async def run(
-        self, name: str, request: ControlRequest, temp: float | None = None
+        self,
+        name: str,
+        request: ControlRequest,
+        temp: float | None = None,
+        unit: str | None = None,
     ) -> dict[str, Any]:
         """Check, send and confirm one command, and audit the attempt.
+
+        `unit` is the unit ("F" or "C") the caller meant `temp` in; when given
+        it must still be the grill's unit, so a unit change on the grill's
+        panel can't reinterpret a confirmed temperature.
 
         Returns the result (with `audit_id`); raises `ControlRejected`, also
         audited, when nothing was sent.
         """
-        args = {} if temp is None else {"temp": temp}
+        args: dict[str, Any] = {} if temp is None else {"temp": temp}
+        if unit is not None:
+            args["unit"] = unit
         try:
-            result = await self._run(name, request, temp)
+            result = await self._run(name, request, temp, unit)
         except ControlRejected as exc:
             exc.audit_id = self._audit(
                 name,
@@ -217,7 +227,11 @@ class GrillControl:
             raise ControlRejected(403, "cross-site request")
 
     async def _run(
-        self, name: str, request: ControlRequest, temp: float | None
+        self,
+        name: str,
+        request: ControlRequest,
+        temp: float | None,
+        unit: str | None = None,
     ) -> dict[str, Any]:
         if name not in COMMANDS:
             raise ControlRejected(404, "not a grill command")
@@ -254,7 +268,7 @@ class GrillControl:
                     503, "the grill isn't connected or its data is stale"
                 )
             values = current.values_dict()
-            command = self._command(name, temp, values)
+            command = self._command(name, temp, values, unit)
             started = utc_now()
             self.in_flight = {
                 "command": name,
@@ -278,7 +292,13 @@ class GrillControl:
                 "finished_at": utc_now().isoformat(),
             }
 
-    def _command(self, name: str, temp: float | None, values: dict[str, Any]) -> Command:
+    def _command(
+        self,
+        name: str,
+        temp: float | None,
+        values: dict[str, Any],
+        expected_unit: str | None = None,
+    ) -> Command:
         if name != "set-temperature":
             return Command(name)  # type: ignore[arg-type]
         if temp is None:
@@ -287,6 +307,12 @@ class GrillControl:
         setpoints = self._setpoints(unit)
         if unit is None:
             raise ControlRejected(409, "the grill's temperature unit isn't known yet")
+        if expected_unit is not None and expected_unit != unit:
+            raise ControlRejected(
+                409,
+                f"the grill now reports °{unit}, not °{expected_unit}; "
+                "check the temperature and send it again",
+            )
         if not setpoints:
             raise ControlRejected(503, "the grill's accepted setpoints aren't known")
         # Ties go to the lower setpoint, the same as pytboss.
@@ -320,7 +346,9 @@ class GrillControl:
             if reboot:
                 runtime.hold_stale_alert(window)
             sent = await self._send(runtime, command)
-            self._last_sent_at = self.clock()
+            if sent["sent"]:
+                # Only a command that may have reached the grill starts the gap.
+                self._last_sent_at = self.clock()
             if sent["outcome"] == "failed":
                 if reboot:
                     runtime.hold_stale_alert(0)

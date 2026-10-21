@@ -96,6 +96,8 @@ class SetTemperatureBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     temp: float = Field(gt=0, le=1000)
+    # The unit `temp` was meant in; refused (409) if the grill's unit differs.
+    unit: Literal["F", "C"] | None = None
 
 
 # Re-exported under its old name; tests import it from here.
@@ -348,7 +350,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.control = control
 
     async def run_control(
-        name: str, request: Request, temp: float | None = None
+        name: str,
+        request: Request,
+        temp: float | None = None,
+        unit: str | None = None,
     ) -> Any:
         info = ControlRequest(
             client=request.client.host if request.client else None,
@@ -358,7 +363,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             host=request.headers.get("host"),
         )
         try:
-            return await control.run(name, info, temp)
+            return await control.run(name, info, temp, unit)
         except ControlRejected as exc:
             return JSONResponse(
                 {"detail": exc.detail, "audit_id": exc.audit_id},
@@ -378,7 +383,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/control/set-temperature")
     async def control_set_temperature(request: Request, body: SetTemperatureBody) -> Any:
-        return await run_control("set-temperature", request, body.temp)
+        return await run_control("set-temperature", request, body.temp, body.unit)
 
     @app.post("/api/control/reboot")
     async def control_reboot(request: Request) -> Any:

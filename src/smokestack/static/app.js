@@ -1205,11 +1205,14 @@
         return;
       }
       const unit = controlUnit();
+      // Sent with the temperature, so a unit change on the grill's panel
+      // after this dialog is refused rather than reinterpreting it.
+      const unitCode = control.status.unit;
       const current = num(state.fields.grillSetTemp);
       let text = "Set grill to " + snapped + unit + (current === null ? "." : ", currently " + Math.round(current) + unit + ".");
       if (snapped !== typed) text += " " + snapped + unit + " is the nearest setting the grill accepts to " + typed + unit + ".";
       const ok = await confirmControl("Set the grill temperature?", text, "Set " + snapped + unit);
-      if (ok) sendControl("set-temperature", { temp: typed }, snapped);
+      if (ok) sendControl("set-temperature", { temp: typed, unit: unitCode }, snapped);
     });
     loadControl();
   }
