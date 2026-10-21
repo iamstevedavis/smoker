@@ -1,7 +1,7 @@
 /* Smokestack dashboard: live view over /api/live, /api/history and /api/health,
    plus the bridge settings panel (/api/settings). The only writes to the grill
-   are the Controls section's turn-off, set-temperature and WiFi restart
-   (/api/control), each confirmed in a dialog first. */
+   are the Controls section's turn-off, set-temperature, unit switch and WiFi
+   restart (/api/control), each confirmed in a dialog first. */
 "use strict";
 
 (() => {
@@ -1031,7 +1031,8 @@
   // Grill controls (/api/control) ---------------------------------------
 
   const CONTROL_POLL_MS = 5000;
-  const COMMAND_LABELS = { "turn-off": "Turn off", "set-temperature": "Set temperature", reboot: "Restart WiFi" };
+  const COMMAND_LABELS = { "turn-off": "Turn off", "set-temperature": "Set temperature", reboot: "Restart WiFi", "set-unit": "Switch unit" };
+  const UNIT_NAMES = { F: "Fahrenheit", C: "Celsius" };
 
   // `notice` is a request the bridge refused, shown until the next command.
   const control = { status: null, sending: null, notice: null };
@@ -1063,6 +1064,8 @@
 
   function describeCommand(result) {
     const label = COMMAND_LABELS[result.command] || result.command;
+    const toUnit = result.args && result.args.unit;
+    if (result.command === "set-unit" && toUnit) return label + " to °" + toUnit;
     if (result.command !== "set-temperature" || num(result.target) === null) return label;
     return label + " " + result.target + (result.unit ? "°" + result.unit : "");
   }
@@ -1074,9 +1077,11 @@
       case "confirmed":
         if (result.command === "turn-off") return ["Done.", "The grill is off. The fan runs for about 10 minutes."];
         if (result.command === "set-temperature") return ["Done.", "The grill is set to " + result.target + unit + "."];
+        if (result.command === "set-unit") return ["Done.", "The grill now uses °" + result.args.unit + "."];
         return ["Done.", "The WiFi module restarted and the grill is reporting again."];
       case "already_applied":
         if (result.command === "turn-off") return ["Nothing sent.", "The grill was already off."];
+        if (result.command === "set-unit") return ["Nothing sent.", "The grill already uses °" + result.args.unit + "."];
         return ["Nothing sent.", "The grill was already set to " + result.target + unit + "."];
       case "unconfirmed":
         return ["Not confirmed.", "The command was sent, but the grill didn't report the change in time. Check the grill."];
@@ -1097,7 +1102,7 @@
     let meta = "";
     if (inFlight) {
       outcome = "pending";
-      title = describeCommand({ command: inFlight.command, target: inFlight.args && inFlight.args.temp, unit: s && s.unit }) + ":";
+      title = describeCommand({ command: inFlight.command, args: inFlight.args, target: inFlight.args && inFlight.args.temp, unit: s && s.unit }) + ":";
       detail = control.sending ? "sending and waiting for the grill to confirm…" : "another device is sending this command…";
     } else if (control.notice) {
       outcome = "rejected";
@@ -1133,6 +1138,14 @@
     $("controls-stale").hidden = live;
     const busy = Boolean(control.sending || s.in_flight);
     section.querySelectorAll("[data-control]").forEach((node) => { node.disabled = !live || busy; });
+    // The unit can only be switched while the grill is off (#58).
+    const off = state.fields.moduleIsOn === false;
+    section.querySelectorAll("[data-unit-target]").forEach((node) => {
+      const current = node.dataset.unitTarget === s.unit;
+      node.setAttribute("aria-pressed", String(current));
+      node.disabled = !live || busy || !off || current || !s.unit;
+    });
+    $("control-unit-hint").hidden = off || !live;
     renderControlResult();
   }
 
@@ -1153,7 +1166,7 @@
   // `target` is the snapped temperature, shown while the command is sent.
   async function sendControl(command, body, target) {
     if (control.sending) return;
-    control.sending = { command, args: target === undefined ? {} : { temp: target } };
+    control.sending = { command, args: target === undefined ? body || {} : { temp: target } };
     control.notice = null;
     renderControls();
     try {
@@ -1321,6 +1334,15 @@
       const ok = await confirmControl("Turn the grill off?", "Turn the grill off. The fan will run for about 10 minutes.", "Turn off");
       if (ok) sendControl("turn-off");
     });
+    document.querySelectorAll("[data-unit-target]").forEach((button) => button.addEventListener("click", async () => {
+      const unit = button.dataset.unitTarget;
+      const ok = await confirmControl(
+        "Switch the grill to " + UNIT_NAMES[unit] + "?",
+        "Switch the grill to " + UNIT_NAMES[unit] + ". Its panel and every temperature it reports change to °" + unit + "; probe alerts keep working.",
+        "Switch to °" + unit,
+      );
+      if (ok) sendControl("set-unit", { unit });
+    }));
     $("control-reboot").addEventListener("click", async () => {
       const ok = await confirmControl(
         "Restart the WiFi module?",

@@ -1,7 +1,8 @@
 """Grill control: send an approved command, confirm it, and audit it.
 
 Built as docs/specs/2026-10-19-grill-control.md says. The commands are
-turn-off, set-temperature and a WiFi-module reboot; there is no power-on.
+turn-off, set-temperature, a WiFi-module reboot and (#58) switching the
+grill's unit while it is off; there is no power-on.
 Every attempt that reaches the control routes is recorded as a
 `control_command` health event, accepted or rejected.
 """
@@ -40,7 +41,7 @@ REBOOT_CONFIRM_SECONDS = 90.0
 MIN_GAP_SECONDS = 5.0
 # Absolute commands: sending one twice is safe, so an Unauthorized may be
 # retried once. A reboot is not.
-RETRYABLE = frozenset({"turn-off", "set-temperature"})
+RETRYABLE = frozenset({"turn-off", "set-temperature", "set-unit"})
 
 OUTCOMES = ("confirmed", "unconfirmed", "failed", "already_applied")
 
@@ -164,9 +165,10 @@ class GrillControl:
     ) -> dict[str, Any]:
         """Check, send and confirm one command, and audit the attempt.
 
-        `unit` is the unit ("F" or "C") the caller meant `temp` in; when given
-        it must still be the grill's unit, so a unit change on the grill's
-        panel can't reinterpret a confirmed temperature.
+        For set-temperature, `unit` is the unit ("F" or "C") the caller meant
+        `temp` in; when given it must still be the grill's unit, so a unit
+        change on the grill's panel can't reinterpret a confirmed
+        temperature. For set-unit it is the unit to switch to.
 
         Returns the result (with `audit_id`); raises `ControlRejected`, also
         audited, when nothing was sent.
@@ -301,6 +303,16 @@ class GrillControl:
         values: dict[str, Any],
         expected_unit: str | None = None,
     ) -> Command:
+        if name == "set-unit":
+            if expected_unit not in ("F", "C"):
+                raise ControlRejected(422, 'unit must be "F" or "C"')
+            # Only while the grill is off, as the latest fresh reading shows;
+            # a missing moduleIsOn doesn't count as off.
+            if values.get("moduleIsOn") is not False:
+                raise ControlRejected(
+                    409, "turn the grill off before switching its unit"
+                )
+            return Command("set-unit", fahrenheit=expected_unit == "F")
         if name != "set-temperature":
             return Command(name)  # type: ignore[arg-type]
         if temp is None:
@@ -329,6 +341,15 @@ class GrillControl:
             return {
                 "outcome": "already_applied",
                 "detail": "The grill was already off.",
+                "sent": False,
+            }
+        if (
+            command.name == "set-unit"
+            and values.get("isFahrenheit") is command.fahrenheit
+        ):
+            return {
+                "outcome": "already_applied",
+                "detail": f"The grill already uses °{command.args['unit']}.",
                 "sent": False,
             }
         if command.name == "set-temperature" and values.get("grillSetTemp") == command.temp:
@@ -372,6 +393,8 @@ class GrillControl:
                     done = health.reconnect_count > reconnects
                 elif command.name == "turn-off":
                     done = frame_values.get("moduleIsOn") is False
+                elif command.name == "set-unit":
+                    done = frame_values.get("isFahrenheit") is command.fahrenheit
                 else:
                     done = frame_values.get("grillSetTemp") == command.temp
                 if done:
@@ -397,6 +420,8 @@ class GrillControl:
             return "The grill reports that it is off."
         if command.name == "set-temperature":
             return f"The grill is set to {_degrees(command.temp, unit)}."
+        if command.name == "set-unit":
+            return f"The grill now uses °{command.args['unit']}."
         return "The WiFi module restarted and the grill is reporting again."
 
     async def _send(self, runtime: Runtime, command: Command) -> dict[str, Any]:

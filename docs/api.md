@@ -119,14 +119,15 @@ The temperatures at which each probe sends an ntfy alert. Behind the login.
 
 ## Grill control
 
-The only routes that write to the grill. They send turn-off, set-temperature
-or a reboot of the grill's WiFi module, and nothing else: there is no way to
+The only routes that write to the grill. They send turn-off, set-temperature,
+a reboot of the grill's WiFi module or a switch of its unit, and nothing
+else: there is no way to
 turn the grill on. Off unless `SMOKESTACK_ENABLE_CONTROL` is on, and only
 available while the dashboard login is on; every route needs a session. The
 design is [docs/specs/2026-10-19-grill-control.md](specs/2026-10-19-grill-control.md).
 
 - `GET /api/control`:
-  `{"enabled": true, "available": true, "reason": null, "commands": ["turn-off", "set-temperature", "reboot"], "unit": "F", "setpoints": [180, 190, ...], "in_flight": null, "last_result": {...}}`.
+  `{"enabled": true, "available": true, "reason": null, "commands": ["turn-off", "set-temperature", "reboot", "set-unit"], "unit": "F", "setpoints": [180, 190, ...], "in_flight": null, "last_result": {...}}`.
   `available` is false, with a `reason`, while control is switched off, the
   login is off, or the source can't send commands. `setpoints` are what a
   set-temperature is snapped to, in the grill's current `unit`.
@@ -138,6 +139,12 @@ design is [docs/specs/2026-10-19-grill-control.md](specs/2026-10-19-grill-contro
   looked), the request is refused with `409` instead of being read in the new
   unit. The dashboard always sends it.
 - `POST /api/control/reboot`
+- `POST /api/control/set-unit` `{"unit": "C"}` switches the unit the grill
+  itself works in (its panel and every value it reports), only while it is
+  off: `409` unless the latest reading has `moduleIsOn: false`. Confirmed
+  when `isFahrenheit` changes; `already_applied` if it already matches.
+  Probe alert targets and the drift threshold keep their meaning across a
+  switch.
 
 Each POST must carry an `X-Smokestack-Control: 1` header, and is refused when
 its `Origin` header doesn't match the `Host` it was sent to, so another site
@@ -166,7 +173,7 @@ is the result:
 - `unconfirmed`: sent, but the grill didn't report the change in time. Check
   the grill; there is no automatic retry.
 - `failed`: the grill or the connection refused it. An `Unauthorized` is
-  retried once, for turn-off and set-temperature only. For a reboot, losing
+  retried once, for every command except a reboot. For a reboot, losing
   the connection after sending is expected and not a failure.
 - `already_applied`: nothing was sent because the grill was already off, or
   already at that setpoint. A field missing from the latest reading never
@@ -178,7 +185,7 @@ Refusals send nothing and answer `{"detail": "...", "audit_id": 813}`:
 | --- | --- |
 | `401` | No valid session |
 | `403` | Control is off, the login is off, the header is missing, or a cross-site `Origin` |
-| `409` | Another command is still being confirmed, or (set-temperature) the grill's unit isn't known yet or isn't the `unit` sent |
+| `409` | Another command is still being confirmed; (set-temperature) the grill's unit isn't known yet or isn't the `unit` sent; (set-unit) the grill isn't off |
 | `422` | Bad body (`temp` must be above 0 and at most 1000) |
 | `429` | Less than 5 s since the last command that may have reached the grill; see `Retry-After` |
 | `503` | The grill isn't connected, its data is stale, or the source can't send commands |

@@ -23,6 +23,11 @@ In scope, all in the first release:
 2. **Set grill temperature**, snapped to values the board accepts.
 3. **Reboot the WiFi module**, which leaves the grill itself running.
 
+Added later, approved by the owner on 2026-10-20 (#58):
+
+4. **Switch the grill's temperature unit**, only while the grill is off. See
+   [Switching the unit](#switching-the-unit).
+
 Out of scope, deliberately:
 
 - **Power on / ignition.** `pytboss` can send it (`turn_grill_on`, raw
@@ -33,11 +38,6 @@ Out of scope, deliberately:
 - **Grill password and WiFi changes.** Deferred, not rejected; tracked in its
   own issue (#54). A wrong WiFi network or password cuts the grill off from the
   bridge, which then cannot undo the change.
-- **Switching the grill's temperature unit.** Deferred to #58. It depended on
-  #57, now fixed: the bridge's probe targets keep the unit they were entered
-  in and the drift threshold is in Fahrenheit degrees, both converted to each
-  reading's unit, so a unit switch (already possible from the grill's panel)
-  no longer changes what they mean.
 - Writing probe targets to the grill (`p1Target` is unreliable, see
   `docs/fields.md`). The probe alert targets from #37 are stored in the bridge
   and never sent to the grill, so they are unaffected. Primer motor, light
@@ -53,6 +53,7 @@ Commands relevant here (checked against pytboss 2026.8.6):
 | Turn off | `turn_grill_off()` | MCU `turn-off` `FE0102FF` | Worked first try in the 2026-10-18 test; the fan runs about 10 min afterwards (normal shutdown cycle) |
 | Set temperature | `set_grill_temperature(temp)` | MCU `set-temperature` | Snapped to the nearest of `180/190/.../300/325/350/375/400/450/500`, in the grill's current unit |
 | Reboot WiFi module | `reboot()` | RPC `Sys.Reboot` | No answer: the module restarts before it can reply. The grill keeps running |
+| Switch unit (#58) | `set_temperature_unit(fahrenheit)` | MCU `set-fahrenheit` `FE0901FF` / `set-celsius` `FE0902FF` | Changes the grill's own unit: its panel and every value it reports |
 
 Every MCU command is an authenticated `PB.SendMCUCommand`. After one, the
 firmware clears its status cache, so the next state frame comes back blank.
@@ -198,9 +199,34 @@ Answered by the owner on 2026-10-20:
 6. `control_command` audit rows are kept until pruned by hand, from a
    dashboard view tracked in #55.
 7. WiFi-module reboot is in scope; grill password and WiFi changes are
-   deferred to #54, and switching the temperature unit to #58 (after #57).
+   deferred to #54, and switching the temperature unit to #58 (after #57;
+   approved and added on 2026-10-20, see [Switching the unit](#switching-the-unit)).
    The hourly rate limit is dropped.
+
+## Switching the unit
+
+Approved on 2026-10-20 for #58, after #57 made the bridge's probe targets
+keep the unit they were entered in and the drift threshold scale with each
+reading's unit, so a unit switch (already possible from the grill's panel)
+no longer changes what they mean.
+
+- `POST /api/control/set-unit` with `{"unit": "F"}` or `{"unit": "C"}`,
+  through the same lock, checks, audit and results as the other commands.
+- **Only while the grill is off:** `moduleIsOn` must be explicitly `false`
+  in the fresh snapshot checked under the command lock, immediately before
+  sending (missing counts as not off). Otherwise 409.
+- **Idempotent:** `already_applied` when `isFahrenheit` already matches; a
+  missing `isFahrenheit` never counts as already applied.
+- **Confirmed** when `isFahrenheit` changes to the target within the usual
+  30 s. The blank frame after the MCU command is ignored as for the others.
+  An `Unauthorized` is retried once, as it is absolute.
+- **UI:** °F/°C buttons in the Controls section, disabled while the grill is
+  on, with the dialog "Switch the grill to Celsius".
+- **Fake source:** flips `isFahrenheit` and converts its values.
+- **Hardware check:** switch both ways with the grill off, over `http` and
+  BLE.
 
 ## Implementation
 
-Tracked in #59, which carries the task list and the hardware checklist.
+Tracked in #59, which carries the task list and the hardware checklist;
+unit switching in #58.

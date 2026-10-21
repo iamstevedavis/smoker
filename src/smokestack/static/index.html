@@ -258,6 +258,14 @@
           <button type="button" class="theme-btn" id="control-off" data-control>Turn off</button>
           <button type="button" class="theme-btn" id="control-reboot" data-control>Restart WiFi</button>
         </div>
+        <div class="control-unit">
+          <span id="control-unit-label">Grill unit</span>
+          <div class="seg" role="group" aria-labelledby="control-unit-label">
+            <button type="button" data-unit-target="F">°F</button>
+            <button type="button" data-unit-target="C">°C</button>
+          </div>
+        </div>
+        <p id="control-unit-hint" class="controls-note" hidden>Turn the grill off to switch its unit.</p>
         <p id="controls-stale" class="controls-note" hidden>Controls are paused until the grill is reporting again.</p>
       </div>
       <div id="control-result" class="control-result" role="status" aria-live="polite" hidden>
