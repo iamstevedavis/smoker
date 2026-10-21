@@ -17,11 +17,11 @@ from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
-CommandName = Literal["turn-off", "set-temperature", "reboot"]
-COMMANDS: tuple[CommandName, ...] = ("turn-off", "set-temperature", "reboot")
+CommandName = Literal["turn-off", "set-temperature", "reboot", "set-unit"]
+COMMANDS: tuple[CommandName, ...] = ("turn-off", "set-temperature", "reboot", "set-unit")
 # Sent to the control board (MCU). The firmware blanks its status cache when
 # it forwards one, so the next state frame comes back empty.
-MCU_COMMANDS = frozenset({"turn-off", "set-temperature"})
+MCU_COMMANDS = frozenset({"turn-off", "set-temperature", "set-unit"})
 
 # Setpoints the PB850PS2's PBL board accepts, in Fahrenheit. pytboss sources
 # read these from the grill catalogue instead.
@@ -35,15 +35,21 @@ PB850PS2_SETPOINTS = (
 class Command:
     name: CommandName
     temp: int | None = None
+    # set-unit only: True for Fahrenheit, False for Celsius.
+    fahrenheit: bool | None = None
 
     def __post_init__(self) -> None:
         if self.name not in COMMANDS:
             raise ValueError(f"not a grill command: {self.name!r}")
         if (self.name == "set-temperature") != (self.temp is not None):
             raise ValueError("set-temperature, and only it, takes a temperature")
+        if (self.name == "set-unit") != (self.fahrenheit is not None):
+            raise ValueError("set-unit, and only it, takes a unit")
 
     @property
     def args(self) -> dict[str, Any]:
+        if self.fahrenheit is not None:
+            return {"unit": "F" if self.fahrenheit else "C"}
         return {} if self.temp is None else {"temp": self.temp}
 
 

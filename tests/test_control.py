@@ -88,7 +88,7 @@ def test_status_when_available(tmp_path):
     assert status["enabled"] is True
     assert status["available"] is True
     assert status["reason"] is None
-    assert status["commands"] == ["turn-off", "set-temperature", "reboot"]
+    assert status["commands"] == ["turn-off", "set-temperature", "reboot", "set-unit"]
     assert status["unit"] == "F"
     assert status["setpoints"] == list(PB850PS2_SETPOINTS)
     assert status["last_result"] is None
@@ -589,3 +589,112 @@ def test_the_reboot_hold_restarts_once_the_command_is_sent(tmp_path, monkeypatch
         assert _post(client, "reboot").json()["outcome"] == "confirmed"
 
     assert events == [("hold", 3), "sending", "sent", ("hold", 3), ("hold", 0)]
+
+
+# Switching the unit (#58) -------------------------------------------------------
+
+
+def _off(app, client):
+    """Turn the fake grill off and wait until the bridge has seen it."""
+    assert _post(client, "turn-off").json()["outcome"] == "confirmed"
+
+
+def test_set_unit_switches_the_grill_while_it_is_off(tmp_path):
+    app = _app(tmp_path)
+    source = _source(app)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        _off(app, client)
+        body = _post(client, "set-unit", {"unit": "C"}).json()
+        status = client.get("/api/control").json()
+
+    assert (body["command"], body["args"], body["outcome"]) == (
+        "set-unit",
+        {"unit": "C"},
+        "confirmed",
+    )
+    assert body["detail"] == "The grill now uses °C."
+    assert source.executed[-1] == Command("set-unit", fahrenheit=False)
+    values = app.state.hub.current.values_dict()
+    assert values["isFahrenheit"] is False
+    # The fake converts its values with the unit: 225 F is 107 C.
+    assert values["grillSetTemp"] == 107
+    assert status["unit"] == "C"
+    assert status["setpoints"] == celsius_setpoints(PB850PS2_SETPOINTS)
+
+
+def test_set_unit_is_refused_while_the_grill_is_on(tmp_path, monkeypatch):
+    app = _app(tmp_path)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        response = _post(client, "set-unit", {"unit": "C"})
+
+    assert response.status_code == 409
+    assert "turn the grill off" in response.json()["detail"]
+    assert _source(app).executed == []
+    assert _audit(app)[0]["data"]["args"] == {"unit": "C"}
+
+
+def test_set_unit_needs_moduleIsOn_to_say_off(tmp_path):
+    app = _app(tmp_path)
+    source = _source(app)
+    source.module_on = False
+    reading = source._reading
+    source._reading = lambda: {k: v for k, v in reading().items() if k != "moduleIsOn"}
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        _wait(lambda: "moduleIsOn" not in app.state.hub.current.values_dict())
+        response = _post(client, "set-unit", {"unit": "C"})
+
+    assert response.status_code == 409
+    assert source.executed == []
+
+
+def test_set_unit_to_the_current_unit_sends_nothing(tmp_path):
+    app = _app(tmp_path)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        _off(app, client)
+        body = _post(client, "set-unit", {"unit": "F"}).json()
+
+    assert (body["outcome"], body["sent"]) == ("already_applied", False)
+    assert body["detail"] == "The grill already uses °F."
+    assert _source(app).executed == [Command("turn-off")]
+
+
+def test_a_missing_isFahrenheit_never_counts_as_already_applied(tmp_path):
+    app = _app(tmp_path)
+    source = _source(app)
+    source.module_on = False
+    reading = source._reading
+    source._reading = lambda: {k: v for k, v in reading().items() if k != "isFahrenheit"}
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        _wait(lambda: "isFahrenheit" not in app.state.hub.current.values_dict())
+        app.state.control.confirm_seconds = 0.2
+        body = _post(client, "set-unit", {"unit": "F"}).json()
+
+    # Sent, and with no field to watch, never confirmed either.
+    assert (body["outcome"], body["sent"]) == ("unconfirmed", True)
+    assert source.executed == [Command("set-unit", fahrenheit=True)]
+
+
+def test_set_unit_ignores_the_blank_frame_and_retries_unauthorized(tmp_path):
+    app = _app(tmp_path)
+    source = _source(app)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        _off(app, client)
+        source.faults.update({"blank_frame", "unauthorized_once"})
+        body = _post(client, "set-unit", {"unit": "C"}).json()
+
+    assert (body["outcome"], body["attempts"]) == ("confirmed", 2)
+
+
+@pytest.mark.parametrize("body", [{}, {"unit": "K"}, {"unit": "c"}, {"unit": "C", "x": 1}])
+def test_bad_set_unit_bodies_are_rejected(tmp_path, body):
+    app = _app(tmp_path)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        assert _post(client, "set-unit", body).status_code == 422
+    assert _source(app).executed == []

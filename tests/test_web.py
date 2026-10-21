@@ -107,6 +107,7 @@ def test_only_the_control_routes_can_write_to_the_grill(app):
         "/api/control/turn-off",
         "/api/control/set-temperature",
         "/api/control/reboot",
+        "/api/control/set-unit",
     }
 
 
@@ -125,7 +126,7 @@ def test_dashboard_controls_confirm_first_and_word_every_result(app):
     # Sent with the header the control routes require, after the dialog.
     assert '"X-Smokestack-Control": "1"' in js
     # One for each grill command, plus pruning the command log.
-    assert js.count("await confirmControl(") == 4
+    assert js.count("await confirmControl(") == 5
     for outcome in ("confirmed", "unconfirmed", "failed", "already_applied"):
         assert f'case "{outcome}":' in js
     assert "The grill was already off." in js

@@ -118,6 +118,8 @@ async def run_command(boss: Any, command: Command) -> None:
             await boss.set_grill_temperature(command.temp)
         elif command.name == "reboot":
             await boss.reboot()
+        elif command.name == "set-unit":
+            await boss.set_temperature_unit(command.fahrenheit)
         else:  # Command rejects anything else; never fall through to a send
             raise ValueError(f"not a grill command: {command.name!r}")
     except Unauthorized as exc:

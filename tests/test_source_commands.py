@@ -22,7 +22,7 @@ from smokestack.store import Database
 
 
 def test_only_the_approved_commands_exist():
-    assert COMMANDS == ("turn-off", "set-temperature", "reboot")
+    assert COMMANDS == ("turn-off", "set-temperature", "reboot", "set-unit")
     for name in ("turn-on", "power-on", "set-celsius", "set-fahrenheit", ""):
         with pytest.raises(ValueError):
             Command(name)  # type: ignore[arg-type]
@@ -30,14 +30,19 @@ def test_only_the_approved_commands_exist():
         Command("set-temperature")
     with pytest.raises(ValueError):
         Command("turn-off", temp=225)
+    with pytest.raises(ValueError):
+        Command("set-unit")
+    with pytest.raises(ValueError):
+        Command("turn-off", fahrenheit=True)
     assert Command("set-temperature", 250).args == {"temp": 250}
+    assert Command("set-unit", fahrenheit=False).args == {"unit": "C"}
 
 
 def test_no_power_on_anywhere_in_the_bridge():
     src = Path(__file__).parents[1] / "src" / "smokestack"
     for path in src.rglob("*.py"):
         text = path.read_text()
-        for call in ("turn_grill_on", "FE0101FF", "set_temperature_unit"):
+        for call in ("turn_grill_on", "FE0101FF", "turn_light_on", "set_probe_temperature"):
             assert call not in text, f"{call} in {path}"
 
 
@@ -170,6 +175,9 @@ class FakeBoss:
     async def reboot(self):
         await self._send("reboot")
 
+    async def set_temperature_unit(self, fahrenheit):
+        await self._send("set_temperature_unit", fahrenheit)
+
 
 async def test_run_command_calls_only_the_matching_pytboss_method():
     pytest.importorskip("pytboss")
@@ -179,10 +187,12 @@ async def test_run_command_calls_only_the_matching_pytboss_method():
     await run_command(boss, Command("turn-off"))
     await run_command(boss, Command("set-temperature", 250))
     await run_command(boss, Command("reboot"))
+    await run_command(boss, Command("set-unit", fahrenheit=False))
     assert boss.sent == [
         ("turn_grill_off",),
         ("set_grill_temperature", 250),
         ("reboot",),
+        ("set_temperature_unit", False),
     ]
 
 
@@ -441,3 +451,20 @@ async def test_collector_keeps_blank_frames_nobody_expects(tmp_path):
 
     assert await collector.collect_next() is not None
     assert len(db.list_history()) == 1
+
+
+async def test_fake_source_switches_unit_and_converts_its_values():
+    source = FakeGrillSource(interval_seconds=0)
+    stream = source.readings()
+    before = await anext(stream)
+
+    after = await _send(source, stream, Command("set-unit", fahrenheit=False))
+    back = await _send(source, stream, Command("set-unit", fahrenheit=True))
+
+    assert after["isFahrenheit"] is False
+    assert after["grillSetTemp"] == 107
+    assert after["p1Temp"] < before["p1Temp"]
+    assert after["p1Target"] == round((165 - 32) * 5 / 9, 1)
+    assert back["isFahrenheit"] is True
+    assert back["grillSetTemp"] == 225
+    assert source.blank_frame_expected is True

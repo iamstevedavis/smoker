@@ -958,6 +958,9 @@ main.login {
 .control-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .control-buttons .theme-btn { min-height: 44px; padding: 0 16px; font-weight: 650; }
 .controls [data-control]:disabled { opacity: 0.5; cursor: not-allowed; }
+.control-unit { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-2); }
+.control-unit .seg button { min-height: 36px; }
+.control-unit .seg button:disabled:not([aria-pressed="true"]) { opacity: 0.5; cursor: not-allowed; }
 
 .control-result {
   display: flex;

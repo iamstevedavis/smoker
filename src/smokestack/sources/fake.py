@@ -16,6 +16,7 @@ from smokestack.sources.commands import (
     celsius_setpoints,
     queue_timeout_for,
 )
+from smokestack.state import convert_temperature
 
 # Failures `faults` can inject, for testing grill control without a fire.
 FAULTS = frozenset(
@@ -34,8 +35,9 @@ class FakeGrillSource:
     """Emit deterministic, realistic grill readings.
 
     It also takes the grill commands: turning off winds the temperature down,
-    setting the temperature changes `grillSetTemp`, and a reboot drops the
-    stream for `reboot_seconds`.
+    setting the temperature changes `grillSetTemp`, switching the unit flips
+    `isFahrenheit` and converts every value, and a reboot drops the stream
+    for `reboot_seconds`.
     """
 
     name = "fake"
@@ -119,18 +121,33 @@ class FakeGrillSource:
             self.set_temp = command.temp
         elif command.name == "reboot":
             self._drop_next = True
+        elif command.name == "set-unit" and command.fahrenheit != self.fahrenheit:
+            # The setpoint and cool-down temperature are kept in the grill's
+            # unit, so they convert with it.
+            before, after = self._unit(), "F" if command.fahrenheit else "C"
+            self.set_temp = round(convert_temperature(self.set_temp, before, after))
+            if self._off_temp is not None:
+                self._off_temp = convert_temperature(self._off_temp, before, after)
+            self.fahrenheit = bool(command.fahrenheit)
+
+    def _unit(self) -> str:
+        return "F" if self.fahrenheit else "C"
+
+    def _from_f(self, value: float) -> float:
+        return round(convert_temperature(value, "F", self._unit()), 1)
 
     def _grill_temp(self) -> float:
         if not self.module_on and self._off_temp is not None:
             # Wind down towards ambient after the grill is turned off.
-            self._off_temp = max(AMBIENT_TEMP, self._off_temp - 5)
+            step = 5 if self.fahrenheit else 5 * 5 / 9
+            self._off_temp = max(self._from_f(AMBIENT_TEMP), self._off_temp - step)
             return self._off_temp
         return self.set_temp - 10 + (self._tick % 12)
 
     def _reading(self) -> dict[str, Any]:
         grill_temp = self._grill_temp()
-        probe_1 = 140 + min(self._tick, 35)
-        probe_2 = 128 + min(self._tick // 2, 30)
+        probe_1 = self._from_f(140 + min(self._tick, 35))
+        probe_2 = self._from_f(128 + min(self._tick // 2, 30))
         on = self.module_on
         return {
             "grillTemp": grill_temp,
@@ -138,7 +155,7 @@ class FakeGrillSource:
             "smokerActTemp": grill_temp,
             "isFahrenheit": self.fahrenheit,
             "p1Temp": probe_1,
-            "p1Target": 165,
+            "p1Target": self._from_f(165),
             "p2Temp": probe_2,
             "moduleIsOn": on,
             # The fan keeps running through the shutdown cycle.

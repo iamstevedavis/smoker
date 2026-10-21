@@ -122,6 +122,14 @@ class ControlLogPrune(BaseModel):
         return self
 
 
+class SetUnitBody(BaseModel):
+    """The unit the grill itself should work in (#58)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    unit: Literal["F", "C"]
+
+
 # Re-exported under its old name; tests import it from here.
 _make_source = make_source
 
@@ -406,6 +414,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/control/set-temperature")
     async def control_set_temperature(request: Request, body: SetTemperatureBody) -> Any:
         return await run_control("set-temperature", request, body.temp, body.unit)
+
+    @app.post("/api/control/set-unit")
+    async def control_set_unit(request: Request, body: SetUnitBody) -> Any:
+        return await run_control("set-unit", request, unit=body.unit)
 
     @app.post("/api/control/reboot")
     async def control_reboot(request: Request) -> Any:
