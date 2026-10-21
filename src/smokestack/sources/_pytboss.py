@@ -7,6 +7,13 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from smokestack.sources.commands import (
+    Command,
+    CommandUnauthorized,
+    ConnectionLost,
+    celsius_setpoints,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,3 +78,50 @@ async def poll_state(
         logger.warning("Grill rejected the password; re-reading uptime and retrying")
         boss._last_uptime = None
         return await boss.get_state()
+
+
+def accepted_setpoints(model: str, fahrenheit: bool) -> list[int]:
+    """Setpoints `model`'s control board accepts, in the given unit.
+
+    Read from pytboss's grill catalogue, the list `set_grill_temperature`
+    snaps to, so no connection is needed.
+    """
+    from pytboss import grills
+
+    spec = grills.get_grill(model)
+    increments = list(spec.temp_increments or [])
+    if fahrenheit:
+        return increments
+    return list(spec.celsius_temp_increments or []) or celsius_setpoints(increments)
+
+
+async def run_command(boss: Any, command: Command) -> None:
+    """Send one approved command through pytboss.
+
+    Maps pytboss's errors onto the bridge's: `Unauthorized` (which also drops
+    the cached uptime, as `poll_state` does, so a retry derives a fresh key)
+    and lost connections. Nothing else is ever sent from here.
+    """
+    from pytboss.exceptions import NotConnectedError, Unauthorized
+
+    lost: tuple[type[BaseException], ...] = (NotConnectedError, TimeoutError, ConnectionError)
+    try:
+        from bleak.exc import BleakError
+
+        lost += (BleakError,)
+    except ImportError:
+        pass
+    try:
+        if command.name == "turn-off":
+            await boss.turn_grill_off()
+        elif command.name == "set-temperature":
+            await boss.set_grill_temperature(command.temp)
+        elif command.name == "reboot":
+            await boss.reboot()
+        else:  # Command rejects anything else; never fall through to a send
+            raise ValueError(f"not a grill command: {command.name!r}")
+    except Unauthorized as exc:
+        boss._last_uptime = None
+        raise CommandUnauthorized(str(exc) or "Unauthorized") from exc
+    except lost as exc:
+        raise ConnectionLost(str(exc) or type(exc).__name__) from exc

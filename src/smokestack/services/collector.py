@@ -9,7 +9,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from smokestack.sources.base import GrillSource
-from smokestack.state import DEFAULT_MODEL, StateSnapshot, normalize_state, utc_now
+from smokestack.state import (
+    DEFAULT_MODEL,
+    KNOWN_STATE_FIELDS,
+    StateSnapshot,
+    normalize_state,
+    utc_now,
+)
 from smokestack.store import Database
 
 logger = logging.getLogger(__name__)
@@ -159,7 +165,14 @@ class Collector:
         self._stream = source.readings()
         self._stop = asyncio.Event()
 
-    async def collect_next(self) -> StateSnapshot:
+    async def collect_next(self) -> StateSnapshot | None:
+        """Read, store and publish one reading.
+
+        Returns None for the blank frame that follows a command to the
+        grill's control board: the firmware clears its status cache when it
+        forwards one, so that frame is not a reading. It isn't stored,
+        published or counted, so it can't confirm or fail the command.
+        """
         self.health.mark_started()
         try:
             try:
@@ -171,6 +184,9 @@ class Collector:
             # Sync even when the read fails, so retries made before a
             # failed poll still show up in /api/health during backoff.
             self._sync_source_stats()
+        if self._is_command_blank_frame(raw):
+            logger.debug("Skipping the blank frame after a grill command")
+            return None
         snapshot = normalize_state(
             raw,
             source=self.source.name,
@@ -189,6 +205,13 @@ class Collector:
                 },
             )
         return snapshot
+
+    def _is_command_blank_frame(self, raw: dict[str, Any]) -> bool:
+        if not getattr(self.source, "blank_frame_expected", False):
+            return False
+        # Only the frame right after the command can be the cache reset.
+        self.source.blank_frame_expected = False  # type: ignore[attr-defined]
+        return not KNOWN_STATE_FIELDS & raw.keys()
 
     def _sync_source_stats(self) -> None:
         stats = getattr(self.source, "stats", None)
