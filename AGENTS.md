@@ -81,27 +81,13 @@ desktop and phone (about 390 px) widths, with no errors in the console.
 
 ## Working on an issue
 
-1. **Use a worktree, not the main checkout.** One per branch, next to the
-   repo, with its own venv:
-
-   ```bash
-   git fetch origin
-   git worktree add ../smokestack-<branch> -b <branch> origin/master
-   cd ../smokestack-<branch>
-   python -m venv .venv && . .venv/bin/activate
-   python -m pip install -e ".[test]"
-   ```
-
-   After the PR merges: `git worktree remove ../smokestack-<branch>` and
-   `git branch -d <branch>`.
-2. **Always finish with a PR.** Commit, push the branch and open the PR (see
-   below) without stopping to ask; local commits alone aren't done. Never
-   merge it yourself.
-3. **Address review comments.** For each one: fix it if it's valid and run
+1. **Always finish with a PR.** Local commits alone aren't done: push the
+   branch and open the PR (see below). Never merge it yourself.
+2. **Address review comments.** For each one: fix it if it's valid and run
    the tests, push, and reply on that comment with what changed (and the
    commit) or why no change is needed. Reviews run again on each push, so
    check for new comments after pushing.
-4. **Keep the PR mergeable.** If `master` moves and the PR conflicts, rebase
+3. **Keep the PR mergeable.** If `master` moves and the PR conflicts, rebase
    onto `origin/master`, resolve, rerun the tests and push with
    `--force-with-lease`.
 
