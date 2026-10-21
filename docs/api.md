@@ -1,6 +1,6 @@
 # API
 
-Endpoints: `GET /api/health`, `GET /api/state`, `GET /api/history`, `WS /api/live`, `/api/cooks`. Interactive docs are at `/docs`.
+Endpoints: `GET /api/health`, `GET /api/state`, `GET /api/history`, `WS /api/live`, `/api/cooks`, and `/api/control` for [grill control](#grill-control). Interactive docs are at `/docs`.
 
 ## Login
 
@@ -117,6 +117,75 @@ The temperatures at which each probe sends an ntfy alert. Behind the login.
   Applied to the running alerts at once, without restarting the source.
   Returns the same shape as `GET`.
 
+## Grill control
+
+The only routes that write to the grill. They send turn-off, set-temperature
+or a reboot of the grill's WiFi module, and nothing else: there is no way to
+turn the grill on. Off unless `SMOKESTACK_ENABLE_CONTROL` is on, and only
+available while the dashboard login is on; every route needs a session. The
+design is [docs/specs/2026-10-19-grill-control.md](specs/2026-10-19-grill-control.md).
+
+- `GET /api/control`:
+  `{"enabled": true, "available": true, "reason": null, "commands": ["turn-off", "set-temperature", "reboot"], "unit": "F", "setpoints": [180, 190, ...], "in_flight": null, "last_result": {...}}`.
+  `available` is false, with a `reason`, while control is switched off, the
+  login is off, or the source can't send commands. `setpoints` are what a
+  set-temperature is snapped to, in the grill's current `unit`.
+- `POST /api/control/turn-off`
+- `POST /api/control/set-temperature` `{"temp": 250}`, in the grill's current
+  unit, snapped to the nearest setpoint the board accepts (ties go to the
+  lower one).
+- `POST /api/control/reboot`
+
+Each POST must carry an `X-Smokestack-Control: 1` header, and is refused when
+its `Origin` header doesn't match the `Host` it was sent to, so another site
+can't send one with the dashboard's cookie:
+
+```bash
+curl -b jar -X POST localhost:8000/api/control/set-temperature \
+  -H 'X-Smokestack-Control: 1' -H 'content-type: application/json' \
+  -d '{"temp": 250}'
+```
+
+The bridge sends the command between polls, then waits for the grill to
+report the change: 30 s, or 90 s for a reboot (the module drops off and
+reconnects; the no-data alert is held back meanwhile). The answer, `200`,
+is the result:
+
+```json
+{"command": "set-temperature", "args": {"temp": 245}, "target": 240, "requested": 245,
+ "unit": "F", "outcome": "confirmed", "detail": "The grill is set to 240°F.",
+ "sent": true, "attempts": 1, "started_at": "...", "finished_at": "...", "audit_id": 812}
+```
+
+`outcome` is one of:
+
+- `confirmed`: the grill reported the change.
+- `unconfirmed`: sent, but the grill didn't report the change in time. Check
+  the grill; there is no automatic retry.
+- `failed`: the grill or the connection refused it. An `Unauthorized` is
+  retried once, for turn-off and set-temperature only. For a reboot, losing
+  the connection after sending is expected and not a failure.
+- `already_applied`: nothing was sent because the grill was already off, or
+  already at that setpoint. A field missing from the latest reading never
+  counts as already applied.
+
+Refusals send nothing and answer `{"detail": "...", "audit_id": 813}`:
+
+| Status | Why |
+| --- | --- |
+| `401` | No valid session |
+| `403` | Control is off, the login is off, the header is missing, or a cross-site `Origin` |
+| `409` | Another command is still being confirmed, or (set-temperature) the grill's unit isn't known yet |
+| `422` | Bad body (`temp` must be above 0 and at most 1000) |
+| `429` | Less than 5 s since the last command was sent; see `Retry-After` |
+| `503` | The grill isn't connected, its data is stale, or the source can't send commands |
+
+Every attempt that reaches these routes, sent or refused, is recorded as a
+`control_command` health event with the command, its arguments, the client
+address and the outcome; `audit_id` is its id. Requests the login turns away
+(401 before reaching the route) and malformed bodies (422) are not recorded.
+`SMOKESTACK_RETENTION_DAYS` never deletes these events.
+
 ## Health
 
 `GET /api/health` reports the source state:
@@ -132,6 +201,6 @@ errors, and retries are also logged and recorded as health events in SQLite.
 
 ## Dashboard
 
-The dashboard at `/` updates live over `WS /api/live` and never writes to the grill; its settings panel edits bridge settings only. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `SMOKESTACK_STALE_AFTER_SECONDS`.
+The dashboard at `/` updates live over `WS /api/live`. Its only writes to the grill are the Controls section's commands (see [Grill control](#grill-control)), each confirmed in a dialog first; its settings panel edits bridge settings only. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `SMOKESTACK_STALE_AFTER_SECONDS`.
 
 It works as an installable app (PWA), but browsers only offer install on `localhost` or HTTPS. Over plain `http://<host>:8000/` it works in the browser and iOS "Add to Home Screen" still gives a full-screen icon; Android/Chrome's install prompt needs HTTPS (for example behind a reverse proxy). The service worker caches only the page shell, never API data.

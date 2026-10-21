@@ -58,6 +58,29 @@ at it, and the image includes the `mqtt` extra):
 docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt up --build
 ```
 
+## Grill control
+
+With `SMOKESTACK_ENABLE_CONTROL` on (in `.env`, or **Settings → Grill
+control**), the dashboard gets a **Controls** section that can:
+
+- turn the grill off (the fan keeps running for about 10 minutes, the normal
+  shutdown cycle);
+- set the grill temperature, snapped to the setpoints the board accepts
+  (180-500 F on the PB850PS2), in the grill's current unit;
+- restart the grill's WiFi module, which leaves the grill itself running.
+
+There is no way to turn the grill on: the bridge never sends power-on or
+ignition. Control also needs the dashboard login switched on, and each
+action asks for confirmation. The bridge then waits for the grill to report
+the change and shows whether it was confirmed, unconfirmed, failed or
+already applied; an unconfirmed command means: go and check the grill. The
+buttons are disabled while readings are stale. Commands go over the same
+connection as the readings, so they work with the `http` and `ble` sources
+alike (and the `fake` one).
+
+Every attempt is kept in the database as a `control_command` health event,
+and retention pruning leaves those alone. API details: [docs/api.md](api.md#grill-control).
+
 ## Alerts (ntfy)
 
 The bridge can push notifications through [ntfy](https://ntfy.sh) with a plain
@@ -82,7 +105,8 @@ Alerts, each sent once per incident and re-armed when the condition clears:
   used). Changing a target applies at once, without reconnecting to the grill.
   Re-arms 5 degrees below the target.
 - the grill is more than 25 degrees from its set temperature for 10 minutes while on
-- no data for 60 seconds, plus a "recovered" message
+- no data for 60 seconds, plus a "recovered" message (held back for up to 90
+  seconds after a WiFi-module restart sent from the dashboard)
 - an error flag turns on (`noPellets` is sent as urgent)
 
 Sending happens in a background task with a timeout. A failed send is logged and
