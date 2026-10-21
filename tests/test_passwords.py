@@ -275,6 +275,39 @@ def test_saving_a_password_in_settings_ends_the_pending_change(tmp_path):
     assert app.state.settings.password == "typed-in"
 
 
+def test_a_settings_save_waits_for_a_reconcile_in_flight(tmp_path):
+    """A password that has just been confirmed must not be discarded by a
+    settings swap that happens at the same time."""
+    settings = _settings(tmp_path)
+    finish_setup(settings, password=PASSWORD, required=True)
+    # A change was in flight when the bridge stopped.
+    store = Database(settings.db_path)
+    store.initialize()
+    store.save_pending_password(OLD, NEW)
+    app = create_app(settings)
+    source = app.state.runtime.collector.source
+    started = []
+
+    async def slow_check(password):
+        started.append(password)
+        # Long enough for a settings save to happen while this waits.
+        await asyncio.sleep(0.5)
+        return True
+
+    source.check_password = slow_check
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        # The bridge settles the change on startup, and asks the grill.
+        _wait(lambda: started)
+        # An unrelated settings save, while the reconcile is waiting.
+        saved = client.put("/api/settings", json={"poll_seconds": 3})
+
+    assert saved.status_code == 200
+    # The password the reconcile confirmed is the one in force.
+    assert app.state.settings.password == NEW
+    assert app.state.overrides["password"] == NEW
+
+
 def test_saving_a_password_in_settings_drops_the_recovery_candidates(tmp_path):
     """The source that replaces the old one must not carry the recovery
     passwords: the user has said which password the grill has."""
