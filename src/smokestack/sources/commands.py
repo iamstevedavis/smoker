@@ -121,17 +121,17 @@ def celsius_setpoints(fahrenheit: tuple[int, ...] | list[int]) -> list[int]:
     return [math.floor((value - 32) / 1.8) for value in fahrenheit]
 
 
-# How long a command may wait for the polling loop to reach it, on top of the
+# How long a job may wait for the polling loop to reach it, on top of the
 # poll interval itself.
 QUEUE_TIMEOUT_SECONDS = 15.0
 
 
 def queue_timeout_for(poll_seconds: float) -> float:
-    """How long a command may wait for a source that polls every
+    """How long a job may wait for a source that polls every
     `poll_seconds`.
 
-    The polling loop serves the queue between polls, so a command waits for
-    the next one. A bridge that polls every 30 seconds must not give up on a
+    The polling loop serves the queue between polls, so a job waits for the
+    next one. A bridge that polls every 30 seconds must not give up on a
     command after 15 and report it as never sent.
     """
     return poll_seconds + QUEUE_TIMEOUT_SECONDS
@@ -155,7 +155,7 @@ class JobQueue:
 
     _items: asyncio.Queue[_Pending] = field(default_factory=asyncio.Queue)
     _open: bool = False
-    # How long a command may wait for the polling loop. The source sets this
+    # How long a job may wait for the polling loop. The source sets this
     # from its poll interval, so a slow poll is not a dead connection.
     timeout: float = QUEUE_TIMEOUT_SECONDS
 

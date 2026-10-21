@@ -153,4 +153,11 @@ async def check_password(boss: Any, password: str) -> bool:
         boss._password = previous
         boss._last_uptime = None
         return False
+    except BaseException:
+        # A timeout or a lost connection is not the password's fault, but
+        # the key still goes back, so a failed check never leaves the
+        # connection on a password the grill does not have.
+        boss._password = previous
+        boss._last_uptime = None
+        raise
     return True

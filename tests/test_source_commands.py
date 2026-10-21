@@ -66,9 +66,26 @@ def test_celsius_setpoints_floor_like_the_board():
     assert celsius_setpoints([180, 190, 500]) == [82, 87, 260]
 
 
-def test_the_command_wait_covers_a_poll_interval():
+def test_the_job_wait_covers_a_poll_interval():
+    from smokestack.sources import commands
+
     assert commands.queue_timeout_for(30) >= 30
     assert commands.queue_timeout_for(0.5) > 0.5
+
+
+def test_the_sources_wait_for_a_poll_interval():
+    from smokestack.sources.pytboss_ble import PytbossBleSource
+    from smokestack.sources.pytboss_http import PytbossHttpSource
+
+    assert FakeGrillSource(interval_seconds=30).commands.timeout >= 30
+    ble = PytbossBleSource(
+        model="PB850PS2", device_name="PBL-1", password="", poll_seconds=30
+    )
+    http = PytbossHttpSource(
+        model="PB850PS2", host="grill", password="", poll_seconds=30
+    )
+    assert ble.commands.timeout >= 30
+    assert http.commands.timeout >= 30
 
 
 # The queue ---------------------------------------------------------------
@@ -523,6 +540,58 @@ async def test_the_source_gives_up_when_no_pending_password_works():
         await source._poll(PasswordBoss("something else"), UptimeRefresher())
 
     assert source.password == "old"
+
+
+# A password check ----------------------------------------------------------
+
+
+class KeyBoss:
+    """A boss that only answers with the right password, or not at all."""
+
+    def __init__(self, password: str = "new", error: Exception | None = None) -> None:
+        self.password = password
+        self.error = error
+        self._password = b"old"
+        self._last_uptime = 12.0
+
+    async def get_state(self):
+        if self.error is not None:
+            raise self.error
+        if self._password.decode() != self.password:
+            raise pytest.importorskip("pytboss.exceptions").Unauthorized(
+                "Unauthorized", 401
+            )
+        return {"grillTemp": 225}
+
+
+async def test_a_password_check_keeps_the_password_that_worked():
+    from smokestack.sources._pytboss import check_password
+
+    boss = KeyBoss("new")
+
+    assert await check_password(boss, "new") is True
+    assert boss._password == b"new"
+
+
+async def test_a_rejected_password_puts_the_old_key_back():
+    from smokestack.sources._pytboss import check_password
+
+    boss = KeyBoss("new")
+
+    assert await check_password(boss, "old") is False
+    assert boss._password == b"old"
+
+
+async def test_a_check_that_fails_for_another_reason_puts_the_old_key_back():
+    """A timeout is not the password's fault, but the key still goes back,
+    so a failed check never leaves the connection on a wrong password."""
+    from smokestack.sources._pytboss import check_password
+
+    boss = KeyBoss("new", error=TimeoutError("the answer did not come"))
+
+    with pytest.raises(TimeoutError):
+        await check_password(boss, "new")
+    assert boss._password == b"old"
 
 
 # The blank frame -------------------------------------------------------------

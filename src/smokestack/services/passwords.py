@@ -55,11 +55,17 @@ class PasswordChange:
         self,
         store: Database,
         apply_password: Callable[[str], Awaitable[None]] | None = None,
+        interval: float = 30.0,
+        retry_seconds: float = 5.0,
     ) -> None:
         self.store = store
         # Called with the password the grill accepts, to make it the
         # bridge's own setting.
         self.apply_password = apply_password
+        # How long to wait before trying again, and how long between tries
+        # when the grill could not be reached.
+        self.interval = interval
+        self.retry_seconds = retry_seconds
         self.pending: PendingPassword | None = store.load_pending_password()
         self._lock = asyncio.Lock()
 
@@ -102,9 +108,14 @@ class PasswordChange:
             await self.apply_password(password)
         self.clear()
 
-    async def reconcile(self, source: Any) -> tuple[str, str]:
-        """Settle the change by asking the grill which password it accepts."""
+    async def reconcile(self, source: Any) -> tuple[str, str] | None:
+        """Settle the change by asking the grill which password it accepts.
+
+        Returns None when there is nothing to settle.
+        """
         async with self._lock:
+            if self.pending is None:
+                return None
             return await self.settle_by_asking(source)
 
     async def settle_by_asking(self, source: Any) -> tuple[str, str]:
@@ -144,35 +155,43 @@ class PasswordChange:
             "password in Settings, or reset it at the grill.",
         )
 
-    async def watch(
-        self,
-        source_of: Callable[[], Any],
-        interval: float = 30.0,
-        retry_seconds: float = 2.0,
-    ) -> None:
-        """Settle a change that was in flight when the bridge stopped.
+    async def watch(self, source_of: Callable[[], Any]) -> None:
+        """Settle a password change whenever there is one.
 
-        Runs until the change is settled: the grill is asked which password
-        it accepts, and the bridge keeps that one.
+        Runs for as long as the bridge does: a change that could not be
+        settled (the grill was out of reach) is tried again, and a change
+        that starts while this runs is picked up too. So a change that ends
+        `unconfirmed` is settled by the bridge itself, not only by the next
+        restart.
         """
-        while self.pending is not None:
+        while True:
+            if self.pending is None:
+                # Nothing to settle; wait for a change to start.
+                await asyncio.sleep(self.retry_seconds)
+                continue
             source = source_of()
             if not source_connected(source):
                 # The grill isn't there yet: ask again shortly.
-                await asyncio.sleep(retry_seconds)
+                await asyncio.sleep(self.retry_seconds)
                 continue
             try:
-                outcome, detail = await self.reconcile(source)
+                outcome = await self.reconcile(source)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 logger.warning("Could not settle the grill password change: %s", exc)
-                outcome, detail = UNCONFIRMED, str(exc)
+                outcome = None
+            if outcome is None:
+                # It was settled while we waited for the lock, or the
+                # reconcile failed: wait before trying again.
+                await asyncio.sleep(self.retry_seconds)
+                continue
             if self.pending is None:
-                logger.info("Grill password change settled: %s", outcome)
-                self.record(outcome, detail)
-                return
-            await asyncio.sleep(interval)
+                logger.info("Grill password change settled: %s", outcome[0])
+                self.record(*outcome)
+            else:
+                # Still not settled: the grill could not be reached.
+                await asyncio.sleep(self.interval)
 
     def record(self, outcome: str, detail: str) -> None:
         """Note a settled change in the health log (never a password)."""
