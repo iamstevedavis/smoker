@@ -253,3 +253,23 @@ def test_a_prune_deletes_only_what_its_dry_run_counted(tmp_path):
     # Only the reboot entry was left of what "everything" counted.
     assert rest["deleted"] == 1
     assert sorted(_commands(app)) == ["set-temperature", "turn-off"]
+
+
+def test_pruning_refreshes_the_last_result(tmp_path):
+    app = _app(tmp_path)
+    old = _record(app, "turn-off", "confirmed", days_ago=40)
+    new = _record(app, "reboot", "confirmed", days_ago=1)
+    app.state.control.last_result = app.state.store.last_control_result()
+    with TestClient(app) as client:
+        _signed_in(client)
+        assert client.get("/api/control").json()["last_result"]["audit_id"] == new
+        client.post(
+            "/api/control-log/prune", json={"older_than_days": 30}, headers=HEADERS
+        )
+        kept = client.get("/api/control").json()["last_result"]
+        client.post("/api/control-log/prune", json={}, headers=HEADERS)
+        cleared = client.get("/api/control").json()["last_result"]
+
+    assert old != new
+    assert kept["audit_id"] == new
+    assert cleared is None
