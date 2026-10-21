@@ -1031,6 +1031,7 @@
     mqtt: "Home Assistant (MQTT)",
     alerts: "Alerts (ntfy)",
     data: "Data",
+    control: "Grill control",
     logging: "Logging",
   };
 
@@ -1040,7 +1041,7 @@
   const APPLY_WATCH_MS = 30000;
   const PASSWORD_MIN_LENGTH = 8;
 
-  // type: text | number | int | secret | source | log
+  // type: text | number | int | bool | secret | source | log
   const SETTING_META = {
     source: { label: "Source", type: "source", hint: "Bluetooth is listed only when the bridge can reach the host's Bluetooth (docker-compose.ble.yml)." },
     model: { label: "Grill model", type: "text" },
@@ -1061,6 +1062,7 @@
     alert_stale_seconds: { label: "No-data alert after", type: "number", unit: "s", min: 0 },
     alert_cooldown_seconds: { label: "Repeat cooldown", type: "number", unit: "s", min: 0 },
     retention_days: { label: "Keep history", type: "number", unit: "days", min: 0, hint: "0 keeps everything." },
+    enable_control: { label: "Grill control", type: "bool", hint: "Lets signed-in users turn the grill off, set its temperature and restart its WiFi module from the dashboard. Needs the login switched on. It can never turn the grill on." },
     log_level: { label: "Log level", type: "log" },
   };
 
@@ -1088,6 +1090,10 @@
   function settingInput(field, meta) {
     const id = "set-" + field.name;
     const value = field.value;
+    if (meta.type === "bool") {
+      return el("select", { id, name: field.name }, [["true", "On"], ["false", "Off"]].map(([option, label]) =>
+        el("option", { value: option, textContent: label, selected: String(Boolean(value)) === option })));
+    }
     if (meta.type === "source" || meta.type === "log") {
       const options = meta.type === "log" ? LOG_LEVELS : settings.payload.sources.slice();
       // Keep a current value the image no longer offers visible.
@@ -1206,6 +1212,7 @@
           continue;
         } else value = Number(raw);
       }
+      if (meta.type === "bool") value = raw === "true";
       if (value !== field.value) changes[name] = value;
     }
     return { changes, errors };

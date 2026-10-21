@@ -52,6 +52,7 @@ class SettingsUpdate(BaseModel):
     alert_stale_seconds: float = Field(default=None, gt=0)
     alert_cooldown_seconds: float = Field(default=None, ge=0)
     retention_days: float = Field(default=None, ge=0)
+    enable_control: bool = Field(default=None)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
         default=None
     )

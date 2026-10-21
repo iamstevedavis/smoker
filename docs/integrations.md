@@ -11,6 +11,7 @@ and override `.env`; see [Changing settings from the dashboard](../README.md#cha
 - `SMOKESTACK_ALERT_DRIFT_DEGREES` (default `25`), `SMOKESTACK_ALERT_DRIFT_MINUTES` (default `10`): grill-vs-set-temp drift alert. The degrees are Fahrenheit degrees, scaled by 5/9 while the grill reports Celsius (25 °F is about 14 °C).
 - `SMOKESTACK_ALERT_STALE_SECONDS` (default `60`): seconds without data before a disconnect alert
 - `SMOKESTACK_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
+- `SMOKESTACK_ENABLE_CONTROL` (default `false`): lets signed-in dashboard users turn the grill off, set its temperature and restart its WiFi module. Off by default; it also needs the dashboard login switched on. There is no way to turn the grill on. See [Grill control](#grill-control).
 
 ## Home Assistant (MQTT)
 

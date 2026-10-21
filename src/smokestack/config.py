@@ -41,6 +41,7 @@ class Settings:
     alert_stale_seconds: float = 60.0
     alert_cooldown_seconds: float = 0.0
     retention_days: float = 0
+    enable_control: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -69,6 +70,7 @@ class Settings:
                 os.getenv("SMOKESTACK_ALERT_COOLDOWN_SECONDS", "0")
             ),
             retention_days=float(os.getenv("SMOKESTACK_RETENTION_DAYS", "0")),
+            enable_control=_bool_env("SMOKESTACK_ENABLE_CONTROL", False),
         )
 
     def with_overrides(self, overrides: dict[str, Any]) -> "Settings":
@@ -99,6 +101,7 @@ EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
         "alert_cooldown_seconds",
     ),
     "data": ("retention_days",),
+    "control": ("enable_control",),
     "logging": ("log_level",),
 }
 EDITABLE_FIELDS = frozenset(name for group in EDITABLE_GROUPS.values() for name in group)
