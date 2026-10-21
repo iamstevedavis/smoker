@@ -86,6 +86,13 @@ class Database:
                 ON health_events (at)
                 """
             )
+            # The grill command log is read by type, newest first.
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_health_events_type
+                ON health_events (event_type, id)
+                """
+            )
             self._create_cooks_table(conn)
             conn.execute(
                 """
@@ -439,6 +446,44 @@ class Database:
             }
             for row in rows
         ]
+
+    def list_control_events(
+        self, limit: int = 100, before_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Grill command attempts, newest first; `before_id` pages back."""
+        query = "SELECT * FROM health_events WHERE event_type = ?"
+        params: list[Any] = [CONTROL_EVENT]
+        if before_id is not None:
+            query += " AND id < ?"
+            params.append(before_id)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        with self.connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            {"id": row["id"], "at": row["at"], **json.loads(row["data_json"])}
+            for row in rows
+        ]
+
+    def count_control_events(self, older_than: datetime | None = None) -> int:
+        where, params = self._control_window(older_than)
+        with self.connect() as conn:
+            return conn.execute(
+                f"SELECT COUNT(*) FROM health_events{where}", params
+            ).fetchone()[0]
+
+    def prune_control_events(self, older_than: datetime | None = None) -> int:
+        """Delete grill command attempts recorded before `older_than`, or
+        all of them. Only done by hand: retention pruning keeps them."""
+        where, params = self._control_window(older_than)
+        with self.connect() as conn:
+            return conn.execute(f"DELETE FROM health_events{where}", params).rowcount
+
+    @staticmethod
+    def _control_window(older_than: datetime | None) -> tuple[str, list[Any]]:
+        if older_than is None:
+            return " WHERE event_type = ?", [CONTROL_EVENT]
+        return " WHERE event_type = ? AND at < ?", [CONTROL_EVENT, _iso(older_than)]
 
     def last_control_result(self) -> dict[str, Any] | None:
         """The result of the newest grill command that wasn't rejected."""

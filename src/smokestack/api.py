@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Literal
 
 from fastapi import (
@@ -29,7 +29,7 @@ from smokestack.services.control import (
     ControlRequest,
     GrillControl,
 )
-from smokestack.state import temperature_unit
+from smokestack.state import temperature_unit, utc_now
 from smokestack.store import Database
 from smokestack.web import mount_dashboard
 
@@ -98,6 +98,16 @@ class SetTemperatureBody(BaseModel):
     temp: float = Field(gt=0, le=1000)
     # The unit `temp` was meant in; refused (409) if the grill's unit differs.
     unit: Literal["F", "C"] | None = None
+
+
+class ControlLogPrune(BaseModel):
+    """Delete grill command log entries: all of them, or those older than
+    `older_than_days`. `dry_run` only counts what would go."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    older_than_days: float | None = Field(default=None, gt=0, le=36500)
+    dry_run: bool = False
 
 
 # Re-exported under its old name; tests import it from here.
@@ -388,6 +398,69 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/control/reboot")
     async def control_reboot(request: Request) -> Any:
         return await run_control("reboot", request)
+
+    # The grill command log (#55): the control_command health events. Like
+    # the controls, it needs the login on; the gate has already checked the
+    # session. Pruning is the only way these rows are ever deleted.
+    def require_login_on() -> None:
+        if not auth_state.required:
+            raise HTTPException(
+                status_code=403,
+                detail="the command log needs the dashboard login switched on",
+            )
+
+    @app.get("/api/control-log")
+    async def get_control_log(
+        limit: int = Query(default=100, ge=1, le=1000),
+        before: int | None = Query(default=None, ge=1),
+    ) -> dict[str, Any]:
+        require_login_on()
+        items = store.list_control_events(limit=limit, before_id=before)
+        return {
+            "count": len(items),
+            "total": store.count_control_events(),
+            "items": items,
+            # Pass as `before` for the next (older) page.
+            "next_before": items[-1]["id"] if len(items) == limit else None,
+        }
+
+    @app.post("/api/control-log/prune")
+    async def prune_control_log(request: Request, body: ControlLogPrune) -> Any:
+        require_login_on()
+        try:
+            # The same cross-site guard as the controls: this deletes records.
+            control.check_request(
+                ControlRequest(
+                    client=None,
+                    session=None,
+                    has_header=request.headers.get(CONTROL_HEADER) == "1",
+                    origin=request.headers.get("origin"),
+                    host=request.headers.get("host"),
+                )
+            )
+        except ControlRejected as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        days = body.older_than_days
+        cutoff = utc_now() - timedelta(days=days) if days is not None else None
+        if body.dry_run:
+            return {"matching": store.count_control_events(cutoff), "deleted": 0}
+        deleted = store.prune_control_events(cutoff)
+        # Not a control_command row, so it isn't in the log it just pruned;
+        # retention pruning removes it like any other health event.
+        store.insert_health_event(
+            "control_log_pruned",
+            f"deleted {deleted} grill command log entries",
+            {
+                "older_than_days": days,
+                "deleted": deleted,
+                "client": request.client.host if request.client else None,
+            },
+        )
+        return {
+            "matching": deleted,
+            "deleted": deleted,
+            "total": store.count_control_events(),
+        }
 
     @app.get("/api/state")
     async def state_endpoint() -> dict[str, Any]:
