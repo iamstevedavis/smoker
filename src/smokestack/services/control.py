@@ -396,7 +396,7 @@ class GrillControl:
         source = runtime.collector.source
         new = command.password or ""
         old = runtime.settings.password
-        async with self.passwords.changing():
+        async with self.passwords.locked():
             if self.passwords.pending is not None:
                 # A change that has not settled yet is holding on to the
                 # password the grill may have: starting another one would

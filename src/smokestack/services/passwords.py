@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -54,7 +54,7 @@ class PasswordChange:
     def __init__(
         self,
         store: Database,
-        apply_password: Callable[[str], None] | None = None,
+        apply_password: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self.store = store
         # Called with the password the grill accepts, to make it the
@@ -75,8 +75,13 @@ class PasswordChange:
         return (self.pending.new_password, self.pending.old_password)
 
     @asynccontextmanager
-    async def changing(self) -> AsyncIterator[None]:
-        """Hold a change in flight: nothing else settles it meanwhile."""
+    async def locked(self) -> AsyncIterator[None]:
+        """Hold the password change lock.
+
+        It is always taken before the settings lock, so a password that
+        has just been confirmed cannot be discarded by a settings swap, and
+        a settings save cannot slip past a reconcile.
+        """
         async with self._lock:
             yield
 
@@ -90,20 +95,11 @@ class PasswordChange:
         self.store.clear_pending_password()
         self.pending = None
 
-    async def clear_now(self) -> None:
-        """Forget the change in flight, waiting for a reconcile to finish.
-
-        A reconcile that is already running must not overwrite the value
-        the user just saved: the user's value wins.
-        """
-        async with self._lock:
-            self.clear()
-
-    def adopt(self, password: str) -> None:
+    async def adopt(self, password: str) -> None:
         """Take `password` as the grill's password, and save it as the setting."""
         self.store.save_settings({"password": password})
         if self.apply_password is not None:
-            self.apply_password(password)
+            await self.apply_password(password)
         self.clear()
 
     async def reconcile(self, source: Any) -> tuple[str, str]:
@@ -115,7 +111,7 @@ class PasswordChange:
         """Ask the grill which password it accepts, and settle the change.
 
         Returns the outcome (`confirmed`, `failed` or `unconfirmed`) and what
-        to tell the user. The caller holds the lock (see `changing`).
+        to tell the user. The caller holds the lock (see `locked`).
         """
         pending = self.pending
         if pending is None:
@@ -134,7 +130,7 @@ class PasswordChange:
             if not accepted:
                 continue
             if candidate == pending.new_password:
-                self.adopt(candidate)
+                await self.adopt(candidate)
                 return (
                     CONFIRMED,
                     "The grill now uses the new password, and the bridge "

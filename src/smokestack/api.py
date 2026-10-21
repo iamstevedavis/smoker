@@ -171,17 +171,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.collector = new.collector
         hub.stale_after_seconds = new.settings.stale_after_seconds
 
-    def apply_grill_password(password: str) -> None:
+    async def apply_grill_password(password: str) -> None:
         """Take a new grill password as the bridge's own setting.
 
         The source keeps using the password the grill accepted, so nothing
         is restarted: the bridge is already talking to the grill with it.
         """
-        app.state.overrides = {**app.state.overrides, "password": password}
-        app.state.settings = replace(app.state.settings, password=password)
-        app.state.runtime.settings = replace(
-            app.state.runtime.settings, password=password
-        )
+        async with apply_lock:
+            app.state.overrides = {**app.state.overrides, "password": password}
+            app.state.settings = replace(app.state.settings, password=password)
+            app.state.runtime.settings = replace(
+                app.state.runtime.settings, password=password
+            )
 
     passwords = PasswordChange(store, apply_grill_password)
 
@@ -350,19 +351,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         changes = body.changes()
         if not changes:
             return current_settings_payload()
-        async with apply_lock:
-            new_overrides = {**app.state.overrides, **changes}
-            new = build_runtime(new_overrides, changes)
-            if "password" in changes:
-                # Saving a grill password ends a pending change: the value
-                # the user typed is the one the grill has. A reconcile that
-                # is running waits, so it cannot overwrite it afterwards,
-                # and the source that replaces this one gets no recovery
-                # candidates: it would reconnect with a discarded password.
-                await passwords.clear_now()
-                set_pending_passwords(new.collector.source, ())
-            store.save_settings(changes)
-            await swap(new, new_overrides)
+        # The password lock comes before the apply lock, and a password
+        # change takes them in the same order: a password that has just
+        # been confirmed cannot be discarded by this swap.
+        async with passwords.locked():
+            async with apply_lock:
+                new_overrides = {**app.state.overrides, **changes}
+                new = build_runtime(new_overrides, changes)
+                if "password" in changes:
+                    # Saving a grill password ends a pending change: the
+                    # value the user typed is the one the grill has. The
+                    # source that replaces this one gets no recovery
+                    # candidates: it would reconnect with a discarded
+                    # password.
+                    passwords.clear()
+                    set_pending_passwords(new.collector.source, ())
+                store.save_settings(changes)
+                await swap(new, new_overrides)
         return current_settings_payload()
 
     @app.delete("/api/settings/{name}")
