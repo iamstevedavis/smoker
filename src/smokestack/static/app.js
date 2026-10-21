@@ -1226,7 +1226,8 @@
   function logEntry(item) {
     const args = item.args || {};
     let command = COMMAND_LABELS[item.command] || item.command;
-    if (num(args.temp) !== null) command += " " + args.temp + (args.unit ? "°" + args.unit : "");
+    if (item.command === "set-unit" && args.unit) command += " to °" + args.unit;
+    else if (num(args.temp) !== null) command += " " + args.temp + (args.unit ? "°" + args.unit : "");
     if (num(item.target) !== null && item.target !== args.temp) command += " → " + item.target + (item.unit ? "°" + item.unit : "");
     const outcome = el("span", { className: "log-outcome", textContent: OUTCOME_LABELS[item.outcome] || item.outcome || "?" });
     outcome.dataset.outcome = item.outcome || "";
