@@ -79,7 +79,11 @@ connection as the readings, so they work with the `http` and `ble` sources
 alike (and the `fake` one).
 
 Every attempt is kept in the database as a `control_command` health event,
-and retention pruning leaves those alone. API details: [docs/api.md](api.md#grill-control).
+and retention pruning leaves those alone. **Command log** on the Controls card
+lists them, newest first, with the time, command, client address and outcome
+(or why it was refused), and prunes them: all at once, or those older than a
+number of days, after a confirmation that says how many will go. The card
+stays visible while control is off as long as the log has entries. API details: [docs/api.md](api.md#grill-control).
 
 ## Alerts (ntfy)
 

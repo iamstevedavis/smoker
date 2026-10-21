@@ -1121,8 +1121,10 @@
   function renderControls() {
     const s = control.status;
     const section = $("controls");
-    section.hidden = !s || !s.enabled;
+    // Also shown while control is off if there is a log left to look at.
+    section.hidden = !s || !(s.enabled || s.log_count > 0);
     if (section.hidden) return;
+    setText($("control-log-open"), "Command log" + (s.log_count ? " (" + s.log_count + ")" : ""));
     const reason = $("controls-reason");
     reason.hidden = s.available;
     setText(reason, s.available ? "" : s.reason || "Grill control isn't available.");
@@ -1177,7 +1179,143 @@
     }
   }
 
+  // Command log (/api/control-log) ------------------------------------------
+
+  const OUTCOME_LABELS = {
+    confirmed: "Confirmed",
+    unconfirmed: "Unconfirmed",
+    failed: "Failed",
+    already_applied: "Already applied",
+    rejected: "Refused",
+  };
+  const commandLog = { items: [], nextBefore: null, busy: false };
+
+  function logStatus(text, kind) {
+    const status = $("control-log-status");
+    status.textContent = text;
+    status.dataset.kind = kind || "";
+  }
+
+  function logEntry(item) {
+    const args = item.args || {};
+    let command = COMMAND_LABELS[item.command] || item.command;
+    if (num(args.temp) !== null) command += " " + args.temp + (args.unit ? "°" + args.unit : "");
+    if (num(item.target) !== null && item.target !== args.temp) command += " → " + item.target + (item.unit ? "°" + item.unit : "");
+    const outcome = el("span", { className: "log-outcome", textContent: OUTCOME_LABELS[item.outcome] || item.outcome || "?" });
+    outcome.dataset.outcome = item.outcome || "";
+    const at = Date.parse(item.at);
+    const when = Number.isNaN(at) ? item.at : new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "medium" });
+    const detail = item.outcome === "rejected"
+      ? (item.status_code ? item.status_code + ": " : "") + (item.detail || "")
+      : item.detail || "";
+    return el("li", {}, [
+      el("div", { className: "log-head" }, [el("strong", { textContent: command }), outcome]),
+      detail ? el("div", { textContent: detail }) : null,
+      el("div", { className: "log-meta", textContent: when + (item.client ? " · from " + item.client : "") }),
+    ]);
+  }
+
+  function renderCommandLog() {
+    $("control-log-list").replaceChildren(...commandLog.items.map(logEntry));
+    $("control-log-empty").hidden = commandLog.items.length > 0;
+    $("control-log-more").hidden = commandLog.nextBefore === null;
+  }
+
+  async function loadCommandLog(older) {
+    if (commandLog.busy) return;
+    commandLog.busy = true;
+    try {
+      const query = older && commandLog.nextBefore !== null ? "?before=" + commandLog.nextBefore : "";
+      const res = await apiFetch("api/control-log" + query, { cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        logStatus(typeof body.detail === "string" ? body.detail : "Can't load the log (HTTP " + res.status + ").", "error");
+        return;
+      }
+      commandLog.items = older ? commandLog.items.concat(body.items) : body.items;
+      commandLog.nextBefore = body.next_before;
+      renderCommandLog();
+    } catch (e) {
+      if (e.message !== "not authenticated") logStatus("Can't reach the bridge.", "error");
+    } finally {
+      commandLog.busy = false;
+    }
+  }
+
+  async function pruneRequest(body) {
+    const res = await apiFetch("api/control-log/prune", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json", "X-Smokestack-Control": "1" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "HTTP " + res.status);
+    return data;
+  }
+
+  async function pruneCommandLog() {
+    const all = $("control-log-scope").value === "all";
+    const days = Number($("control-log-days").value);
+    if (!all && (!Number.isInteger(days) || days < 1)) {
+      logStatus("Enter a whole number of days.", "error");
+      return;
+    }
+    const scope = all ? {} : { older_than_days: days };
+    const button = $("control-log-prune-btn");
+    button.disabled = true;
+    logStatus("", "");
+    try {
+      const { matching } = await pruneRequest({ ...scope, dry_run: true });
+      if (!matching) {
+        logStatus(all ? "The log is already empty." : "Nothing is older than " + days + " days.", "");
+        return;
+      }
+      const what = matching === 1 ? "1 entry" : matching + " entries";
+      const ok = await confirmControl(
+        "Prune the command log?",
+        "Delete " + what + (all ? ", the whole log" : " older than " + days + " days") + ". This can't be undone.",
+        "Delete " + what,
+      );
+      if (!ok) return;
+      const { deleted } = await pruneRequest(scope);
+      logStatus("Deleted " + (deleted === 1 ? "1 entry." : deleted + " entries."), "ok");
+      await loadCommandLog(false);
+      loadControl();
+    } catch (e) {
+      if (e.message !== "not authenticated") logStatus("Prune failed: " + e.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function setupCommandLog() {
+    const dialog = $("control-log");
+    $("control-log-open").addEventListener("click", () => {
+      logStatus("", "");
+      commandLog.items = [];
+      commandLog.nextBefore = null;
+      renderCommandLog();
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+      loadCommandLog(false);
+    });
+    $("control-log-close").addEventListener("click", () => {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    });
+    $("control-log-more").addEventListener("click", () => loadCommandLog(true));
+    $("control-log-scope").addEventListener("change", () => {
+      $("control-log-days-wrap").hidden = $("control-log-scope").value === "all";
+    });
+    $("control-log-prune").addEventListener("submit", (event) => {
+      event.preventDefault();
+      pruneCommandLog();
+    });
+  }
+
   function setupGrillControls() {
+    setupCommandLog();
     $("control-off").addEventListener("click", async () => {
       const ok = await confirmControl("Turn the grill off?", "Turn the grill off. The fan will run for about 10 minutes.", "Turn off");
       if (ok) sendControl("turn-off");

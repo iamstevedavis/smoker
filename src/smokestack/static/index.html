@@ -91,6 +91,34 @@
     </form>
   </dialog>
 
+  <dialog id="control-log" class="settings" aria-labelledby="control-log-title">
+    <div class="settings-form">
+      <div class="settings-head">
+        <h2 id="control-log-title">Command log</h2>
+        <button id="control-log-close" class="theme-btn" type="button">Close</button>
+      </div>
+      <div class="settings-body">
+        <p class="settings-intro">Every command sent to the grill from this bridge, and every attempt it refused. Kept until you prune it here.</p>
+        <ul id="control-log-list" class="log-list"></ul>
+        <p id="control-log-empty" class="settings-note" hidden>No commands yet.</p>
+        <button id="control-log-more" class="theme-btn" type="button" hidden>Load older</button>
+      </div>
+      <form id="control-log-prune" class="settings-foot log-prune" novalidate>
+        <label for="control-log-scope">Prune</label>
+        <select id="control-log-scope">
+          <option value="older">Older than</option>
+          <option value="all">All entries</option>
+        </select>
+        <span id="control-log-days-wrap" class="with-unit">
+          <input id="control-log-days" type="number" inputmode="numeric" min="1" step="1" value="90" aria-label="Days">
+          <span class="unit-label">days</span>
+        </span>
+        <button id="control-log-prune-btn" class="login-btn" type="submit">Prune</button>
+        <p id="control-log-status" class="settings-status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </dialog>
+
   <dialog id="control-confirm" class="confirm" aria-labelledby="control-confirm-title">
     <form method="dialog" class="confirm-form">
       <h2 id="control-confirm-title">Confirm</h2>
@@ -240,6 +268,7 @@
           <div id="control-result-meta" class="control-meta"></div>
         </div>
       </div>
+      <button id="control-log-open" class="link-btn controls-log-btn" type="button" aria-haspopup="dialog">Command log</button>
     </section>
 
     <section class="card chart-card" aria-labelledby="chart-title">
