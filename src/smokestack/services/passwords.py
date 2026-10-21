@@ -42,6 +42,12 @@ def set_pending_passwords(source: Any, passwords: tuple[str, ...]) -> None:
         source.pending_passwords = passwords
 
 
+def source_connected(source: Any) -> bool:
+    """Whether the source's connection to the grill is up."""
+    queue = getattr(source, "commands", None)
+    return bool(getattr(queue, "is_open", False))
+
+
 class PasswordChange:
     """The pending grill password change, and how it is settled."""
 
@@ -83,6 +89,15 @@ class PasswordChange:
         """Forget the change in flight."""
         self.store.clear_pending_password()
         self.pending = None
+
+    async def clear_now(self) -> None:
+        """Forget the change in flight, waiting for a reconcile to finish.
+
+        A reconcile that is already running must not overwrite the value
+        the user just saved: the user's value wins.
+        """
+        async with self._lock:
+            self.clear()
 
     def adopt(self, password: str) -> None:
         """Take `password` as the grill's password, and save it as the setting."""
@@ -137,6 +152,7 @@ class PasswordChange:
         self,
         source_of: Callable[[], Any],
         interval: float = 30.0,
+        retry_seconds: float = 2.0,
     ) -> None:
         """Settle a change that was in flight when the bridge stopped.
 
@@ -144,8 +160,13 @@ class PasswordChange:
         it accepts, and the bridge keeps that one.
         """
         while self.pending is not None:
+            source = source_of()
+            if not source_connected(source):
+                # The grill isn't there yet: ask again shortly.
+                await asyncio.sleep(retry_seconds)
+                continue
             try:
-                outcome, detail = await self.reconcile(source_of())
+                outcome, detail = await self.reconcile(source)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
