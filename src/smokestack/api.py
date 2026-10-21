@@ -468,6 +468,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "max_id": max_id,
             }
         deleted = store.prune_control_events(cutoff, body.max_id)
+        # The last result may have been one of them.
+        control.last_result = store.last_control_result()
         # Not a control_command row, so it isn't in the log it just pruned;
         # retention pruning removes it like any other health event.
         store.insert_health_event(
