@@ -233,6 +233,8 @@
     addPoint(pointFromValues(observed, values));
     renderReadings();
     renderStatus();
+    // Targets are shown in the grill's unit, which may have just changed.
+    renderAlertTargets();
     scheduleChart();
     if ($("table-view").open) renderTable();
   }
@@ -885,14 +887,28 @@
     return document.querySelector('.probe-alert[data-probe="' + probe + '"]');
   }
 
+  // A saved target in the display unit, or null when it has no unit (saved
+  // before units were recorded) and has to be entered again.
+  function targetForDisplay(saved) {
+    if (saved === null || saved.unit === null) return null;
+    const unit = unitSymbol() === "°C" ? "C" : "F";
+    if (saved.unit === unit) return saved.target;
+    return unit === "C" ? (saved.target - 32) * 5 / 9 : saved.target * 9 / 5 + 32;
+  }
+
   function renderAlertTargets() {
     for (const probe of [1, 2]) {
       const box = probeAlert(probe);
-      const target = alerts.targets[probe];
-      box.dataset.set = String(target !== null);
+      const saved = alerts.targets[probe];
+      const target = targetForDisplay(saved);
+      const stale = saved !== null && target === null;
+      box.dataset.set = String(saved !== null);
+      box.dataset.stale = String(stale);
       box.dataset.enabled = String(alerts.enabled !== false);
-      let label = target === null ? "Set alert" : "Alert at " + Math.round(target * 10) / 10 + "°";
-      if (target !== null && alerts.enabled === false) label += " (off)";
+      let label = "Set alert";
+      if (stale) label = "Re-enter alert";
+      else if (target !== null) label = "Alert at " + Math.round(target * 10) / 10 + unitSymbol();
+      if (saved !== null && alerts.enabled === false) label += " (off)";
       setText(box.querySelector("[data-alert-label]"), label);
       const button = box.querySelector("[data-alert-open]");
       button.title = alerts.enabled === false ? "ntfy isn't set up, so no alert will be sent" : "";
@@ -900,7 +916,12 @@
   }
 
   function applyAlertTargets(body) {
-    alerts.targets = { 1: num(body.probe1), 2: num(body.probe2) };
+    const saved = (probe) => {
+      const target = num(body["probe" + probe]);
+      const unit = body["probe" + probe + "_unit"];
+      return target === null ? null : { target, unit: unit === "F" || unit === "C" ? unit : null };
+    };
+    alerts.targets = { 1: saved(1), 2: saved(2) };
     alerts.enabled = Boolean(body.alerts_enabled);
     renderAlertTargets();
   }
@@ -930,10 +951,15 @@
       return;
     }
     const input = form.querySelector("input");
-    const target = alerts.targets[probe];
-    input.value = target === null ? "" : String(target);
-    form.querySelector("[data-alert-clear]").hidden = target === null;
-    alertNote(box, alerts.enabled === false ? "ntfy isn't set up, so no alert will be sent. Add a topic URL in Settings." : "", "");
+    const saved = alerts.targets[probe];
+    const target = targetForDisplay(saved);
+    input.value = target === null ? "" : String(Math.round(target * 10) / 10);
+    form.querySelector("[data-alert-clear]").hidden = saved === null;
+    let note = alerts.enabled === false ? "ntfy isn't set up, so no alert will be sent. Add a topic URL in Settings." : "";
+    if (saved !== null && target === null) {
+      note = "This alert was saved before the bridge recorded units, so it's off until you enter it again.";
+    }
+    alertNote(box, note, "");
     input.focus();
     input.select();
   }
@@ -952,7 +978,10 @@
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alertNote(box, res.status === 422 ? "Enter a temperature from 1 to 1000." : "Save failed (HTTP " + res.status + ").", "error");
+        let message = "Save failed (HTTP " + res.status + ").";
+        if (res.status === 422) message = "Enter a temperature from 1 to 1000.";
+        if (res.status === 409) message = "The grill hasn't reported its temperature unit yet. Try again once it's connected.";
+        alertNote(box, message, "error");
         return;
       }
       applyAlertTargets(body);
@@ -1023,7 +1052,7 @@
     mqtt_prefix: { label: "Topic prefix", type: "text" },
     ntfy_url: { label: "ntfy topic URL", type: "text", inputmode: "url", hint: "Blank turns alerts off. Probe targets are set on each probe's card." },
     ntfy_token: { label: "Access token", type: "secret" },
-    alert_drift_degrees: { label: "Drift alert at", type: "number", unit: "°", min: 0 },
+    alert_drift_degrees: { label: "Drift alert at", type: "number", unit: "°F", min: 0 },
     alert_drift_minutes: { label: "…sustained for", type: "number", unit: "min", min: 0 },
     alert_stale_seconds: { label: "No-data alert after", type: "number", unit: "s", min: 0 },
     alert_cooldown_seconds: { label: "Repeat cooldown", type: "number", unit: "s", min: 0 },

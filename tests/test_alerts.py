@@ -10,7 +10,15 @@ from smokestack.services.alerts import (
 )
 from smokestack.services.collector import CollectorHealth, StateHub
 from smokestack.state import normalize_state
-from smokestack.store import Database
+from smokestack.store import Database, ProbeTarget
+
+
+def F(target):
+    return ProbeTarget(target, "F")
+
+
+def C(target):
+    return ProbeTarget(target, "C")
 
 
 class Clock:
@@ -22,6 +30,10 @@ class Clock:
 
 
 def snap(**values):
+    """A reading in Fahrenheit unless `isFahrenheit` is given (None leaves it out)."""
+    values.setdefault("isFahrenheit", True)
+    if values["isFahrenheit"] is None:
+        del values["isFahrenheit"]
     return normalize_state(values, source="fake", observed_at=datetime(2026, 6, 2, tzinfo=UTC))
 
 
@@ -30,7 +42,7 @@ def keys(notifications):
 
 
 def test_probe_target_fires_once_and_rearms_with_hysteresis():
-    engine = AlertEngine(AlertConfig(probe1_target=200))
+    engine = AlertEngine(AlertConfig(probe1_target=F(200)))
 
     assert engine.on_snapshot(snap(p1Temp=190)) == []
     assert keys(engine.on_snapshot(snap(p1Temp=201))) == ["probe1_target"]
@@ -42,7 +54,7 @@ def test_probe_target_fires_once_and_rearms_with_hysteresis():
 
 
 def test_probe_rearms_exactly_at_the_hysteresis_boundary():
-    engine = AlertEngine(AlertConfig(probe1_target=200))
+    engine = AlertEngine(AlertConfig(probe1_target=F(200)))
 
     assert keys(engine.on_snapshot(snap(p1Temp=200))) == ["probe1_target"]
     assert engine.on_snapshot(snap(p1Temp=195)) == []
@@ -50,25 +62,104 @@ def test_probe_rearms_exactly_at_the_hysteresis_boundary():
 
 
 def test_probe_rule_needs_a_target_and_a_reading():
-    engine = AlertEngine(AlertConfig(probe1_target=200))
+    engine = AlertEngine(AlertConfig(probe1_target=F(200)))
 
     assert engine.on_snapshot(snap(p1Temp=None, p2Temp=300)) == []  # no p2 target
     assert AlertEngine(AlertConfig()).on_snapshot(snap(p1Temp=999)) == []
 
 
 def test_changing_a_probe_target_in_place_rearms_only_that_probe():
-    engine = AlertEngine(AlertConfig(probe1_target=200, probe2_target=150))
+    engine = AlertEngine(AlertConfig(probe1_target=F(200), probe2_target=F(150)))
 
     assert keys(engine.on_snapshot(snap(p1Temp=210, p2Temp=160))) == [
         "probe1_target",
         "probe2_target",
     ]
-    engine.set_probe_targets(205, 150)
-    assert engine.config.probe1_target == 205
+    engine.set_probe_targets(F(205), F(150))
+    assert engine.config.probe1_target == F(205)
     # The new probe 1 target is a new alert; probe 2 stays fired.
     assert keys(engine.on_snapshot(snap(p1Temp=210, p2Temp=160))) == ["probe1_target"]
-    engine.set_probe_targets(None, 150)
+    engine.set_probe_targets(None, F(150))
     assert engine.on_snapshot(snap(p1Temp=300, p2Temp=160)) == []
+
+
+def test_fahrenheit_target_is_compared_with_celsius_readings():
+    engine = AlertEngine(AlertConfig(probe1_target=F(200)))  # 93.3 °C
+
+    # 200 °C would have been the old, wrong comparison.
+    assert engine.on_snapshot(snap(isFahrenheit=False, p1Temp=93)) == []
+    fired = engine.on_snapshot(snap(isFahrenheit=False, p1Temp=94))
+    assert keys(fired) == ["probe1_target"]
+    assert fired[0].title == "Probe 1 reached 93.3°C"
+    # Hysteresis is 5 °F, about 2.8 °C: 91 is inside it, 90 re-arms.
+    assert engine.on_snapshot(snap(isFahrenheit=False, p1Temp=91)) == []
+    assert engine.on_snapshot(snap(isFahrenheit=False, p1Temp=94)) == []
+    engine.on_snapshot(snap(isFahrenheit=False, p1Temp=90))
+    assert keys(engine.on_snapshot(snap(isFahrenheit=False, p1Temp=94))) == [
+        "probe1_target"
+    ]
+
+
+def test_celsius_target_is_compared_with_fahrenheit_readings():
+    engine = AlertEngine(AlertConfig(probe1_target=C(90)))  # 194 °F
+
+    assert engine.on_snapshot(snap(p1Temp=193)) == []
+    fired = engine.on_snapshot(snap(p1Temp=194))
+    assert keys(fired) == ["probe1_target"]
+    assert fired[0].message == "Probe 1 is at 194°F (target 194°F)."
+
+
+def test_unit_switch_mid_session_keeps_the_target_meaning():
+    # The grill's unit changes from its panel; the bridge sends nothing.
+    engine = AlertEngine(AlertConfig(probe1_target=F(200)))
+
+    assert engine.on_snapshot(snap(p1Temp=150)) == []
+    assert engine.on_snapshot(snap(isFahrenheit=False, p1Temp=66)) == []  # 150.8 °F
+    assert keys(engine.on_snapshot(snap(isFahrenheit=False, p1Temp=94))) == [
+        "probe1_target"
+    ]
+    # Switching back while still past the target is the same incident.
+    assert engine.on_snapshot(snap(p1Temp=201)) == []
+
+
+def test_probe_rules_skip_a_reading_or_target_with_no_unit():
+    engine = AlertEngine(
+        AlertConfig(probe1_target=F(200), probe2_target=ProbeTarget(150, None))
+    )
+
+    assert engine.on_snapshot(snap(isFahrenheit=None, p1Temp=500)) == []
+    assert engine.on_snapshot(snap(p2Temp=500)) == []
+    assert keys(engine.on_snapshot(snap(p1Temp=500, p2Temp=500))) == ["probe1_target"]
+
+
+def test_drift_threshold_is_in_fahrenheit_degrees():
+    clock = Clock()
+    engine = AlertEngine(AlertConfig(drift_degrees=25, drift_seconds=60), clock)
+
+    # 25 °F is about 13.9 °C: 13 °C off is fine, 14 °C off is drift.
+    assert engine.on_snapshot(
+        snap(isFahrenheit=False, moduleIsOn=True, grillTemp=120, grillSetTemp=107)
+    ) == []
+    clock.now = 100
+    assert engine.on_snapshot(
+        snap(isFahrenheit=False, moduleIsOn=True, grillTemp=121, grillSetTemp=107)
+    ) == []
+    clock.now = 200
+    fired = engine.on_snapshot(
+        snap(isFahrenheit=False, moduleIsOn=True, grillTemp=121, grillSetTemp=107)
+    )
+    assert keys(fired) == ["grill_drift"]
+    assert fired[0].message.startswith("Grill is at 121°C but set to 107°C")
+
+
+def test_drift_skips_a_reading_with_no_unit():
+    clock = Clock()
+    engine = AlertEngine(AlertConfig(drift_seconds=60), clock)
+    drifting = snap(isFahrenheit=None, moduleIsOn=True, grillTemp=300, grillSetTemp=225)
+
+    engine.on_snapshot(drifting)
+    clock.now = 100
+    assert engine.on_snapshot(drifting) == []
 
 
 def test_drift_requires_sustained_deviation_while_on():
@@ -241,7 +332,7 @@ def make_service(tmp_path, sender, **kwargs):
     hub = StateHub(stale_after_seconds=30)
     health = CollectorHealth(source="fake", stale_after_seconds=30)
     service = AlertService(
-        engine=AlertEngine(AlertConfig(probe1_target=150)),
+        engine=AlertEngine(AlertConfig(probe1_target=F(150))),
         hub=hub,
         health=health,
         sender=sender,

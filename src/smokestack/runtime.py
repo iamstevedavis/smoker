@@ -27,7 +27,7 @@ from smokestack.services.alerts import (
 from smokestack.services.collector import Collector, CollectorHealth, StateHub
 from smokestack.services.mqtt import MqttConfig, MqttPublisher
 from smokestack.sources.fake import FakeGrillSource
-from smokestack.store import Database
+from smokestack.store import Database, ProbeTarget
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +197,9 @@ class Runtime:
         if self.alerts is not None and previous.alerts is not None:
             self.alerts.engine.inherit(previous.alerts.engine)
 
-    def set_probe_targets(self, probe1: float | None, probe2: float | None) -> None:
+    def set_probe_targets(
+        self, probe1: ProbeTarget | None, probe2: ProbeTarget | None
+    ) -> None:
         if self.alerts is not None:
             self.alerts.engine.set_probe_targets(probe1, probe2)
 

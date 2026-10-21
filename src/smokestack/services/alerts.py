@@ -16,8 +16,13 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 from smokestack.services.collector import CollectorHealth, StateHub
-from smokestack.state import StateSnapshot
-from smokestack.store import Database
+from smokestack.state import (
+    StateSnapshot,
+    convert_degrees,
+    convert_temperature,
+    temperature_unit,
+)
+from smokestack.store import Database, ProbeTarget
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,8 @@ ERROR_FLAGS = (
     "noPellets",
     "erL",
 )
+# In Fahrenheit degrees, like `AlertConfig.drift_degrees`; both are scaled
+# to the unit of the reading they are compared with.
 PROBE_HYSTERESIS = 5.0
 
 
@@ -50,9 +57,9 @@ class Sender(Protocol):
 
 @dataclass(frozen=True)
 class AlertConfig:
-    probe1_target: float | None = None
-    probe2_target: float | None = None
-    drift_degrees: float = 25.0
+    probe1_target: ProbeTarget | None = None
+    probe2_target: ProbeTarget | None = None
+    drift_degrees: float = 25.0  # Fahrenheit degrees
     drift_seconds: float = 600.0
     stale_seconds: float = 60.0
     cooldown_seconds: float = 0.0
@@ -86,6 +93,10 @@ class NtfySender:
         )
         with urllib.request.urlopen(request, timeout=self.timeout):
             pass
+
+
+def _fmt(value: float) -> str:
+    return f"{round(value, 1):g}"
 
 
 @dataclass
@@ -122,7 +133,9 @@ class AlertEngine:
         self._rules = {key: replace(state) for key, state in previous._rules.items()}
         self._forget_changed_targets(previous.config)
 
-    def set_probe_targets(self, probe1: float | None, probe2: float | None) -> None:
+    def set_probe_targets(
+        self, probe1: ProbeTarget | None, probe2: ProbeTarget | None
+    ) -> None:
         """Change the probe targets in place, keeping every other rule's state."""
         previous = self.config
         self.config = replace(previous, probe1_target=probe1, probe2_target=probe2)
@@ -209,25 +222,38 @@ class AlertEngine:
 
     def _probe_rules(self, values: dict[str, Any]) -> list[Notification]:
         out: list[Notification] = []
+        # Thresholds are converted to the reading's unit every time, so a unit
+        # change on the grill needs nothing rewritten. A target or reading
+        # with no known unit is not compared.
+        unit = temperature_unit(values)
+        if unit is None:
+            return out
+        hysteresis = convert_degrees(PROBE_HYSTERESIS, "F", unit)
         targets = {1: self.config.probe1_target, 2: self.config.probe2_target}
-        for number, target in targets.items():
+        for number, saved in targets.items():
             temp = values.get(f"p{number}Temp")
-            if target is None or not isinstance(temp, (int, float)):
+            if (
+                saved is None
+                or saved.unit is None
+                or not isinstance(temp, (int, float))
+            ):
                 continue
+            target = convert_temperature(saved.target, saved.unit, unit)
             key = f"probe{number}_target"
             rule = self._rule(key)
             if temp >= target:
+                shown = f"{_fmt(target)}°{unit}"
                 out += self._fire(
                     key,
                     Notification(
-                        f"Probe {number} reached {target:g}",
-                        f"Probe {number} is at {temp:g} (target {target:g}).",
+                        f"Probe {number} reached {shown}",
+                        f"Probe {number} is at {temp:g}°{unit} (target {shown}).",
                         priority=4,
                         tags=("meat_on_bone",),
                         key=key,
                     ),
                 )
-            elif temp <= target - PROBE_HYSTERESIS:
+            elif temp <= target - hysteresis:
                 rule.armed = True
         return out
 
@@ -235,12 +261,16 @@ class AlertEngine:
         key = "grill_drift"
         rule = self._rule(key)
         temp, set_temp = values.get("grillTemp"), values.get("grillSetTemp")
+        unit = temperature_unit(values)
         usable = (
             values.get("moduleIsOn")
+            and unit is not None
             and isinstance(temp, (int, float))
             and isinstance(set_temp, (int, float))
         )
-        if not usable or abs(temp - set_temp) <= self.config.drift_degrees:
+        if not usable or abs(temp - set_temp) <= convert_degrees(
+            self.config.drift_degrees, "F", unit
+        ):
             rule.since = None
             # Back in range, or the grill was turned off: the incident is over.
             if usable or values.get("moduleIsOn") is False:
@@ -255,8 +285,8 @@ class AlertEngine:
             key,
             Notification(
                 "Grill temperature drifting",
-                f"Grill is at {temp:g} but set to {set_temp:g} "
-                f"(off by {abs(temp - set_temp):g} for {int(now - rule.since)} s).",
+                f"Grill is at {temp:g}°{unit} but set to {set_temp:g}°{unit} "
+                f"(off by {abs(temp - set_temp):g}° for {int(now - rule.since)} s).",
                 priority=4,
                 tags=("thermometer",),
                 key=key,

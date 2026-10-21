@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,18 @@ def _iso(dt: datetime) -> str:
 
 def _parse_dt(value: str) -> datetime:
     return datetime.fromisoformat(value)
+
+
+@dataclass(frozen=True)
+class ProbeTarget:
+    """A probe alert target and the unit ("F" or "C") it was entered in.
+
+    `unit` is None for targets saved before units were recorded; those are
+    not compared until they are entered again.
+    """
+
+    target: float
+    unit: str | None
 
 
 class Database:
@@ -84,10 +97,12 @@ class Database:
                 CREATE TABLE IF NOT EXISTS probe_targets (
                     probe INTEGER PRIMARY KEY CHECK (probe IN (1, 2)),
                     target REAL NOT NULL,
+                    unit TEXT CHECK (unit IN ('F', 'C')),
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            self._add_probe_target_units(conn)
             self._move_probe_targets_out_of_settings(conn)
             conn.execute(
                 """
@@ -116,8 +131,22 @@ class Database:
             """
         )
 
+    def _add_probe_target_units(self, conn: sqlite3.Connection) -> None:
+        """Targets saved before units were recorded keep a NULL unit: neither
+        the latest reading nor `updated_at` reliably says which unit they were
+        entered in, so they must be entered again."""
+        columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(probe_targets)")
+        }
+        if "unit" not in columns:
+            conn.execute(
+                "ALTER TABLE probe_targets ADD COLUMN unit TEXT "
+                "CHECK (unit IN ('F', 'C'))"
+            )
+
     def _move_probe_targets_out_of_settings(self, conn: sqlite3.Connection) -> None:
-        """Probe targets used to be saved as settings; carry them over."""
+        """Probe targets used to be saved as settings; carry them over, with
+        no unit (see `_add_probe_target_units`)."""
         for probe in (1, 2):
             name = f"alert_probe{probe}_target"
             row = conn.execute(
@@ -136,14 +165,24 @@ class Database:
                 )
             conn.execute("DELETE FROM settings WHERE name = ?", (name,))
 
-    def load_probe_targets(self) -> dict[int, float]:
+    def load_probe_targets(self) -> dict[int, ProbeTarget]:
         """Probe alert targets set from the dashboard, by probe number."""
         with self.connect() as conn:
-            rows = conn.execute("SELECT probe, target FROM probe_targets").fetchall()
-        return {row["probe"]: row["target"] for row in rows}
+            rows = conn.execute(
+                "SELECT probe, target, unit FROM probe_targets"
+            ).fetchall()
+        return {row["probe"]: ProbeTarget(row["target"], row["unit"]) for row in rows}
 
-    def save_probe_targets(self, targets: dict[int, float | None]) -> None:
-        """Set or (with None) clear several probe targets in one transaction."""
+    def save_probe_targets(
+        self, targets: dict[int, float | None], unit: str | None = None
+    ) -> None:
+        """Set or (with None) clear several probe targets in one transaction.
+
+        Targets that are set are saved in `unit` ("F" or "C"), which is then
+        required.
+        """
+        if unit not in ("F", "C") and any(t is not None for t in targets.values()):
+            raise ValueError("a unit is required to set a probe target")
         now = _iso(utc_now())
         with self.connect() as conn:
             for probe, target in targets.items():
@@ -152,13 +191,14 @@ class Database:
                 else:
                     conn.execute(
                         """
-                        INSERT INTO probe_targets (probe, target, updated_at)
-                        VALUES (?, ?, ?)
+                        INSERT INTO probe_targets (probe, target, unit, updated_at)
+                        VALUES (?, ?, ?, ?)
                         ON CONFLICT(probe) DO UPDATE SET
                             target = excluded.target,
+                            unit = excluded.unit,
                             updated_at = excluded.updated_at
                         """,
-                        (probe, target, now),
+                        (probe, target, unit, now),
                     )
 
     def load_settings(self) -> dict[str, Any]:

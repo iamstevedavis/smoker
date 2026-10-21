@@ -100,12 +100,20 @@ After applying, `GET /api/health` reports the new source, starting from
 
 The temperatures at which each probe sends an ntfy alert. Behind the login.
 
-- `GET /api/probe-targets`: `{"probe1": 203, "probe2": null, "alerts_enabled": true}`.
-  `alerts_enabled` is false while no ntfy URL is set; targets are kept either way.
+- `GET /api/probe-targets`:
+  `{"probe1": 203, "probe1_unit": "F", "probe2": null, "probe2_unit": null, "alerts_enabled": true}`.
+  Each target keeps the unit (`"F"` or `"C"`) it was entered in and is
+  converted to the unit of each reading it is checked against, so changing the
+  grill's unit doesn't change what a target means. A unit of `null` next to a
+  target means it was saved before units were recorded: it isn't checked until
+  it is entered again. `alerts_enabled` is false while no ntfy URL is set;
+  targets are kept either way.
 - `PUT /api/probe-targets`: partial update, e.g. `{"probe1": 203}`; `null`
-  clears a target. Values must be above 0 and at most 1000. Applied to the
-  running alerts at once, without restarting the source. Returns the same shape
-  as `GET`.
+  clears a target. Values must be above 0 and at most 1000. New targets are
+  saved in the unit of the grill's latest reading; setting one returns `409`
+  while that unit is unknown (no reading yet, or one without `isFahrenheit`).
+  Applied to the running alerts at once, without restarting the source.
+  Returns the same shape as `GET`.
 
 ## Health
 

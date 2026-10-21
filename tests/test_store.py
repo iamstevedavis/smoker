@@ -1,9 +1,12 @@
 import json
+import sqlite3
 import time
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from smokestack.state import normalize_state
-from smokestack.store import Database
+from smokestack.store import Database, ProbeTarget
 
 
 def test_database_persists_and_lists_history(tmp_path):
@@ -150,11 +153,52 @@ def test_probe_targets_are_set_and_cleared(tmp_path):
     db = Database(tmp_path / "smokestack.sqlite")
     db.initialize()
 
-    db.save_probe_targets({1: 203, 2: 165})
-    db.save_probe_targets({1: 205})
-    assert db.load_probe_targets() == {1: 205, 2: 165}
+    db.save_probe_targets({1: 203, 2: 165}, "F")
+    db.save_probe_targets({1: 96}, "C")
+    assert db.load_probe_targets() == {
+        1: ProbeTarget(96, "C"),
+        2: ProbeTarget(165, "F"),
+    }
+    # Clearing needs no unit.
     db.save_probe_targets({2: None})
-    assert db.load_probe_targets() == {1: 205}
+    assert db.load_probe_targets() == {1: ProbeTarget(96, "C")}
+
+
+def test_setting_a_probe_target_requires_a_unit(tmp_path):
+    db = Database(tmp_path / "smokestack.sqlite")
+    db.initialize()
+
+    with pytest.raises(ValueError):
+        db.save_probe_targets({1: 203})
+    with pytest.raises(ValueError):
+        db.save_probe_targets({1: 203}, "K")
+    assert db.load_probe_targets() == {}
+
+
+def test_probe_targets_saved_before_units_migrate_with_no_unit(tmp_path):
+    path = tmp_path / "smokestack.sqlite"
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE probe_targets (
+                probe INTEGER PRIMARY KEY CHECK (probe IN (1, 2)),
+                target REAL NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO probe_targets VALUES (1, 203, '2026-10-01T00:00:00+00:00')"
+        )
+    db = Database(path)
+
+    db.initialize()
+    db.initialize()  # idempotent
+
+    assert db.load_probe_targets() == {1: ProbeTarget(203, None)}
+    # Entering it again gives it a unit.
+    db.save_probe_targets({1: 203}, "F")
+    assert db.load_probe_targets() == {1: ProbeTarget(203, "F")}
 
 
 def test_probe_targets_saved_as_settings_are_carried_over(tmp_path):
@@ -166,5 +210,6 @@ def test_probe_targets_saved_as_settings_are_carried_over(tmp_path):
 
     db.initialize()
 
-    assert db.load_probe_targets() == {1: 203}
+    # Their unit was never recorded, so they must be entered again.
+    assert db.load_probe_targets() == {1: ProbeTarget(203, None)}
     assert db.load_settings() == {"poll_seconds": 3}

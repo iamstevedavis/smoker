@@ -22,6 +22,7 @@ from smokestack import __version__, auth, overrides
 from smokestack.config import EDITABLE_FIELDS, Settings
 from smokestack.runtime import Runtime, configure_logging, make_source
 from smokestack.services.collector import StateHub
+from smokestack.state import temperature_unit
 from smokestack.store import Database
 from smokestack.web import mount_dashboard
 
@@ -280,9 +281,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def probe_targets_payload() -> dict[str, Any]:
         targets = store.load_probe_targets()
+        payload: dict[str, Any] = {}
+        for probe in (1, 2):
+            saved = targets.get(probe)
+            payload[f"probe{probe}"] = saved.target if saved else None
+            # None for a target saved before units were recorded: it isn't
+            # compared until it is entered again.
+            payload[f"probe{probe}_unit"] = saved.unit if saved else None
         return {
-            "probe1": targets.get(1),
-            "probe2": targets.get(2),
+            **payload,
             # Targets are kept either way, but only sent while ntfy is set up.
             "alerts_enabled": app.state.runtime.alerts is not None,
         }
@@ -297,8 +304,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Under the apply lock so a settings swap can't build its runtime
         # from targets that are about to change.
         async with apply_lock:
+            # New targets are in the unit the grill reports now. Clearing a
+            # target needs no unit.
+            current = hub.current
+            unit = temperature_unit(current.values_dict()) if current else None
+            if unit is None and any(value is not None for value in changes.values()):
+                raise HTTPException(
+                    status_code=409,
+                    detail="the grill's temperature unit isn't known yet",
+                )
             store.save_probe_targets(
-                {int(name.removeprefix("probe")): value for name, value in changes.items()}
+                {
+                    int(name.removeprefix("probe")): value
+                    for name, value in changes.items()
+                },
+                unit,
             )
             targets = store.load_probe_targets()
             app.state.runtime.set_probe_targets(targets.get(1), targets.get(2))
