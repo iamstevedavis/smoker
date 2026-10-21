@@ -16,12 +16,19 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from smokestack import __version__, auth, overrides
 from smokestack.config import EDITABLE_FIELDS, Settings
 from smokestack.runtime import Runtime, configure_logging, make_source
 from smokestack.services.collector import StateHub
+from smokestack.services.control import (
+    CONTROL_HEADER,
+    ControlRejected,
+    ControlRequest,
+    GrillControl,
+)
 from smokestack.state import temperature_unit
 from smokestack.store import Database
 from smokestack.web import mount_dashboard
@@ -80,6 +87,15 @@ class ProbeTargetsUpdate(BaseModel):
     probe2: float | None = Field(default=None, gt=0, le=1000)
     # The unit the targets were entered in; defaults to the grill's current one.
     unit: Literal["F", "C"] | None = None
+
+
+class SetTemperatureBody(BaseModel):
+    """A grill setpoint in the grill's current unit; snapped to what the
+    board accepts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    temp: float = Field(gt=0, le=1000)
 
 
 # Re-exported under its old name; tests import it from here.
@@ -327,6 +343,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             targets = store.load_probe_targets()
             app.state.runtime.set_probe_targets(targets.get(1), targets.get(2))
         return probe_targets_payload()
+
+    control = GrillControl(store, hub, lambda: app.state.runtime, auth_state)
+    app.state.control = control
+
+    async def run_control(
+        name: str, request: Request, temp: float | None = None
+    ) -> Any:
+        info = ControlRequest(
+            client=request.client.host if request.client else None,
+            session=request.cookies.get(auth.COOKIE_NAME),
+            has_header=request.headers.get(CONTROL_HEADER) == "1",
+            origin=request.headers.get("origin"),
+            host=request.headers.get("host"),
+        )
+        try:
+            return await control.run(name, info, temp)
+        except ControlRejected as exc:
+            return JSONResponse(
+                {"detail": exc.detail, "audit_id": exc.audit_id},
+                status_code=exc.status_code,
+                headers=exc.headers,
+            )
+
+    # Grill control (docs/specs/2026-10-19-grill-control.md). These are the
+    # only routes that write to the grill, and there is no power-on.
+    @app.get("/api/control")
+    async def get_control() -> dict[str, Any]:
+        return control.status()
+
+    @app.post("/api/control/turn-off")
+    async def control_turn_off(request: Request) -> Any:
+        return await run_control("turn-off", request)
+
+    @app.post("/api/control/set-temperature")
+    async def control_set_temperature(request: Request, body: SetTemperatureBody) -> Any:
+        return await run_control("set-temperature", request, body.temp)
+
+    @app.post("/api/control/reboot")
+    async def control_reboot(request: Request) -> Any:
+        return await run_control("reboot", request)
 
     @app.get("/api/state")
     async def state_endpoint() -> dict[str, Any]:

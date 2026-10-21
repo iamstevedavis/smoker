@@ -118,6 +118,13 @@ class AlertEngine:
         self._clock = clock
         self._rules: dict[str, _RuleState] = {}
         self._first_health_at: float | None = None
+        self._disconnect_held_until: float | None = None
+
+    def hold_disconnect_alert(self, seconds: float) -> None:
+        """Hold back the no-data alert for `seconds` (0 releases it), so a
+        deliberate WiFi-module reboot doesn't page anyone. If the data is
+        still missing once the hold ends, the alert fires as usual."""
+        self._disconnect_held_until = self._clock() + seconds if seconds > 0 else None
 
     def _rule(self, key: str) -> _RuleState:
         return self._rules.setdefault(key, _RuleState())
@@ -131,6 +138,7 @@ class AlertEngine:
         old collector's health.
         """
         self._rules = {key: replace(state) for key, state in previous._rules.items()}
+        self._disconnect_held_until = previous._disconnect_held_until
         self._forget_changed_targets(previous.config)
 
     def set_probe_targets(
@@ -190,6 +198,9 @@ class AlertEngine:
             drift = self._rule("grill_drift")
             drift.since = None
             drift.armed = True
+            held = self._disconnect_held_until
+            if held is not None and now < held:
+                return []
             fired = self._fire(
                 key,
                 Notification(

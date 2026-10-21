@@ -77,9 +77,10 @@ def test_api_and_docs_still_work_with_dashboard(app):
         assert client.get("/openapi.json").status_code == 200
 
 
-def test_bridge_exposes_no_write_endpoints(app):
-    # Only cook sessions, bridge settings, probe alert targets and the login may write, all in the
-    # bridge's own database; nothing reaches the grill.
+def test_only_the_control_routes_can_write_to_the_grill(app):
+    # Cook sessions, bridge settings, probe alert targets and the login write
+    # only to the bridge's own database. The control routes are the only ones
+    # that reach the grill, and they are exactly the approved commands.
     write_paths = set()
     for route in app.routes:
         if isinstance(route, APIRoute) and route.methods - {"GET", "HEAD"}:
@@ -96,10 +97,16 @@ def test_bridge_exposes_no_write_endpoints(app):
                 "/api/login",
                 "/api/logout",
                 "/api/auth",
+                "/api/control/",
             )
         )
         for path in write_paths
     )
+    assert {path for path in write_paths if path.startswith("/api/control")} == {
+        "/api/control/turn-off",
+        "/api/control/set-temperature",
+        "/api/control/reboot",
+    }
 
 
 def test_dashboard_answers_head_requests(app):
