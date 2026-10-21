@@ -9,7 +9,12 @@ from smokestack.api import create_app
 from smokestack.config import Settings
 from smokestack.services.alerts import AlertConfig, AlertEngine
 from smokestack.services.control import ControlRejected, ControlRequest
-from smokestack.sources.commands import Command, celsius_setpoints, PB850PS2_SETPOINTS
+from smokestack.sources.commands import (
+    PB850PS2_SETPOINTS,
+    Command,
+    CommandNotSent,
+    celsius_setpoints,
+)
 from smokestack.state import utc_now
 from smokestack.store import CONTROL_EVENT, Database
 
@@ -503,3 +508,43 @@ def test_the_hold_survives_a_settings_swap():
     new = AlertEngine(AlertConfig(), clock=lambda: now[0])
     new.inherit(old)
     assert new.on_health({"last_update_age_seconds": 120}) == []
+
+
+def test_set_temperature_is_refused_when_the_unit_changed_since_confirming(tmp_path):
+    app = _app(tmp_path)
+    source = _source(app)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        # Switched to Celsius on the grill's panel after the user confirmed 250 F.
+        source.fahrenheit = False
+        _wait(lambda: app.state.hub.current.values_dict()["isFahrenheit"] is False)
+        stale = _post(client, "set-temperature", {"temp": 250, "unit": "F"})
+        matching = _post(client, "set-temperature", {"temp": 120, "unit": "C"})
+
+    assert stale.status_code == 409
+    assert "°C" in stale.json()["detail"]
+    assert matching.json()["outcome"] == "confirmed"
+    assert source.executed == [Command("set-temperature", 121)]
+    rejected = _audit(app)[-1]
+    assert rejected["data"]["args"] == {"temp": 250, "unit": "F"}
+
+
+def test_a_command_that_was_never_sent_does_not_start_the_gap(tmp_path, monkeypatch):
+    app = _app(tmp_path)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        app.state.control.min_gap_seconds = 5
+        source = _source(app)
+        execute = source.execute
+
+        async def not_sent(command):
+            raise CommandNotSent("the grill connection closed first")
+
+        monkeypatch.setattr(source, "execute", not_sent)
+        first = _post(client, "turn-off").json()
+        monkeypatch.setattr(source, "execute", execute)
+        retry = _post(client, "turn-off")
+
+    assert (first["outcome"], first["sent"]) == ("failed", False)
+    assert retry.status_code == 200
+    assert retry.json()["outcome"] == "confirmed"
