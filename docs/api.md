@@ -110,8 +110,10 @@ The temperatures at which each probe sends an ntfy alert. Behind the login.
   targets are kept either way.
 - `PUT /api/probe-targets`: partial update, e.g. `{"probe1": 203}`; `null`
   clears a target. Values must be above 0 and at most 1000. New targets are
-  saved in the unit of the grill's latest reading; setting one returns `409`
-  while that unit is unknown (no reading yet, or one without `isFahrenheit`).
+  saved in `unit` (`"F"` or `"C"`) when given, e.g.
+  `{"probe1": 95, "unit": "C"}`, otherwise in the unit of the grill's latest
+  reading; setting one without `unit` returns `409` while that unit is unknown
+  (no reading yet, or one without `isFahrenheit`).
   Applied to the running alerts at once, without restarting the source.
   Returns the same shape as `GET`.
 
