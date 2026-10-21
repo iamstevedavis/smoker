@@ -91,6 +91,17 @@
     </form>
   </dialog>
 
+  <dialog id="control-confirm" class="confirm" aria-labelledby="control-confirm-title">
+    <form method="dialog" class="confirm-form">
+      <h2 id="control-confirm-title">Confirm</h2>
+      <p id="control-confirm-text"></p>
+      <div class="confirm-actions">
+        <button class="theme-btn" type="submit" value="cancel">Cancel</button>
+        <button class="login-btn" id="control-confirm-ok" type="submit" value="ok">Send</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="banner" class="banner" role="alert" hidden>
     <span class="banner-icon" aria-hidden="true">!</span>
     <div>
@@ -201,6 +212,34 @@
         <summary>All flags</summary>
         <ul id="flags-all" class="flags-all"></ul>
       </details>
+    </section>
+
+    <section class="card controls" id="controls" aria-labelledby="controls-title" hidden>
+      <div class="card-label"><span id="controls-title">Controls</span></div>
+      <p id="controls-reason" class="controls-note" hidden></p>
+      <div id="controls-actions" class="controls-actions">
+        <form id="control-temp-form" class="control-temp" novalidate>
+          <label for="control-temp">Set grill to</label>
+          <div class="with-unit">
+            <input id="control-temp" type="number" inputmode="numeric" step="any" min="1" max="1000" autocomplete="off" data-control>
+            <span class="unit-label" data-unit>°F</span>
+            <button type="submit" class="alert-save" data-control>Set</button>
+          </div>
+        </form>
+        <div class="control-buttons">
+          <button type="button" class="theme-btn" id="control-off" data-control>Turn off</button>
+          <button type="button" class="theme-btn" id="control-reboot" data-control>Restart WiFi</button>
+        </div>
+        <p id="controls-stale" class="controls-note" hidden>Controls are paused until the grill is reporting again.</p>
+      </div>
+      <div id="control-result" class="control-result" role="status" aria-live="polite" hidden>
+        <span class="spinner" aria-hidden="true"></span>
+        <div>
+          <strong id="control-result-title"></strong>
+          <span id="control-result-detail"></span>
+          <div id="control-result-meta" class="control-meta"></div>
+        </div>
+      </div>
     </section>
 
     <section class="card chart-card" aria-labelledby="chart-title">

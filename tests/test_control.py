@@ -208,6 +208,7 @@ def test_turn_off_is_confirmed_and_audited(tmp_path):
 
     body = response.json()
     assert response.status_code == 200
+    assert (body["command"], body["args"]) == ("turn-off", {})
     assert body["outcome"] == "confirmed"
     assert body["sent"] is True
     assert body["attempts"] == 1

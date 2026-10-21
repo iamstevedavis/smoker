@@ -186,6 +186,7 @@ class GrillControl:
                 {"outcome": "failed", "detail": f"interrupted: {type(exc).__name__}"},
             )
             raise
+        result = {"command": name, "args": args, **result}
         result["audit_id"] = self._audit(name, args, request, result)
         self.last_result = result
         return result
