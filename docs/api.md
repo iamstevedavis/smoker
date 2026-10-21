@@ -202,7 +202,11 @@ the login is off). `GET /api/control` reports their number as `log_count`.
   `next_before` as `before` for the next, older page; it is `null` on the last.
 - `POST /api/control-log/prune` `{"older_than_days": 90}` deletes entries
   older than that; `{}` deletes them all. Add `"dry_run": true` to only
-  count them. Answers `{"matching": 12, "deleted": 12, "total": 45}`. Needs
+  count them: the answer, `{"matching": 12, "deleted": 0, "cutoff": "...", "max_id": 857}`,
+  fixes the scope. Send `{"cutoff": "...", "max_id": 857}` (or just
+  `max_id` for "all") to delete exactly the entries counted, not ones logged
+  or aged past the cutoff in between; the dashboard always does. A delete
+  answers `{"matching": 12, "deleted": 12, "total": 45}`. Needs
   the same `X-Smokestack-Control: 1` header and same-host `Origin` as the
   controls. Each prune is recorded as a `control_log_pruned` health event
   (outside the log itself).

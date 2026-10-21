@@ -1266,7 +1266,8 @@
     button.disabled = true;
     logStatus("", "");
     try {
-      const { matching } = await pruneRequest({ ...scope, dry_run: true });
+      // The delete is pinned to what the dry run counted.
+      const { matching, cutoff, max_id: maxId } = await pruneRequest({ ...scope, dry_run: true });
       if (!matching) {
         logStatus(all ? "The log is already empty." : "Nothing is older than " + days + " days.", "");
         return;
@@ -1278,7 +1279,7 @@
         "Delete " + what,
       );
       if (!ok) return;
-      const { deleted } = await pruneRequest(scope);
+      const { deleted } = await pruneRequest(cutoff ? { cutoff, max_id: maxId } : { max_id: maxId });
       logStatus("Deleted " + (deleted === 1 ? "1 entry." : deleted + " entries."), "ok");
       await loadCommandLog(false);
       loadControl();
