@@ -353,11 +353,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         async with apply_lock:
             new_overrides = {**app.state.overrides, **changes}
             new = build_runtime(new_overrides, changes)
-            store.save_settings(changes)
             if "password" in changes:
                 # Saving a grill password ends a pending change: the value
-                # the user typed is the one the grill has.
-                passwords.clear()
+                # the user typed is the one the grill has. A reconcile that
+                # is running waits, so it cannot overwrite it afterwards.
+                await passwords.clear_now()
+            store.save_settings(changes)
             await swap(new, new_overrides)
         return current_settings_payload()
 

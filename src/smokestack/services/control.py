@@ -397,12 +397,25 @@ class GrillControl:
         new = command.password or ""
         old = runtime.settings.password
         async with self.passwords.changing():
+            if self.passwords.pending is not None:
+                # A change that has not settled yet is holding on to the
+                # password the grill may have: starting another one would
+                # throw that away, and the bridge could not reconnect.
+                raise ControlRejected(
+                    409,
+                    "a password change is still in flight; save the password "
+                    "in Settings, or wait for it to settle",
+                )
             # The recovery state first: both passwords are recorded before
             # anything is sent, so a bridge that stops mid-change comes back
             # knowing both and can reconnect without anyone at the grill.
             self.passwords.begin(old, new)
             set_pending_passwords(source, self.passwords.candidates)
             sent = await self._send(runtime, command)
+            if sent["sent"]:
+                # Only a command that may have reached the grill starts the
+                # gap between commands.
+                self._last_sent_at = self.clock()
             outcome, detail = await self.passwords.settle_by_asking(source)
         set_pending_passwords(source, self.passwords.candidates)
         return {

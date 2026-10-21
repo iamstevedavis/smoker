@@ -5,6 +5,7 @@ one command that can lock the bridge out. What settles it is which password
 the grill accepts afterwards, never what the command returned.
 """
 
+import asyncio
 import time
 
 import pytest
@@ -272,6 +273,76 @@ def test_saving_a_password_in_settings_ends_the_pending_change(tmp_path):
     assert response.status_code == 200
     assert app.state.store.load_pending_password() is None
     assert app.state.settings.password == "typed-in"
+
+
+def test_saving_a_password_in_settings_beats_a_reconcile_in_flight(tmp_path):
+    """A reconcile that is already running must not overwrite the user's
+    value: the user knows which password the grill has."""
+    settings = _settings(tmp_path)
+    finish_setup(settings, password=PASSWORD, required=True)
+    # A change was in flight when the bridge stopped.
+    store = Database(settings.db_path)
+    store.initialize()
+    store.save_pending_password(OLD, NEW)
+    app = create_app(settings)
+    source = app.state.runtime.collector.source
+    started = []
+
+    async def slow_check(password):
+        started.append(password)
+        # Long enough for the user to save a password while this waits.
+        await asyncio.sleep(0.5)
+        return True
+
+    source.check_password = slow_check
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        # The bridge settles the change on startup, and asks the grill.
+        _wait(lambda: started)
+        # The user saves the password they know the grill has.
+        saved = client.put("/api/settings", json={"password": "typed-in"})
+
+    assert saved.status_code == 200
+    # The user's value is the one that is kept.
+    assert app.state.settings.password == "typed-in"
+    assert app.state.store.load_settings() == {"password": "typed-in"}
+
+
+def test_a_second_password_change_is_refused_while_one_is_pending(tmp_path):
+    app = _app(tmp_path)
+    source = _source(app)
+
+    async def unreachable(password):
+        raise ConnectionError("the grill is gone")
+
+    source.check_password = unreachable
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        assert _post(client).json()["outcome"] == "unconfirmed"
+        pending = app.state.store.load_pending_password()
+        # The first change is still holding on to the password the grill
+        # may have, so a second one is refused.
+        second = _post(client, _body(password="yet-another"))
+
+    assert second.status_code == 409
+    assert "still in flight" in second.json()["detail"]
+    # The first change's recovery state is untouched.
+    assert app.state.store.load_pending_password() == pending
+
+
+def test_a_password_change_starts_the_gap_between_commands(tmp_path):
+    app = _app(tmp_path)
+    app.state.control.min_gap_seconds = 5
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        changed = _post(client)
+        # Another command has to wait, as after any other one.
+        other = client.post(
+            "/api/control/set-temperature", json={"temp": 250}, headers=HEADERS
+        )
+
+    assert changed.json()["outcome"] == "confirmed"
+    assert other.status_code == 429
 
 
 def test_a_pending_change_is_settled_after_a_restart(tmp_path):
