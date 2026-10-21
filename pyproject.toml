@@ -14,9 +14,10 @@ dependencies = [
   # Both grill sources ship in every install. pytboss already depends on
   # bleak; it is listed because the BLE source imports it directly.
   # pytboss uses date-based versions, so a `<1` cap would exclude all releases.
-  # 2026.8.4 is the first release that ships `pytboss.http`.
+  # 2026.8.5 is the first release that converts every temperature field of
+  # a Celsius frame (pytboss#593), which the set-unit command relies on.
   "bleak>=0.22,<1",
-  "pytboss>=2026.8.4",
+  "pytboss>=2026.8.5",
 ]
 
 [project.optional-dependencies]
