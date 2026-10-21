@@ -295,17 +295,8 @@ class GrillControl:
                         {"Retry-After": str(seconds)},
                     )
             runtime = self.runtime()
-            health = runtime.health
-            current = self.hub.current
-            if (
-                not health.connected
-                or current is None
-                or current.is_stale(stale_after_seconds=self.hub.stale_after_seconds)
-            ):
-                raise ControlRejected(
-                    503, "the grill isn't connected or its data is stale"
-                )
-            values = current.values_dict()
+            self._check_fresh(runtime)
+            values = self.hub.current.values_dict()
             command = self._command(name, temp, values, unit, password)
             started = utc_now()
             self.in_flight = {
@@ -315,7 +306,7 @@ class GrillControl:
             }
             try:
                 if name == "set-password":
-                    result = await self._change_password(runtime, command)
+                    result = await self._change_password(command)
                 else:
                     result = await self._send_and_confirm(runtime, command, values)
             finally:
@@ -384,18 +375,34 @@ class GrillControl:
         snapped = min(setpoints, key=lambda value: abs(value - temp))
         return Command("set-temperature", snapped)
 
-    async def _change_password(
-        self, runtime: Runtime, command: Command
-    ) -> dict[str, Any]:
+    def _check_fresh(self, runtime: Runtime) -> None:
+        """The grill has to be connected and its data fresh."""
+        current = self.hub.current
+        if (
+            not runtime.health.connected
+            or current is None
+            or current.is_stale(stale_after_seconds=self.hub.stale_after_seconds)
+        ):
+            raise ControlRejected(503, "the grill isn't connected or its data is stale")
+
+    async def _change_password(self, command: Command) -> dict[str, Any]:
         """Change the grill's password, and settle it by authenticating.
 
         What the send returns is only a hint: a reply lost after the grill
         applied the change looks like a failure but isn't, so what decides is
         which password the grill accepts afterwards.
         """
-        source = runtime.collector.source
-        new = command.password or ""
         async with self.passwords.locked():
+            # The runtime is resolved under the lock: a settings save that
+            # is swapping the source out cannot be half way through now,
+            # and the old one is no longer the bridge's.
+            runtime = self.runtime()
+            source = runtime.collector.source
+            unavailable = self.unavailable()
+            if unavailable is not None:
+                raise ControlRejected(*unavailable)
+            self._check_fresh(runtime)
+            new = command.password or ""
             if self.passwords.pending is not None:
                 # A change that has not settled yet is holding on to the
                 # password the grill may have: starting another one would

@@ -7,6 +7,7 @@ the grill accepts afterwards, never what the command returned.
 
 import asyncio
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
@@ -397,6 +398,35 @@ def test_a_password_change_starts_the_gap_between_commands(tmp_path):
 
     assert changed.json()["outcome"] == "confirmed"
     assert other.status_code == 429
+
+
+def test_a_change_uses_the_runtime_that_is_running_after_a_settings_save(tmp_path):
+    """A settings save that is swapping the source out must finish before
+    the change is sent: the old source is stopped by then."""
+    app = _app(tmp_path)
+    original_stop = app.state.runtime.stop
+
+    async def slow_stop():
+        # The swap is under way, and the old runtime is still the current
+        # one until it is over.
+        await asyncio.sleep(0.5)
+        await original_stop()
+
+    app.state.runtime.stop = slow_stop
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            saving = pool.submit(
+                client.put, "/api/settings", json={"password": "from-settings"}
+            )
+            time.sleep(0.2)
+            response = _post(client)
+        saving.result()
+
+    body = response.json()
+    # The change went to the source that was running when it was sent.
+    assert body["outcome"] == "confirmed"
+    assert _source(app).password == NEW
 
 
 def test_a_change_reads_the_password_the_bridge_has_now(tmp_path):
