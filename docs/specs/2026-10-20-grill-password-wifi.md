@@ -42,8 +42,9 @@ setting), enterprise WiFi, power-on (still never).
 that needs nobody at the grill:
 
 1. Set the new credentials, **not saved**.
-2. Watch, over Bluetooth, whether the module joins the new network and gets
-   an address.
+2. Watch, over Bluetooth, whether the module joins **the new network** and
+   gets an address. Seeing the old network still connected proves nothing:
+   the switch may not have started yet (see the success test below).
 3. Joined: `Config.Save`, so it survives restarts. Not joined within the
    window (60 s): **restart the module** (`Sys.Reboot`, already approved),
    which loads the saved config, the old network, again.
@@ -62,15 +63,27 @@ changes.
    grill password twice. The grill password must be non-empty; the vendor
    app's limits apply (to be checked on hardware, see Unknowns).
 2. Under the command lock, with fresh data, send `PB.SetDevicePassword`.
-3. Immediately save the new password as the `password` setting (a UI
-   override, so it wins over `.env`) and swap the runtime, keeping the old
-   one in memory.
-4. **Confirm** with an authenticated poll using the new password. If that
-   is `Unauthorized`, try the old one: if the old one still works, the
-   change didn't take, so restore the old setting and report `failed`.
-   If neither works, report `unconfirmed` and keep the new one saved, with a
-   banner explaining how to recover (set the password in Settings, or reset
-   it at the grill).
+   **Whatever the send returns is only a hint.** A reply lost after the
+   grill applied the change (a timeout, a dropped connection) looks like a
+   failure but isn't, so no outcome of the send decides which password the
+   bridge keeps.
+3. Before anything is decided, keep both passwords in memory and save the
+   new one as the `password` setting (a UI override, so it wins over
+   `.env`), marked *pending*, so a bridge restart mid-way still knows both.
+4. **Reconcile by authenticating**, whatever step 2 returned: an
+   authenticated poll with the new password, then, if that is
+   `Unauthorized`, with the old one (each once, with the usual uptime
+   refresh).
+   - New works: keep it, clear *pending*, report `confirmed` (even if the
+     send raised).
+   - Only old works: the change didn't take; restore the old setting and
+     report `failed`.
+   - Neither works, or the grill can't be reached: keep the new one saved
+     and still *pending*, report `unconfirmed`, and show a banner saying how
+     to recover (set the password in Settings, or reset it at the grill).
+     While *pending*, an `Unauthorized` poll retries with the other
+     password, so whichever the grill ends up with, the bridge reconnects
+     without anyone touching it.
 5. The password never appears in logs, the audit row or API responses; the
    audit row records only that it changed.
 
@@ -85,11 +98,18 @@ Bluetooth source only; the dashboard hides it otherwise and the API answers
 3. Confirmation dialog: "Move the grill to *Network*. If it can't join
    within a minute, the bridge restarts its WiFi module and it goes back to
    *Current network*."
-4. Under the command lock: `PB.SetWifiCredentials` (unsaved), then watch
-   the module's station state over Bluetooth for up to 60 s.
-5. Joined, with an address: `Config.Save` (without its own restart),
-   report `confirmed` with the new address, and offer to update
-   `PITBOSS_HOST` if the bridge is set up for `http` later.
+4. Under the command lock: read the station state first (SSID, address),
+   then `PB.SetWifiCredentials` (unsaved), then watch the station state over
+   Bluetooth for up to 60 s.
+5. **Success is evidence of the new network, not of "a" network.** It
+   counts only when the station reports the requested SSID (and BSSID, if
+   one was picked from the scan) with an address. If this firmware can't
+   report the SSID (see Unknowns), success instead needs a disconnect seen
+   *after* the command followed by a reconnect with an address; the old
+   network still connected, at any point, never counts. Only then
+   `Config.Save` (without its own restart), report `confirmed` with the new
+   address, and offer to update `PITBOSS_HOST` if the bridge is set up for
+   `http` later.
 6. Not joined: `Sys.Reboot` to revert, wait for the module to come back on
    the old network (as for a reboot, with the no-data alert held back), and
    report `failed: reverted`. If it doesn't come back, `unconfirmed`, with
@@ -114,9 +134,11 @@ These decide whether the design works as written:
    different design.
 2. Does `Sys.Reboot` drop unsaved config (the undo above), as Mongoose OS
    normally does?
-3. Over Bluetooth, which call reports the station's state and address
-   (`Sys.GetInfo`'s `wifi` block, or `Wifi.*` if this firmware serves it;
-   `list_rpcs()` tells)?
+3. Over Bluetooth, which call reports the station's state and address, and
+   **does it include the SSID** (`Sys.GetInfo`'s `wifi` block, or `Wifi.*`
+   if this firmware serves it; `list_rpcs()` tells)? Without the SSID,
+   success falls back to "disconnected after the command, then
+   reconnected".
 4. Is `PB.SetDevicePassword` saved at once, and what lengths and characters
    does the grill accept?
 
