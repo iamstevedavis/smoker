@@ -813,7 +813,8 @@
   // Controls ---------------------------------------------------------------
 
   function setupControls() {
-    const seg = document.querySelectorAll(".seg button");
+    // Only the time-range buttons: the unit switch in Controls is a .seg too.
+    const seg = document.querySelectorAll(".seg button[data-hours]");
     const markRange = () => seg.forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.hours) === state.hours)));
     markRange();
     seg.forEach((b) => b.addEventListener("click", () => {
