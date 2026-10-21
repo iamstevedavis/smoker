@@ -30,7 +30,7 @@ from smokestack.services.control import (
     ControlRequest,
     GrillControl,
 )
-from smokestack.services.passwords import PasswordChange
+from smokestack.services.passwords import PasswordChange, set_pending_passwords
 from smokestack.state import temperature_unit, utc_now
 from smokestack.store import Database
 from smokestack.web import mount_dashboard
@@ -356,8 +356,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if "password" in changes:
                 # Saving a grill password ends a pending change: the value
                 # the user typed is the one the grill has. A reconcile that
-                # is running waits, so it cannot overwrite it afterwards.
+                # is running waits, so it cannot overwrite it afterwards,
+                # and the source that replaces this one gets no recovery
+                # candidates: it would reconnect with a discarded password.
                 await passwords.clear_now()
+                set_pending_passwords(new.collector.source, ())
             store.save_settings(changes)
             await swap(new, new_overrides)
         return current_settings_payload()

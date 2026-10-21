@@ -275,6 +275,27 @@ def test_saving_a_password_in_settings_ends_the_pending_change(tmp_path):
     assert app.state.settings.password == "typed-in"
 
 
+def test_saving_a_password_in_settings_drops_the_recovery_candidates(tmp_path):
+    """The source that replaces the old one must not carry the recovery
+    passwords: the user has said which password the grill has."""
+    app = _app(tmp_path)
+    source = _source(app)
+
+    async def unreachable(password):
+        raise ConnectionError("the grill is gone")
+
+    source.check_password = unreachable
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        assert _post(client).json()["outcome"] == "unconfirmed"
+        assert _source(app).pending_passwords == (NEW, OLD)
+        response = client.put("/api/settings", json={"password": "typed-in"})
+
+    assert response.status_code == 200
+    assert _source(app).pending_passwords == ()
+    assert app.state.store.load_pending_password() is None
+
+
 def test_saving_a_password_in_settings_beats_a_reconcile_in_flight(tmp_path):
     """A reconcile that is already running must not overwrite the user's
     value: the user knows which password the grill has."""
