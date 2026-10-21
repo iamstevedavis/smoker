@@ -51,10 +51,66 @@ PITBOSS_SOURCE=fake uvicorn smokestack.api:create_app --factory --reload
   - a save round-trip test in `tests/test_settings.py`.
 - `pyproject.toml` is the only place the version is written.
 
+### Grill commands
+
+Adding or changing one needs the owner's approval first (see Rules), then:
+
+- the command in `sources/commands.py` (`Command`, `COMMANDS`, and
+  `MCU_COMMANDS` if it goes to the control board), its pytboss call in
+  `sources/_pytboss.py` `run_command`, and its behaviour in the fake source;
+- a route under `/api/control/<command>` that goes through `GrillControl.run`,
+  which supplies the lock, the session and enabled checks, the
+  `X-Smokestack-Control` header and `Origin` check, the confirmation and the
+  audit row. Nothing else lives under `/api/control/`: routes that don't
+  write to the grill go elsewhere (the command log is `/api/control-log`);
+- the tests that pin the list: `test_only_the_approved_commands_exist` and the
+  forbidden calls in `tests/test_source_commands.py`, and the
+  `/api/control/*` set in `tests/test_web.py`;
+- the spec in `docs/specs/` and the approved list under Rules above.
+
+Test control with the fake source's failure injection: add names from
+`FAULTS` in `sources/fake.py` to `source.faults` (an RPC error, an ignored
+command, a blank frame, `Unauthorized` once, a reboot that never comes back).
+
+### Dashboard changes
+
+CI only checks the dashboard's HTML and JS as text. After changing
+`src/smokestack/static/`, run the app with the `fake` source and use it in a
+browser (headless Chromium with Playwright is fine): the changed flow, at
+desktop and phone (about 390 px) widths, with no errors in the console.
+
+## Working on an issue
+
+1. **Use a worktree, not the main checkout.** One per branch, next to the
+   repo, with its own venv:
+
+   ```bash
+   git fetch origin
+   git worktree add ../smokestack-<branch> -b <branch> origin/master
+   cd ../smokestack-<branch>
+   python -m venv .venv && . .venv/bin/activate
+   python -m pip install -e ".[test]"
+   ```
+
+   After the PR merges: `git worktree remove ../smokestack-<branch>` and
+   `git branch -d <branch>`.
+2. **Always finish with a PR.** Commit, push the branch and open the PR (see
+   below) without stopping to ask; local commits alone aren't done. Never
+   merge it yourself.
+3. **Address review comments.** For each one: fix it if it's valid and run
+   the tests, push, and reply on that comment with what changed (and the
+   commit) or why no change is needed. Reviews run again on each push, so
+   check for new comments after pushing.
+4. **Keep the PR mergeable.** If `master` moves and the PR conflicts, rebase
+   onto `origin/master`, resolve, rerun the tests and push with
+   `--force-with-lease`.
+
 ## Pull requests
 
 - Branch from `master`, one issue per PR. Put `Closes #<n>` in the body when
-  the PR finishes the issue, or `Part of #<n>` when it doesn't.
+  the PR finishes the issue, or `Part of #<n>` when it doesn't. An issue
+  labelled `needs-hardware` stays open until the owner has checked it at the
+  grill, so its PR says `Part of #<n>` and lists the hardware check.
 - Update the docs in the same PR when behaviour, settings or deployment
   change.
 - **Label every PR.** The labels build the release notes
