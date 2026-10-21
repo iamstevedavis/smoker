@@ -90,6 +90,8 @@ three endpoints sit behind the login.
   returns 422 and nothing changes. Otherwise the values are saved and the source, MQTT and alerts are
   restarted with them. Returns the same shape as `GET`. An empty `mqtt_host`
   or `ntfy_url` turns that service off.
+  Saving the grill's `password` here also ends a password change the bridge
+  hasn't settled: your value wins, and the bridge uses it from then on.
 - `DELETE /api/settings/{name}`: drop the saved value so the field falls back
   to the environment or default, and apply.
 
@@ -120,17 +122,21 @@ The temperatures at which each probe sends an ntfy alert. Behind the login.
 ## Grill control
 
 The only routes that write to the grill. They send turn-off, set-temperature,
-a reboot of the grill's WiFi module or a switch of its unit, and nothing
-else: there is no way to
-turn the grill on. Off unless `SMOKESTACK_ENABLE_CONTROL` is on, and only
-available while the dashboard login is on; every route needs a session. The
-design is [docs/specs/2026-10-19-grill-control.md](specs/2026-10-19-grill-control.md).
+a reboot of the grill's WiFi module, a switch of its unit or a change of the
+grill's own password, and nothing else: there is no way to turn the grill
+on. Off unless `SMOKESTACK_ENABLE_CONTROL` is on, and only available while
+the dashboard login is on; every route needs a session. The design is
+[docs/specs/2026-10-19-grill-control.md](specs/2026-10-19-grill-control.md)
+and
+[docs/specs/2026-10-20-grill-password-wifi.md](specs/2026-10-20-grill-password-wifi.md).
 
 - `GET /api/control`:
-  `{"enabled": true, "available": true, "reason": null, "commands": ["turn-off", "set-temperature", "reboot", "set-unit"], "unit": "F", "setpoints": [180, 190, ...], "in_flight": null, "last_result": {...}}`.
+  `{"enabled": true, "available": true, "reason": null, "commands": ["turn-off", "set-temperature", "reboot", "set-unit", "set-password"], "unit": "F", "setpoints": [180, 190, ...], "in_flight": null, "last_result": {...}, "pending_password_change": null}`.
   `available` is false, with a `reason`, while control is switched off, the
   login is off, or the source can't send commands. `setpoints` are what a
   set-temperature is snapped to, in the grill's current `unit`.
+  `pending_password_change` is `null`, or `{"started_at": "..."}` while a
+  password change the bridge hasn't settled yet is in flight.
 - `POST /api/control/turn-off`
 - `POST /api/control/set-temperature` `{"temp": 250, "unit": "F"}`, in the
   grill's current unit, snapped to the nearest setpoint the board accepts
@@ -145,6 +151,11 @@ design is [docs/specs/2026-10-19-grill-control.md](specs/2026-10-19-grill-contro
   when `isFahrenheit` changes; `already_applied` if it already matches.
   Probe alert targets and the drift threshold keep their meaning across a
   switch.
+- `POST /api/control/set-password` `{"password": "...", "confirm": "...",
+  "dashboard_password": "..."}` changes the grill's own password. The two
+  passwords have to be the same (`422` otherwise), and the dashboard password
+  is asked for again, because this is the one command whose failure can lock
+  the bridge out (`403` if it is wrong).
 
 Each POST must carry an `X-Smokestack-Control: 1` header, and is refused when
 its `Origin` header doesn't match the `Host` it was sent to, so another site
@@ -180,14 +191,23 @@ time. The answer, `200`, is the result:
   already at that setpoint. A field missing from the latest reading never
   counts as already applied.
 
+A password change is settled differently: what the command returned is only a
+hint, because a reply lost after the grill applied the change looks like a
+failure but isn't. So the bridge asks the grill which password it accepts
+and keeps that one. `confirmed` means the grill now uses the new password
+and the bridge matches it, `failed` that the grill still uses the old one,
+and `unconfirmed` that the bridge cannot tell: the change stays pending, the
+dashboard says so, and saving the password in **Settings** ends it. The
+passwords never appear in the answer, the log or the audit row.
+
 Refusals send nothing and answer `{"detail": "...", "audit_id": 813}`:
 
 | Status | Why |
 | --- | --- |
 | `401` | No valid session |
-| `403` | Control is off, the login is off, the header is missing, or a cross-site `Origin` |
-| `409` | Another command is still being confirmed; (set-temperature) the grill's unit isn't known yet or isn't the `unit` sent; (set-unit) the grill isn't off |
-| `422` | Bad body (`temp` must be above 0 and at most 1000) |
+| `403` | Control is off, the login is off, the header is missing, a cross-site `Origin`, or (set-password) the dashboard password is wrong |
+| `409` | Another command is still being confirmed; (set-temperature) the grill's unit isn't known yet or isn't the `unit` sent; (set-unit) the grill isn't off; (set-password) a password change is still in flight: save the password in Settings, or wait for it to settle |
+| `422` | Bad body (`temp` must be above 0 and at most 1000; the two passwords must be the same) |
 | `429` | Less than 5 s since the last command that may have reached the grill; see `Retry-After` |
 | `503` | The grill isn't connected, its data is stale, or the source can't send commands |
 
@@ -196,7 +216,8 @@ Every attempt that reaches these routes, sent or refused, is recorded as a
 address and the outcome; `audit_id` is its id. Requests the login turns away
 (401 before reaching the route) and malformed bodies (422) are not recorded.
 `SMOKESTACK_RETENTION_DAYS` never deletes these events; only pruning the
-command log does.
+command log does. A password change is recorded without its arguments: the
+row says the command changed, never what it changed to.
 
 ### Command log
 
