@@ -11,6 +11,10 @@ from typing import Any
 
 from smokestack.state import StateSnapshot, utc_now
 
+# Every grill command attempt is one of these health events. Retention
+# pruning never deletes them; only a deliberate prune does (#55).
+CONTROL_EVENT = "control_command"
+
 
 def _iso(dt: datetime) -> str:
     return dt.astimezone(UTC).isoformat()
@@ -309,14 +313,18 @@ class Database:
         return [self._reading_row_to_dict(row) for row in rows]
 
     def prune(self, older_than: datetime) -> dict[str, int]:
-        """Delete readings and health events observed before `older_than`."""
+        """Delete readings and health events observed before `older_than`.
+
+        The grill control audit log (`CONTROL_EVENT` rows) is kept.
+        """
         cutoff = _iso(older_than)
         with self.connect() as conn:
             readings = conn.execute(
                 "DELETE FROM readings WHERE observed_at < ?", (cutoff,)
             ).rowcount
             events = conn.execute(
-                "DELETE FROM health_events WHERE at < ?", (cutoff,)
+                "DELETE FROM health_events WHERE at < ? AND event_type != ?",
+                (cutoff, CONTROL_EVENT),
             ).rowcount
         return {"readings": readings, "health_events": events}
 
@@ -394,9 +402,10 @@ class Database:
         message: str,
         data: dict[str, Any] | None = None,
         at: datetime | None = None,
-    ) -> None:
+    ) -> int:
+        """Record an event and return its id."""
         with self.connect() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO health_events (at, event_type, message, data_json)
                 VALUES (?, ?, ?, ?)
@@ -408,6 +417,7 @@ class Database:
                     json.dumps(data or {}, sort_keys=True),
                 ),
             )
+        return cursor.lastrowid
 
     def list_health_events(self, limit: int = 100) -> list[dict[str, Any]]:
         with self.connect() as conn:
@@ -429,6 +439,22 @@ class Database:
             }
             for row in rows
         ]
+
+    def last_control_result(self) -> dict[str, Any] | None:
+        """The result of the newest grill command that wasn't rejected."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, data_json FROM health_events
+                WHERE event_type = ?
+                  AND json_extract(data_json, '$.outcome') != 'rejected'
+                ORDER BY id DESC LIMIT 1
+                """,
+                (CONTROL_EVENT,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {**json.loads(row["data_json"]), "audit_id": row["id"]}
 
     def _reading_row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
         return {

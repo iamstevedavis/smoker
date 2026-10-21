@@ -203,6 +203,11 @@ class Runtime:
         if self.alerts is not None:
             self.alerts.engine.set_probe_targets(probe1, probe2)
 
+    def hold_stale_alert(self, seconds: float) -> None:
+        """Hold back the no-data alert for `seconds`; 0 releases it."""
+        if self.alerts is not None:
+            self.alerts.engine.hold_disconnect_alert(seconds)
+
     async def start(self) -> None:
         # Alerts first, so they subscribe before the collector's first reading.
         if self.alerts is not None:
