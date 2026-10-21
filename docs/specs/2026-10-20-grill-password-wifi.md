@@ -89,6 +89,12 @@ changes.
      While *pending*, an `Unauthorized` poll retries with the other
      password, so whichever the grill ends up with, the bridge reconnects
      without anyone touching it.
+   - **Saving a grill password in Settings ends the pending change.** That
+     is what the banner asks for, so the user's value wins: the pending row
+     (both recorded passwords) is deleted, the saved value becomes the
+     `password` setting, and the bridge polls with it as usual, with no
+     reconciliation. If it is wrong, that shows as an ordinary
+     `Unauthorized`, as for any wrong password today.
 5. The passwords never appear in logs, the audit row or API responses; the
    audit row records only that it changed. The pending row is deleted once
    reconciled, and is as sensitive as the saved grill password already is.
