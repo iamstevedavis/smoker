@@ -399,6 +399,34 @@ def test_a_password_change_starts_the_gap_between_commands(tmp_path):
     assert other.status_code == 429
 
 
+def test_an_unconfirmed_change_is_settled_by_the_bridge_itself(tmp_path):
+    """A change that ends unconfirmed is not left for the next restart:
+    the bridge keeps trying."""
+    app = _app(tmp_path)
+    app.state.passwords.retry_seconds = 0.05
+    source = _source(app)
+    calls = []
+
+    async def flaky_check(password):
+        calls.append(password)
+        if len(calls) == 1:
+            raise ConnectionError("the grill is gone")
+        return password == NEW
+
+    source.check_password = flaky_check
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        assert _post(client).json()["outcome"] == "unconfirmed"
+        # The bridge tries again on its own.
+        _wait(
+            lambda: app.state.store.load_pending_password() is None,
+            timeout=10.0,
+        )
+
+    assert app.state.settings.password == NEW
+    assert app.state.store.load_settings() == {"password": NEW}
+
+
 def test_a_pending_change_is_settled_after_a_restart(tmp_path):
     app = _app(tmp_path)
     source = _source(app)

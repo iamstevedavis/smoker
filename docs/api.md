@@ -197,8 +197,9 @@ failure but isn't. So the bridge asks the grill which password it accepts
 and keeps that one. `confirmed` means the grill now uses the new password
 and the bridge matches it, `failed` that the grill still uses the old one,
 and `unconfirmed` that the bridge cannot tell: the change stays pending, the
-dashboard says so, and saving the password in **Settings** ends it. The
-passwords never appear in the answer, the log or the audit row.
+dashboard says so, and the bridge keeps asking until the grill answers.
+Saving the password in **Settings** ends it as well. The passwords never
+appear in the answer, the log or the audit row.
 
 Refusals send nothing and answer `{"detail": "...", "audit_id": 813}`:
 
