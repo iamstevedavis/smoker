@@ -175,12 +175,26 @@ def test_pruning_everything_is_recorded_outside_the_log(tmp_path):
         for e in app.state.store.list_health_events(limit=100)
         if e["event_type"] == "control_log_pruned"
     ]
-    assert pruned["data"] == {"older_than_days": None, "deleted": 2, "client": "testclient"}
+    assert pruned["data"] == {
+        "older_than_days": None,
+        "cutoff": None,
+        "max_id": None,
+        "deleted": 2,
+        "client": "testclient",
+    }
 
 
 @pytest.mark.parametrize(
     "body",
-    [{"older_than_days": 0}, {"older_than_days": -1}, {"days": 3}, {"dry_run": "maybe"}],
+    [
+        {"older_than_days": 0},
+        {"older_than_days": -1},
+        {"days": 3},
+        {"dry_run": "maybe"},
+        {"older_than_days": 3, "cutoff": "2026-01-01T00:00:00+00:00"},
+        {"cutoff": "2026-01-01T00:00:00"},
+        {"max_id": -1},
+    ],
 )
 def test_bad_prune_requests_are_rejected(tmp_path, body):
     app = _app(tmp_path)
@@ -198,3 +212,44 @@ def test_control_status_reports_the_log_size(tmp_path):
     _record(app, "turn-off", "confirmed")
     with TestClient(app) as client:
         assert _signed_in(client).get("/api/control").json()["log_count"] == 1
+
+
+def test_a_prune_deletes_only_what_its_dry_run_counted(tmp_path):
+    app = _app(tmp_path)
+    _record(app, "turn-off", "confirmed", days_ago=40)
+    _record(app, "reboot", "confirmed", days_ago=29.9999)
+    with TestClient(app) as client:
+        _signed_in(client)
+        counted = client.post(
+            "/api/control-log/prune",
+            json={"older_than_days": 30, "dry_run": True},
+            headers=HEADERS,
+        ).json()
+        everything = client.post(
+            "/api/control-log/prune", json={"dry_run": True}, headers=HEADERS
+        ).json()
+        # While the confirmation is open: a new attempt is logged, and the
+        # reboot entry ages past 30 days.
+        _record(app, "set-temperature", "rejected")
+        app.state.store.insert_health_event(
+            CONTROL_EVENT,
+            "turn-off: confirmed",
+            {"command": "turn-off", "outcome": "confirmed"},
+            at=utc_now() - timedelta(days=45),
+        )
+        aged = client.post(
+            "/api/control-log/prune",
+            json={"cutoff": counted["cutoff"], "max_id": counted["max_id"]},
+            headers=HEADERS,
+        ).json()
+        rest = client.post(
+            "/api/control-log/prune",
+            json={"max_id": everything["max_id"]},
+            headers=HEADERS,
+        ).json()
+
+    assert counted["matching"] == aged["deleted"] == 1
+    assert everything["matching"] == 2
+    # Only the reboot entry was left of what "everything" counted.
+    assert rest["deleted"] == 1
+    assert sorted(_commands(app)) == ["set-temperature", "turn-off"]

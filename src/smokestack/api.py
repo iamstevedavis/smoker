@@ -17,7 +17,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from smokestack import __version__, auth, overrides
 from smokestack.config import EDITABLE_FIELDS, Settings
@@ -102,12 +102,24 @@ class SetTemperatureBody(BaseModel):
 
 class ControlLogPrune(BaseModel):
     """Delete grill command log entries: all of them, or those older than
-    `older_than_days`. `dry_run` only counts what would go."""
+    `older_than_days` (or a fixed `cutoff`). `dry_run` only counts what
+    would go, and answers the `cutoff` and `max_id` to send back so the
+    delete covers exactly the entries that were counted."""
 
     model_config = ConfigDict(extra="forbid")
 
     older_than_days: float | None = Field(default=None, gt=0, le=36500)
+    cutoff: datetime | None = None
+    max_id: int | None = Field(default=None, ge=0)
     dry_run: bool = False
+
+    @model_validator(mode="after")
+    def _one_age(self) -> "ControlLogPrune":
+        if self.older_than_days is not None and self.cutoff is not None:
+            raise ValueError("give older_than_days or cutoff, not both")
+        if self.cutoff is not None and self.cutoff.tzinfo is None:
+            raise ValueError("cutoff needs a timezone")
+        return self
 
 
 # Re-exported under its old name; tests import it from here.
@@ -441,10 +453,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ControlRejected as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
         days = body.older_than_days
-        cutoff = utc_now() - timedelta(days=days) if days is not None else None
+        cutoff = body.cutoff
+        if days is not None:
+            cutoff = utc_now() - timedelta(days=days)
         if body.dry_run:
-            return {"matching": store.count_control_events(cutoff), "deleted": 0}
-        deleted = store.prune_control_events(cutoff)
+            # Fix the scope now: the delete that follows sends these back, so
+            # entries logged (or aged past the cutoff) while the user reads
+            # the confirmation aren't deleted with the ones counted.
+            max_id = store.max_control_event_id()
+            return {
+                "matching": store.count_control_events(cutoff, max_id),
+                "deleted": 0,
+                "cutoff": cutoff.isoformat() if cutoff else None,
+                "max_id": max_id,
+            }
+        deleted = store.prune_control_events(cutoff, body.max_id)
         # Not a control_command row, so it isn't in the log it just pruned;
         # retention pruning removes it like any other health event.
         store.insert_health_event(
@@ -452,6 +475,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             f"deleted {deleted} grill command log entries",
             {
                 "older_than_days": days,
+                "cutoff": cutoff.isoformat() if cutoff else None,
+                "max_id": body.max_id,
                 "deleted": deleted,
                 "client": request.client.host if request.client else None,
             },

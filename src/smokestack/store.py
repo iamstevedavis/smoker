@@ -465,25 +465,47 @@ class Database:
             for row in rows
         ]
 
-    def count_control_events(self, older_than: datetime | None = None) -> int:
-        where, params = self._control_window(older_than)
+    def count_control_events(
+        self, older_than: datetime | None = None, max_id: int | None = None
+    ) -> int:
+        where, params = self._control_window(older_than, max_id)
         with self.connect() as conn:
             return conn.execute(
                 f"SELECT COUNT(*) FROM health_events{where}", params
             ).fetchone()[0]
 
-    def prune_control_events(self, older_than: datetime | None = None) -> int:
+    def max_control_event_id(self) -> int:
+        """The newest grill command attempt's id, or 0 when there is none."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT MAX(id) FROM health_events WHERE event_type = ?",
+                (CONTROL_EVENT,),
+            ).fetchone()
+        return row[0] or 0
+
+    def prune_control_events(
+        self, older_than: datetime | None = None, max_id: int | None = None
+    ) -> int:
         """Delete grill command attempts recorded before `older_than`, or
-        all of them. Only done by hand: retention pruning keeps them."""
-        where, params = self._control_window(older_than)
+        all of them, and none newer than `max_id` when given. Only done by
+        hand: retention pruning keeps them."""
+        where, params = self._control_window(older_than, max_id)
         with self.connect() as conn:
             return conn.execute(f"DELETE FROM health_events{where}", params).rowcount
 
     @staticmethod
-    def _control_window(older_than: datetime | None) -> tuple[str, list[Any]]:
-        if older_than is None:
-            return " WHERE event_type = ?", [CONTROL_EVENT]
-        return " WHERE event_type = ? AND at < ?", [CONTROL_EVENT, _iso(older_than)]
+    def _control_window(
+        older_than: datetime | None, max_id: int | None = None
+    ) -> tuple[str, list[Any]]:
+        where = " WHERE event_type = ?"
+        params: list[Any] = [CONTROL_EVENT]
+        if older_than is not None:
+            where += " AND at < ?"
+            params.append(_iso(older_than))
+        if max_id is not None:
+            where += " AND id <= ?"
+            params.append(max_id)
+        return where, params
 
     def last_control_result(self) -> dict[str, Any] | None:
         """The result of the newest grill command that wasn't rejected."""
