@@ -146,3 +146,14 @@ def test_dashboard_command_log_prunes_only_after_counting_and_confirming(app):
     )
     for outcome in ("confirmed", "unconfirmed", "failed", "already_applied", "rejected"):
         assert f"{outcome}: " in js.split("const OUTCOME_LABELS", 1)[1].split("};", 1)[0]
+
+
+def test_chart_range_handler_ignores_other_segmented_buttons(app):
+    with TestClient(app) as client:
+        js = client.get("/static/app.js").text
+        html = client.get("/").text
+
+    # The °F/°C switch is a .seg group too; it must not be read as a range.
+    assert 'data-unit-target="C"' in html
+    assert 'querySelectorAll(".seg button[data-hours]")' in js
+    assert 'querySelectorAll(".seg button")' not in js
