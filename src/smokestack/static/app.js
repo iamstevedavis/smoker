@@ -950,6 +950,10 @@
       button.focus();
       return;
     }
+    // The value is entered in the unit shown now. It's sent with the target,
+    // so a unit change while the form is open can't reinterpret it.
+    form.dataset.unit = unitSymbol() === "°C" ? "C" : "F";
+    setText(form.querySelector("[data-alert-unit]"), unitSymbol());
     const input = form.querySelector("input");
     const saved = alerts.targets[probe];
     const target = targetForDisplay(saved);
@@ -964,7 +968,7 @@
     input.select();
   }
 
-  async function saveAlertTarget(probe, value) {
+  async function saveAlertTarget(probe, value, unit) {
     if (alerts.busy) return;
     const box = probeAlert(probe);
     alerts.busy = true;
@@ -974,7 +978,7 @@
         method: "PUT",
         cache: "no-store",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ["probe" + probe]: value }),
+        body: JSON.stringify(unit ? { ["probe" + probe]: value, unit } : { ["probe" + probe]: value }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1013,7 +1017,7 @@
           alertNote(box, "Enter a temperature from 1 to 1000.", "error");
           return;
         }
-        saveAlertTarget(probe, value);
+        saveAlertTarget(probe, value, form.dataset.unit);
       });
     }
     renderAlertTargets();

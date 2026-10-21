@@ -78,6 +78,8 @@ class ProbeTargetsUpdate(BaseModel):
 
     probe1: float | None = Field(default=None, gt=0, le=1000)
     probe2: float | None = Field(default=None, gt=0, le=1000)
+    # The unit the targets were entered in; defaults to the grill's current one.
+    unit: Literal["F", "C"] | None = None
 
 
 # Re-exported under its old name; tests import it from here.
@@ -301,13 +303,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.put("/api/probe-targets")
     async def put_probe_targets(body: ProbeTargetsUpdate) -> dict[str, Any]:
         changes = body.model_dump(exclude_unset=True)
+        unit = changes.pop("unit", None)
         # Under the apply lock so a settings swap can't build its runtime
         # from targets that are about to change.
         async with apply_lock:
-            # New targets are in the unit the grill reports now. Clearing a
-            # target needs no unit.
-            current = hub.current
-            unit = temperature_unit(current.values_dict()) if current else None
+            # Unless the caller says otherwise, new targets are in the unit
+            # the grill reports now. Clearing a target needs no unit.
+            if unit is None:
+                current = hub.current
+                unit = temperature_unit(current.values_dict()) if current else None
             if unit is None and any(value is not None for value in changes.values()):
                 raise HTTPException(
                     status_code=409,

@@ -271,6 +271,27 @@ def test_probe_targets_are_set_and_cleared(tmp_path):
     assert app.state.store.load_settings() == {}
 
 
+def test_probe_targets_keep_the_unit_they_were_entered_in(tmp_path):
+    # The dashboard sends the unit its form showed, so a unit change while
+    # the form was open doesn't reinterpret the value.
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        _report_unit(app, False)
+        body = client.put("/api/probe-targets", json={"probe1": 200, "unit": "F"}).json()
+        assert body["probe1"] == 200 and body["probe1_unit"] == "F"
+
+        # No reading is needed when the unit is given.
+        app.state.hub.current = None
+        response = client.put("/api/probe-targets", json={"probe2": 74, "unit": "C"})
+        assert response.status_code == 200
+        assert client.put("/api/probe-targets", json={"probe1": 9, "unit": "K"}).status_code == 422
+
+    assert app.state.store.load_probe_targets() == {
+        1: ProbeTarget(200, "F"),
+        2: ProbeTarget(74, "C"),
+    }
+
+
 @pytest.mark.parametrize("fahrenheit", [None, "no reading"])
 def test_probe_targets_need_a_known_unit_to_be_set(tmp_path, fahrenheit):
     app = create_app(_settings(tmp_path))
