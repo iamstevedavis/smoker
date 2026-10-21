@@ -104,24 +104,45 @@ Bluetooth source only; the dashboard hides it otherwise and the API answers
 3. Confirmation dialog: "Move the grill to *Network*. If it can't join
    within a minute, the bridge restarts its WiFi module and it goes back to
    *Current network*."
-4. Under the command lock: read the station state first (SSID, address),
-   then `PB.SetWifiCredentials` (unsaved), then watch the station state over
+4. Under the command lock, read the station state first (SSID, address).
+   **If the station is already connected to the requested SSID, refuse**
+   (409): it would stay connected on the old credential, so nothing could
+   test the new one before it is saved, and a wrong password would only show
+   at the next reconnect. Changing the password of the grill's current
+   network therefore goes the other way round: change it on the router
+   first; the grill drops off, and this flow then moves it while it is
+   disconnected.
+5. **Save the recovery state first**, as for the password: the requested
+   SSID and the station state just read, marked *pending*, in the database
+   (the WiFi password is not kept; it is already in the grill's unsaved
+   config). Only once that write has succeeded is anything sent; if it
+   fails, nothing is sent.
+6. `PB.SetWifiCredentials` (unsaved), then watch the station state over
    Bluetooth for up to 60 s.
-5. **Success is evidence of the new network, not of "a" network.** It
+7. **Success is evidence of the new network, not of "a" network.** It
    counts only when the station reports the **requested SSID** with an
-   address. Any access point broadcasting that SSID counts:
-   `set_wifi_credentials` can't pin a BSSID, so a mesh or multi-AP network
-   may join a different one than the scan row picked. The old network
-   still connected, at any point, never counts, and neither does a
-   disconnect followed by a reconnect without the SSID to identify it,
-   since that is also what a failed join that falls back to the old network
-   looks like. Only then `Config.Save` (without its own restart), report
-   `confirmed` with the new address, and offer to update `PITBOSS_HOST` if
-   the bridge is set up for `http` later.
-6. Not joined: `Sys.Reboot` to revert, wait for the module to come back on
-   the old network (as for a reboot, with the no-data alert held back), and
-   report `failed: reverted`. If it doesn't come back, `unconfirmed`, with
-   recovery steps.
+   address. Step 4 guarantees it wasn't connected there before the command,
+   so that join used the new credential. Any access point broadcasting that
+   SSID counts: `set_wifi_credentials` can't pin a BSSID, so a mesh or
+   multi-AP network may join a different one than the scan row picked. The
+   old network still connected, at any point, never counts, and neither
+   does a disconnect followed by a reconnect without the SSID to identify
+   it, since that is also what a failed join that falls back to the old
+   network looks like. Only then `Config.Save` (without its own restart),
+   clear *pending*, report `confirmed` with the new address, and offer to
+   update `PITBOSS_HOST` if the bridge is set up for `http` later.
+8. Not joined: `Sys.Reboot` to revert, wait for the module to come back on
+   the old network (as for a reboot, with the no-data alert held back),
+   clear *pending*, and report `failed: reverted`. If it doesn't come back,
+   `unconfirmed`, with recovery steps.
+9. **At startup, while a WiFi change is *pending*** (the bridge or its host
+   stopped between the send and step 7 or 8), the bridge resumes before
+   polling normally: once connected over Bluetooth it watches the station
+   for a fresh 60 s window and applies step 7 or 8 as usual. A module that
+   restarted in the meantime is already back on the saved network; then
+   only *pending* is cleared, reported as `failed: reverted`. If the grill
+   can't be reached, it stays *pending* with a banner, and the check runs on
+   the next connection.
 
 ## Safety, as for the existing controls
 
@@ -137,7 +158,7 @@ lock the bridge out.
 These decide whether the design works as written:
 
 1. Does `PB.SetWifiCredentials` make the module try the new network at
-   once, or only after a restart? If only after a restart, step 4 becomes
+   once, or only after a restart? If only after a restart, step 6 becomes
    "save to a staging slot, restart, and fall back", which needs a
    different design.
 2. Does `Sys.Reboot` drop unsaved config (the undo above), as Mongoose OS
