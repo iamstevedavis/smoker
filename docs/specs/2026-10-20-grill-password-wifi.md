@@ -62,30 +62,36 @@ changes.
 1. Re-enter the **dashboard** password (as for changing it) and the new
    grill password twice. The grill password must be non-empty; the vendor
    app's limits apply (to be checked on hardware, see Unknowns).
-2. Under the command lock, with fresh data, send `PB.SetDevicePassword`.
-   **Whatever the send returns is only a hint.** A reply lost after the
-   grill applied the change (a timeout, a dropped connection) looks like a
-   failure but isn't, so no outcome of the send decides which password the
-   bridge keeps.
-3. Before anything is decided, keep both passwords in memory and save the
-   new one as the `password` setting (a UI override, so it wins over
-   `.env`), marked *pending*, so a bridge restart mid-way still knows both.
-4. **Reconcile by authenticating**, whatever step 2 returned: an
+2. Under the command lock, with fresh data, **save the recovery state
+   first**: both the old and the new password, marked *pending*, in the
+   database (next to the saved settings, which already hold the grill
+   password). Only once that write has succeeded is anything sent, so if
+   the bridge or its host stops at any point after the send, it restarts
+   knowing both and reconciles (step 4) before polling normally. If the
+   write fails, nothing is sent.
+3. Send `PB.SetDevicePassword`. **Whatever the send returns is only a
+   hint.** A reply lost after the grill applied the change (a timeout, a
+   dropped connection) looks like a failure but isn't, so no outcome of the
+   send decides which password the bridge keeps.
+4. **Reconcile by authenticating**, whatever step 3 returned, and again at
+   startup while a change is *pending*: an
    authenticated poll with the new password, then, if that is
    `Unauthorized`, with the old one (each once, with the usual uptime
    refresh).
-   - New works: keep it, clear *pending*, report `confirmed` (even if the
+   - New works: save it as the `password` setting (a UI override, so it
+     wins over `.env`), clear *pending*, report `confirmed` (even if the
      send raised).
-   - Only old works: the change didn't take; restore the old setting and
-     report `failed`.
-   - Neither works, or the grill can't be reached: keep the new one saved
-     and still *pending*, report `unconfirmed`, and show a banner saying how
-     to recover (set the password in Settings, or reset it at the grill).
+   - Only old works: the change didn't take; keep the old setting, clear
+     *pending*, report `failed`.
+   - Neither works, or the grill can't be reached: stay *pending*, report
+     `unconfirmed`, and show a banner saying how to recover (set the
+     password in Settings, or reset it at the grill).
      While *pending*, an `Unauthorized` poll retries with the other
      password, so whichever the grill ends up with, the bridge reconnects
      without anyone touching it.
-5. The password never appears in logs, the audit row or API responses; the
-   audit row records only that it changed.
+5. The passwords never appear in logs, the audit row or API responses; the
+   audit row records only that it changed. The pending row is deleted once
+   reconciled, and is as sensitive as the saved grill password already is.
 
 ## Moving the grill to another network
 
@@ -102,14 +108,16 @@ Bluetooth source only; the dashboard hides it otherwise and the API answers
    then `PB.SetWifiCredentials` (unsaved), then watch the station state over
    Bluetooth for up to 60 s.
 5. **Success is evidence of the new network, not of "a" network.** It
-   counts only when the station reports the requested SSID (and BSSID, if
-   one was picked from the scan) with an address. If this firmware can't
-   report the SSID (see Unknowns), success instead needs a disconnect seen
-   *after* the command followed by a reconnect with an address; the old
-   network still connected, at any point, never counts. Only then
-   `Config.Save` (without its own restart), report `confirmed` with the new
-   address, and offer to update `PITBOSS_HOST` if the bridge is set up for
-   `http` later.
+   counts only when the station reports the **requested SSID** with an
+   address. Any access point broadcasting that SSID counts:
+   `set_wifi_credentials` can't pin a BSSID, so a mesh or multi-AP network
+   may join a different one than the scan row picked. The old network
+   still connected, at any point, never counts, and neither does a
+   disconnect followed by a reconnect without the SSID to identify it,
+   since that is also what a failed join that falls back to the old network
+   looks like. Only then `Config.Save` (without its own restart), report
+   `confirmed` with the new address, and offer to update `PITBOSS_HOST` if
+   the bridge is set up for `http` later.
 6. Not joined: `Sys.Reboot` to revert, wait for the module to come back on
    the old network (as for a reboot, with the no-data alert held back), and
    report `failed: reverted`. If it doesn't come back, `unconfirmed`, with
@@ -136,9 +144,9 @@ These decide whether the design works as written:
    normally does?
 3. Over Bluetooth, which call reports the station's state and address, and
    **does it include the SSID** (`Sys.GetInfo`'s `wifi` block, or `Wifi.*`
-   if this firmware serves it; `list_rpcs()` tells)? Without the SSID,
-   success falls back to "disconnected after the command, then
-   reconnected".
+   if this firmware serves it; `list_rpcs()` tells)? **Without the SSID,
+   WiFi changes are not offered**: there would be no safe way to tell a
+   successful join from a fallback to the old network before committing.
 4. Is `PB.SetDevicePassword` saved at once, and what lengths and characters
    does the grill accept?
 
