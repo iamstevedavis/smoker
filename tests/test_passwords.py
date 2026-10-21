@@ -399,6 +399,47 @@ def test_a_password_change_starts_the_gap_between_commands(tmp_path):
     assert other.status_code == 429
 
 
+def test_a_change_reads_the_password_the_bridge_has_now(tmp_path):
+    """A reconcile that adopted a password while this request waited has
+    changed it: that is the password to fall back on."""
+    settings = _settings(tmp_path)
+    finish_setup(settings, password=PASSWORD, required=True)
+    # A change was in flight when the bridge stopped, and the grill took it.
+    store = Database(settings.db_path)
+    store.initialize()
+    store.save_pending_password(OLD, NEW)
+    app = create_app(settings)
+    source = app.state.runtime.collector.source
+    source.password = NEW
+    started = []
+
+    async def slow_check(password):
+        started.append(password)
+        # Long enough for a change to start while this waits.
+        await asyncio.sleep(0.5)
+        return password == source.password
+
+    source.check_password = slow_check
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        # The bridge settles the change on startup, and asks the grill.
+        _wait(lambda: started)
+        # The send fails, so the change cannot take: the bridge keeps the
+        # password the reconcile adopted.
+        source.faults.add("rpc_error")
+        response = client.post(
+            "/api/control/set-password",
+            json=_body(password="a third one"),
+            headers=HEADERS,
+        )
+
+    body = response.json()
+    # The password it fell back on is the one the reconcile adopted, so the
+    # grill is reached again and the change is settled.
+    assert body["outcome"] == "failed"
+    assert app.state.store.load_pending_password() is None
+
+
 def test_an_unconfirmed_change_is_settled_by_the_bridge_itself(tmp_path):
     """A change that ends unconfirmed is not left for the next restart:
     the bridge keeps trying."""
