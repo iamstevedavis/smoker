@@ -73,6 +73,30 @@ def test_p1_target_other_than_firmware_default_is_kept():
     assert snapshot.fields["p1Target"].value == 165
 
 
+def test_the_unset_probe_target_is_hidden_in_celsius_too():
+    # A Celsius grill sends the 50 F default converted, as 10 C.
+    snapshot = normalize_state(
+        {"isFahrenheit": False, "p1Target": 10}, source="fake"
+    )
+
+    assert "p1Target" not in snapshot.fields
+    assert snapshot.raw["p1Target"] == 10
+
+
+def test_a_probe_target_set_in_celsius_is_kept():
+    snapshot = normalize_state(
+        {"isFahrenheit": False, "p1Target": 73}, source="fake"
+    )
+
+    assert snapshot.fields["p1Target"].value == 73
+
+
+def test_the_unset_probe_target_is_hidden_without_a_unit_flag():
+    snapshot = normalize_state({"p1Target": 10}, source="fake")
+
+    assert "p1Target" not in snapshot.fields
+
+
 def test_fake_source_state_omits_unusable_fields():
     from smokestack.sources.fake import FakeGrillSource
 

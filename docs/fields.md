@@ -15,7 +15,7 @@ boolean status.
 | `smokerActTemp` | degrees | Never populated by the PB850PS2 | hidden |
 | `isFahrenheit` | bool | Temperature unit for all temperature fields | ok |
 | `p1Temp`, `p2Temp` | degrees | Meat probe 1 and 2; `null` when no probe is plugged in | ok |
-| `p1Target` | degrees | Probe 1 target. Firmware default `50` means unset | hidden when `50`, otherwise ok |
+| `p1Target` | degrees | Probe 1 target. Firmware default `50` means unset (`10` on a Celsius grill) | hidden when unset, otherwise ok |
 | `p2Target` | degrees | Probe 2 target | ok |
 | `p3Temp`, `p4Temp` | degrees | The model has two probe ports; always `null` | hidden |
 | `moduleIsOn` | flag | Controller is running | ok |
@@ -30,6 +30,8 @@ boolean status.
 
 ## Changes for API consumers
 
-For the `PB850PS2`, `smokerActTemp`, `p3Temp`, `p4Temp` and a `p1Target` equal
-to `50` no longer appear in `fields` (and so not in stored history rows'
-`fields`); they remain in `raw`. Other models are unaffected.
+For the `PB850PS2`, `smokerActTemp`, `p3Temp`, `p4Temp` and an unset
+`p1Target` no longer appear in `fields` (and so not in stored history rows'
+`fields`); they remain in `raw`. The unset probe target is the firmware
+default `50`, or `10` on a grill working in Celsius, which sends the default
+converted. Other models are unaffected.
