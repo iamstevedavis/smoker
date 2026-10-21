@@ -1,6 +1,6 @@
 # Smokestack
 
-A self-hosted, read-only dashboard and alert service for Pit Boss pellet grills (built and tested on the `PB850PS2`; other models: [Does my grill work?](docs/compatibility.md)). It polls the grill over WiFi or Bluetooth, stores the history in SQLite, and serves a live dashboard and a JSON API. It never sends commands to the grill.
+A self-hosted dashboard and alert service for Pit Boss pellet grills (built and tested on the `PB850PS2`; other models: [Does my grill work?](docs/compatibility.md)). It polls the grill over WiFi or Bluetooth, stores the history in SQLite, and serves a live dashboard and a JSON API. Out of the box it is read-only; [grill control](docs/integrations.md#grill-control), off by default, adds turn-off, set-temperature and a WiFi restart. It can never turn the grill on.
 
 ![Dashboard](docs/images/dashboard-desktop.png)
 
@@ -45,7 +45,8 @@ No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up -d`.
 ## Security
 
 - **The first visit asks you to create a password.** Until then the dashboard and API are locked. After that the password protects the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. It is stored as a scrypt hash in the database, you can turn it off or back on under **Settings → Login**, and change it under **Profile** (the person button; needs the current password). Sessions are signed cookies that last 30 days; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
-- **Turning the password off opens everything to the LAN**, including the settings panel, so anyone there could point MQTT or ntfy at their own server and collect the saved secrets.
+- **Turning the password off opens everything to the LAN**, including the settings panel, so anyone there could point MQTT or ntfy at their own server and collect the saved secrets. It also switches grill control off.
+- **Grill control is off by default.** With `SMOKESTACK_ENABLE_CONTROL` on, signed-in users can turn the grill off, set its temperature and restart its WiFi module. Nothing can turn it on. Every command is logged in the database and must be confirmed on the dashboard.
 - **Locked out?** Run `docker compose exec smokestack smokestack reset-password`, then `docker compose restart`. The next visit shows the setup screen again. Do this right after first start too if someone else might have reached the setup screen before you.
 - **On plain HTTP the password and session cookie cross the LAN unencrypted.** That's fine for home use, but don't expose port 8000 to the internet: use a VPN (WireGuard, Tailscale), or put a TLS reverse proxy such as Caddy in front.
 - The grill's local HTTP RPC exposes its configuration, including stored **WiFi credentials**, to anyone on the network. Keep the grill on an IoT VLAN that only the bridge host can reach. Details: [docs/testing/2026-10-18-cook-test.md](docs/testing/2026-10-18-cook-test.md).
@@ -64,7 +65,8 @@ Set these in `.env` (Docker) or the environment. Settings for the grill start wi
 | `SMOKESTACK_DB` | `data/smokestack.sqlite` | SQLite path (`/data/smokestack.sqlite` in Docker) |
 | `SMOKESTACK_POLL_SECONDS` | `2` | Polling interval |
 | `SMOKESTACK_STALE_AFTER_SECONDS` | `30` | Age at which a reading counts as stale |
-| `SMOKESTACK_RETENTION_DAYS` | `0` | Delete data older than this; `0` keeps everything |
+| `SMOKESTACK_RETENTION_DAYS` | `0` | Delete data older than this; `0` keeps everything. The grill control log is kept |
+| `SMOKESTACK_ENABLE_CONTROL` | `false` | Let signed-in users turn the grill off, set its temperature and restart its WiFi from the dashboard ([details](docs/integrations.md#grill-control)) |
 | `SMOKESTACK_LOG_LEVEL` | `INFO` | Use `DEBUG` when troubleshooting |
 
 Home Assistant (`SMOKESTACK_MQTT_*`) and ntfy alerts (`SMOKESTACK_NTFY_*`, `SMOKESTACK_ALERT_*`) are optional and off by default. Every variable and its default is listed in [docs/integrations.md](docs/integrations.md#settings).
