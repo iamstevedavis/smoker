@@ -143,6 +143,49 @@ def test_overrides_survive_a_restart(tmp_path):
     assert fields["retention_days"]["origin"] == "ui"
 
 
+ADAPTERS = [
+    {"name": "hci0", "address": "AA:AA:AA:AA:AA:AA", "alias": "t440p", "powered": True},
+    {"name": "hci1", "address": "BB:BB:BB:BB:BB:BB", "alias": "t440p #2", "powered": True},
+]
+
+
+def test_ble_adapter_round_trips_and_survives_a_restart(tmp_path, monkeypatch):
+    monkeypatch.setenv("SMOKESTACK_BLE_ADAPTER", "hci0")
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        assert _fields(client.get("/api/settings").json())["ble_adapter"]["origin"] == "env"
+        response = client.put("/api/settings", json={"ble_adapter": "hci1"})
+
+    assert response.status_code == 200
+    field = _fields(response.json())["ble_adapter"]
+    assert (field["value"], field["origin"], field["env"]) == (
+        "hci1",
+        "ui",
+        "SMOKESTACK_BLE_ADAPTER",
+    )
+    app = create_app(_settings(tmp_path))
+    assert app.state.settings.ble_adapter == "hci1"
+
+    with TestClient(app) as client:
+        response = client.put("/api/settings", json={"ble_adapter": ""})
+    assert response.status_code == 200
+    assert app.state.settings.ble_adapter == ""
+
+
+def test_settings_list_the_hosts_bluetooth_adapters(tmp_path, monkeypatch):
+    async def list_adapters():
+        return ADAPTERS
+
+    monkeypatch.setattr(api.bluetooth, "list_adapters", list_adapters)
+    monkeypatch.setattr(overrides, "available_sources", lambda: ("fake", "ble"))
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        assert client.get("/api/settings").json()["ble_adapters"] == ADAPTERS
+
+    # Without Bluetooth there's nothing to ask.
+    monkeypatch.setattr(overrides, "available_sources", lambda: ("fake", "http"))
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        assert client.get("/api/settings").json()["ble_adapters"] == []
+
+
 def test_enable_control_round_trips_and_survives_a_restart(tmp_path, monkeypatch):
     app = _env_app(tmp_path, monkeypatch)
     with TestClient(app) as client:
@@ -225,6 +268,7 @@ def test_secrets_are_never_returned(tmp_path, monkeypatch):
         {"poll_seconds": 3, "ntfy_url": "ntfy.sh/topic"},
         {"poll_seconds": 3, "mqtt_prefix": "pit/#"},
         {"poll_seconds": 3, "stale_after_seconds": 0},
+        {"poll_seconds": 3, "ble_adapter": "../hci0"},
         {"poll_seconds": 0},
         {"poll_seconds": None},
         {"model": ""},

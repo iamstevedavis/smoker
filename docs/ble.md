@@ -114,18 +114,22 @@ If `PITBOSS_DEVICE_NAME` does not match what `bluetoothctl` shows, the BLE sourc
 
 On a host with more than one Bluetooth adapter, the bridge uses the system
 default, usually `hci0`. If another adapter has the better range (a USB dongle
-with an external antenna, say), set `SMOKESTACK_BLE_ADAPTER` to its name in
-`.env` and restart:
+with an external antenna, say), choose it under **Settings → Grill →
+Bluetooth adapter** and **Save & apply**; the bridge reconnects through it.
+The list shows the adapters BlueZ knows right now, with their alias and
+address, and marks one that is powered off. A saved adapter that's unplugged
+stays selected, marked "not found".
+
+Or set it in `.env`:
 
 ```bash
 SMOKESTACK_BLE_ADAPTER=hci1
 ```
 
-Find the names with `hciconfig` (or `ls /sys/class/bluetooth`).
-`bluetoothctl list` shows each adapter's address and marks the default one;
-`bluetoothctl show <address>` shows its details. Leave the setting empty to
-use the default. It's Linux (BlueZ) only and can't be changed from the
-dashboard.
+From a shell, `hciconfig` (or `ls /sys/class/bluetooth`) shows the names;
+`bluetoothctl list` shows each adapter's address and marks the default one.
+Leave the setting empty, **System default** in the panel, to use the default.
+It's Linux (BlueZ) only.
 
 The startup log names the adapter (`Scanning for Pit Boss BLE device 'PBL-…'
 on hci1`). If the adapter doesn't exist, the error names

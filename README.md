@@ -80,7 +80,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Each field shows where its value comes from (Default, .env or UI); **Reset** drops the saved value and falls back to `.env` or the default.
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
 - The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
-- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT`, `SMOKESTACK_START_COLLECTOR` and `SMOKESTACK_BLE_ADAPTER`.
+- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`.
 - The source list only offers what can actually run: `fake` and `http` (WiFi) always, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
 
 ## More

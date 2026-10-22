@@ -1500,12 +1500,13 @@
   const APPLY_WATCH_MS = 30000;
   const PASSWORD_MIN_LENGTH = 8;
 
-  // type: text | number | int | bool | secret | source | log
+  // type: text | number | int | bool | secret | source | log | adapter
   const SETTING_META = {
     source: { label: "Source", type: "source", hint: "Bluetooth is listed only when the bridge can reach the host's Bluetooth (docker-compose.ble.yml)." },
     model: { label: "Grill model", type: "text" },
     host: { label: "Grill address", type: "text", hint: "WiFi source: IP or host:port." },
     device_name: { label: "Bluetooth name", type: "text", hint: "Bluetooth source only." },
+    ble_adapter: { label: "Bluetooth adapter", type: "adapter", hint: "Bluetooth source only. On a host with more than one adapter, pick the one with the best range. Lists the adapters the bridge can see now." },
     password: { label: "Grill password", type: "secret", hint: "The password the bridge uses to talk to the grill. Saving it here also ends a password change the bridge hasn't settled." },
     poll_seconds: { label: "Poll every", type: "number", unit: "s", min: 0.1 },
     stale_after_seconds: { label: "Stale after", type: "int", unit: "s", min: 1 },
@@ -1552,6 +1553,17 @@
     if (meta.type === "bool") {
       return el("select", { id, name: field.name }, [["true", "On"], ["false", "Off"]].map(([option, label]) =>
         el("option", { value: option, textContent: label, selected: String(Boolean(value)) === option })));
+    }
+    if (meta.type === "adapter") {
+      const options = [["", "System default"]];
+      for (const adapter of settings.payload.ble_adapters || []) {
+        const details = [adapter.alias, adapter.address, adapter.powered ? "" : "off"].filter(Boolean).join(", ");
+        options.push([adapter.name, adapter.name + (details ? " (" + details + ")" : "")]);
+      }
+      // Keep a saved adapter that isn't plugged in now visible.
+      if (value && !options.some(([option]) => option === value)) options.push([value, value + " (not found)"]);
+      return el("select", { id, name: field.name }, options.map(([option, label]) =>
+        el("option", { value: option, textContent: label, selected: option === (value || "") })));
     }
     if (meta.type === "source" || meta.type === "log") {
       const options = meta.type === "log" ? LOG_LEVELS : settings.payload.sources.slice();

@@ -81,8 +81,7 @@ class Settings:
 
 
 # Fields the dashboard may change, by group, in display order. Everything
-# else (DB path, port, collector switch, Bluetooth adapter) is env only. The
-# dashboard login lives
+# else (DB path, port, collector switch) is env only. The dashboard login lives
 # in its own table; see auth.py.
 EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
     "grill": (
@@ -90,6 +89,7 @@ EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
         "model",
         "host",
         "device_name",
+        "ble_adapter",
         "password",
         "poll_seconds",
         "stale_after_seconds",
@@ -114,7 +114,6 @@ ENV_ONLY = (
     "SMOKESTACK_DB",
     "SMOKESTACK_PORT",
     "SMOKESTACK_START_COLLECTOR",
-    "SMOKESTACK_BLE_ADAPTER",
 )
 _DEFAULTS = {f.name: f.default for f in fields(Settings)}
 
