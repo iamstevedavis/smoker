@@ -17,6 +17,9 @@ dependencies = [
   # 2026.8.5 is the first release that converts every temperature field of
   # a Celsius frame (pytboss#593), which the set-unit command relies on.
   "bleak>=0.22,<1",
+  # bleak's D-Bus library on Linux; the settings panel lists BlueZ adapters
+  # with it directly.
+  "dbus-fast>=1.83,<3; platform_system == 'Linux'",
   "pytboss>=2026.8.5",
 ]
 

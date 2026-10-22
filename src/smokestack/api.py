@@ -20,7 +20,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from smokestack import __version__, auth, overrides
+from smokestack import __version__, auth, bluetooth, overrides
 from smokestack.config import EDITABLE_FIELDS, Settings
 from smokestack.runtime import Runtime, configure_logging, make_source
 from smokestack.services.collector import StateHub
@@ -311,9 +311,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     apply_lock = asyncio.Lock()
 
-    def current_settings_payload() -> dict[str, Any]:
+    async def current_settings_payload() -> dict[str, Any]:
+        # Listed on each request, so a dongle plugged in since shows up.
+        adapters = (
+            await bluetooth.list_adapters()
+            if "ble" in overrides.available_sources()
+            else []
+        )
         return overrides.settings_payload(
-            base_settings, app.state.overrides, app.state.settings
+            base_settings, app.state.overrides, app.state.settings, adapters
         )
 
     def build_runtime(new_overrides: dict[str, Any], changes: dict[str, Any]) -> Runtime:
@@ -344,13 +350,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/settings")
     async def get_settings() -> dict[str, Any]:
-        return current_settings_payload()
+        return await current_settings_payload()
 
     @app.put("/api/settings")
     async def put_settings(body: overrides.SettingsUpdate) -> dict[str, Any]:
         changes = body.changes()
         if not changes:
-            return current_settings_payload()
+            return await current_settings_payload()
         # The password lock comes before the apply lock, and a password
         # change takes them in the same order: a password that has just
         # been confirmed cannot be discarded by this swap.
@@ -368,7 +374,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     set_pending_passwords(new.collector.source, ())
                 store.save_settings(changes)
                 await swap(new, new_overrides)
-        return current_settings_payload()
+        return await current_settings_payload()
 
     @app.delete("/api/settings/{name}")
     async def reset_setting(name: str) -> dict[str, Any]:
@@ -393,7 +399,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         passwords.clear()
                         set_pending_passwords(new.collector.source, ())
                     await swap(new, new_overrides)
-        return current_settings_payload()
+        return await current_settings_payload()
 
     def probe_targets_payload() -> dict[str, Any]:
         targets = store.load_probe_targets()

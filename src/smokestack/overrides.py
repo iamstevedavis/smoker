@@ -37,6 +37,9 @@ class SettingsUpdate(BaseModel):
     model: str = Field(default=None, min_length=1)
     host: str = Field(default=None)
     device_name: str = Field(default=None)
+    # Not checked against the adapters present now: a saved USB dongle that is
+    # unplugged at startup should stay saved.
+    ble_adapter: str = Field(default=None, pattern=r"^(hci\d+)?$")
     password: str = Field(default=None)
     poll_seconds: float = Field(default=None, gt=0, le=3600)
     stale_after_seconds: int = Field(default=None, ge=1, le=86400)
@@ -108,9 +111,11 @@ def settings_payload(
     base: Settings,
     overrides: dict[str, Any],
     effective: Settings,
+    ble_adapters: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Every editable field with its value and origin. Secrets only say
-    whether they are set."""
+    whether they are set. `ble_adapters` are the host's Bluetooth adapters
+    the panel offers (bluetooth.list_adapters)."""
     groups = []
     for group, names in EDITABLE_GROUPS.items():
         items = []
@@ -129,6 +134,7 @@ def settings_payload(
         groups.append({"name": group, "fields": items})
     return {
         "sources": list(available_sources()),
+        "ble_adapters": ble_adapters or [],
         "groups": groups,
         "env_only": list(ENV_ONLY),
     }
