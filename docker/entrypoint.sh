@@ -2,13 +2,11 @@
 # Container entrypoint, also used by the HEALTHCHECK so that runs unprivileged
 # too. Without SMOKESTACK_RUN_AS, or when not root, it just runs the command.
 #
-# The compose files start the container as root with SMOKESTACK_RUN_AS set:
-# docker-compose.yml to the image's `smokestack` user (10001), and
-# docker-compose.ble.yml to `nobody` (65534), because the host's D-Bus refuses
-# uids the host has no user for. Both share the smokestack-data volume, so hand
-# /data to the configured uid whenever something there belongs to another
-# one (switching variants, or root-owned files from the old Bluetooth setup),
-# then drop root for good.
+# docker-compose.yml starts the container as root with SMOKESTACK_RUN_AS set,
+# by default to `nobody` (65534), because the host's D-Bus refuses uids the
+# host has no user for. Hand /data to the configured uid whenever something
+# there belongs to another one (a changed SMOKESTACK_RUN_AS, or a volume from
+# the old separate WiFi or root-run Bluetooth setups), then drop root for good.
 set -e
 
 if [ "$(id -u)" = 0 ] && [ -n "$SMOKESTACK_RUN_AS" ]; then

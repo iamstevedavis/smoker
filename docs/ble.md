@@ -4,23 +4,32 @@ The WiFi source is simpler; use BLE only if your grill has no local HTTP server.
 
 ## Docker
 
+The same `docker-compose.yml` runs WiFi and Bluetooth, so there's nothing
+extra to start:
+
 ```bash
-docker compose -f docker-compose.ble.yml up -d --build
+docker compose pull && docker compose up -d
 ```
 
-Or use the published image, the same one the WiFi setup uses:
-`docker compose -f docker-compose.ble.yml pull && docker compose -f docker-compose.ble.yml up -d`.
+Then choose **Bluetooth** under **Settings → Grill → Source**, fill in the
+**Bluetooth name** and **Save & apply**. Or set it in `.env` before starting:
+
+```bash
+PITBOSS_SOURCE=ble
+PITBOSS_DEVICE_NAME=PBL-...
+```
 
 Needs a Linux host with a Bluetooth adapter and `bluetoothd` running. Docker
-Desktop on macOS or Windows can't reach the host's Bluetooth.
+Desktop on macOS or Windows can't reach the host's Bluetooth, so there the
+panel doesn't offer it.
 
 The first connection can take a minute or two. A grill that is connected to
 something else, usually the Pit Boss phone app, stops advertising, and the
 bridge retries with growing delays of up to 60 seconds. Close the app and wait.
 
-The container talks to the host's BlueZ through the host's D-Bus socket, which
-is the only host resource it gets: no host networking, so `SMOKESTACK_PORT` works
-as usual. The bridge runs unprivileged as `nobody` (uid 65534). The entrypoint
+The container talks to the host's BlueZ through the host's D-Bus socket
+(`/run/dbus`, mounted read-only), which is the only host resource it gets: no
+host networking, so `SMOKESTACK_PORT` works as usual. The bridge runs unprivileged as `nobody` (uid 65534). The entrypoint
 starts as root only to hand the data volume to that user, then drops root.
 
 Why `nobody` and not the image's own `smokestack` user (uid 10001): the host's
@@ -42,10 +51,14 @@ and Debian the host bus answers every call with `AccessDenied ... An AppArmor
 policy prevents this sender`. The rest of the hardening stays: no root, no
 capabilities, `no-new-privs`, Docker's seccomp filter, no host networking.
 
-Upgrading from the earlier root-run setup needs nothing extra: the first start
-hands the existing data volume to the new user. Switching between this file
-and the WiFi `docker-compose.yml` works the same way, since both share the
-`smokestack-data` volume and each hands it to its own user on start.
+Upgrading from the earlier setups needs nothing extra for the data: the
+first start hands the existing `smokestack-data` volume to `nobody`.
+
+**Upgrading from `docker-compose.ble.yml`:** that file is gone, and it set
+`PITBOSS_SOURCE=ble` itself. Add `PITBOSS_SOURCE=ble` to `.env` (unless you
+saved the source in the settings panel), then run plain `docker compose up -d`
+from the same folder. It's the same compose project and service, so it
+replaces the old container and keeps the volume.
 
 ## Linux laptop test
 

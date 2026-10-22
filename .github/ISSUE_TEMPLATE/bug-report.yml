@@ -39,7 +39,6 @@ body:
       label: How you run it
       options:
         - Docker, docker-compose.yml
-        - Docker, docker-compose.ble.yml
         - Laptop scripts (scripts/run.sh)
         - From source (uvicorn)
     validations:

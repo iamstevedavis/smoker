@@ -53,7 +53,7 @@ def system_bus_reachable(
     """Whether bleak can reach BlueZ: on Linux, the system D-Bus socket exists.
 
     bleak is always installed, so imports alone would offer Bluetooth in a
-    container without the host's D-Bus socket mounted (docker-compose.yml).
+    container without the host's D-Bus socket, e.g. on Docker Desktop.
     Other platforms don't use D-Bus.
     """
     platform = sys.platform if platform is None else platform

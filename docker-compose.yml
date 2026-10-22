@@ -1,25 +1,38 @@
-# Default deployment: the WiFi (http) source with normal bridge networking.
-# Copy .env.example to .env and set PITBOSS_HOST / PITBOSS_PASSWORD.
+# One deployment for WiFi (http) and Bluetooth (ble); switch between them in
+# the dashboard's settings panel. Copy .env.example to .env and set
+# PITBOSS_HOST (WiFi) or PITBOSS_DEVICE_NAME (Bluetooth).
 # Try it without a grill:  PITBOSS_SOURCE=fake docker compose up --build
+#
+# Bluetooth needs a Linux host with an adapter and bluetoothd running; the
+# bridge reaches the host's BlueZ over the host's D-Bus. Elsewhere (Docker
+# Desktop, a NAS without Bluetooth) the panel just doesn't offer it.
 services:
   smokestack:
     build:
       context: .
     image: ghcr.io/iamstevedavis/smokestack:latest
     restart: unless-stopped
-    # Starts as root only so the entrypoint can hand /data back to `smokestack`
-    # if docker-compose.ble.yml (which runs as `nobody`) used the volume last;
-    # it drops root before the bridge starts.
+    # Starts as root only so the entrypoint can hand /data to SMOKESTACK_RUN_AS;
+    # it then drops root before the bridge starts. The host's D-Bus only
+    # accepts uids that exist on the host, and `nobody` (65534) always does.
     user: root
+    # Docker's default AppArmor profile has no D-Bus rules, so on AppArmor
+    # hosts (Ubuntu, Mint, Debian) the host bus rejects every message from
+    # the container. No effect on hosts without AppArmor.
+    security_opt:
+      - apparmor=unconfined
     env_file:
       - path: .env
         required: false
     environment:
-      SMOKESTACK_RUN_AS: "10001:10001"
+      SMOKESTACK_RUN_AS: ${SMOKESTACK_RUN_AS:-65534:65534}
       PITBOSS_SOURCE: ${PITBOSS_SOURCE:-http}
       PITBOSS_MODEL: ${PITBOSS_MODEL:-PB850PS2}
       PITBOSS_HOST: ${PITBOSS_HOST:-}
+      PITBOSS_DEVICE_NAME: ${PITBOSS_DEVICE_NAME:-}
       PITBOSS_PASSWORD: ${PITBOSS_PASSWORD:-}
+      # e.g. hci1 on a host with more than one adapter; empty uses the default.
+      SMOKESTACK_BLE_ADAPTER: ${SMOKESTACK_BLE_ADAPTER:-}
       SMOKESTACK_DB: /data/smokestack.sqlite
       SMOKESTACK_POLL_SECONDS: ${SMOKESTACK_POLL_SECONDS:-2}
       SMOKESTACK_STALE_AFTER_SECONDS: ${SMOKESTACK_STALE_AFTER_SECONDS:-30}
@@ -27,6 +40,11 @@ services:
       - "${SMOKESTACK_PORT:-8000}:8000"
     volumes:
       - smokestack-data:/data
+      # The host's D-Bus directory, for its system bus socket: no host
+      # networking or other host access. The directory rather than the socket
+      # itself, so a restarted dbus-daemon's new socket shows up; on a host
+      # without D-Bus Docker creates it empty and Bluetooth isn't offered.
+      - /run/dbus:/run/dbus:ro
 
 volumes:
   smokestack-data:
