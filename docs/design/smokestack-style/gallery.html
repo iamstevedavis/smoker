@@ -1,0 +1,1712 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smokestack-style gallery</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components/bundle.css">
+<style>
+body { margin: 0; background: var(--color-bg); color: var(--color-label-primary); font-family: var(--font-sans); }
+.gallery-top { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--color-border-subtle); }
+.gallery-top h1 { margin: 0; font-size: 18px; flex: 1; }
+.gallery-item { padding: 24px; border-bottom: 1px solid var(--color-border-subtle); }
+.gallery-item h2 { margin: 0 0 4px; font-size: 16px; }
+.gallery-item p { margin: 0 0 16px; font-size: 13px; color: var(--color-label-secondary); }
+.gallery-frame { overflow-x: auto; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
+</style>
+</head>
+<body>
+<header class="gallery-top">
+<h1>Smokestack-style</h1>
+<button type="button" class="btn btn-secondary btn-sm" id="gallery-theme">Switch theme</button>
+</header>
+<section class="gallery-item" id="Cover">
+<h2>Cover</h2>
+<div class="gallery-frame">
+<div class="cover">
+<style>
+.cover{position:relative;width:960px;height:300px;background:var(--color-bg);overflow:hidden;font-family:var(--font-sans)}
+.cover svg{position:absolute;left:0;top:0}
+.ink{fill:var(--color-ember)}.s1{fill:var(--color-surface-2)}.blue{fill:var(--series-probe-1)}.teal{fill:var(--series-probe-2)}
+.rule{stroke:var(--color-border-strong);stroke-width:1}
+.set{stroke:var(--color-label-secondary);stroke-width:2;stroke-dasharray:6 6;fill:none}
+.r{rx:var(--radius-md)}
+.name{position:absolute;left:40px;bottom:64px;margin:0;max-width:440px;font-size:64px;line-height:.95;font-weight:700;letter-spacing:-.04em;color:var(--color-label-primary)}
+.tag{position:absolute;left:40px;bottom:32px;margin:0;max-width:440px;font-size:13px;color:var(--color-label-secondary)}
+</style>
+<svg width="960" height="300" viewBox="0 0 960 300" aria-hidden="true">
+<!-- blocks: color-ember 216x260 slab (the grill), color-surface-2 176x128, series-probe-1 176x56, series-probe-2 80x56 -->
+<!-- arrangement: one tall ink slab bleeding off the top, satellites to its right in a flush modular grid with space-2 gaps -->
+<!-- pattern: five hairline rules (color-border-strong) like a chart grid crossing the blocks, plus the dashed set line in color-label-secondary; the system's identity is a readout over a chart -->
+<!-- scales: corners radius-md (8px), gaps space-2 (8px), rule pitch space-12 (48px) -->
+<line class="rule" x1="480" y1="48" x2="960" y2="48"/>
+<line class="rule" x1="480" y1="96" x2="960" y2="96"/>
+<line class="rule" x1="480" y1="144" x2="960" y2="144"/>
+<line class="rule" x1="480" y1="192" x2="960" y2="192"/>
+<line class="rule" x1="480" y1="240" x2="960" y2="240"/>
+<rect class="ink r" x="496" y="-24" width="216" height="260"/>
+<rect class="s1 r" x="720" y="40" width="176" height="128"/>
+<rect class="blue r" x="720" y="176" width="176" height="56"/>
+<rect class="teal r" x="904" y="176" width="80" height="56"/>
+<path class="set" d="M480 120 H960"/>
+</svg>
+<h1 class="name">Smokestack-<br>style</h1>
+<p class="tag">High-contrast and monochrome with one ember accent, so the grill reads at a glance.</p>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="Buttons">
+<h2>Buttons</h2>
+<p>Static rendition of Vercel/components/buttons.html</p>
+<div class="gallery-frame">
+<div class="ds-preview">
+<style>
+    .page { max-width: 860px; margin: 0 auto; padding: var(--space-10) var(--space-6); }
+    .page-back { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-13); color: var(--color-label-secondary); text-decoration: none; margin-bottom: var(--space-8); transition: color var(--duration-instant) var(--ease-vercel); }
+    .page-back:hover { color: var(--color-label-primary); text-decoration: none; }
+    .page-title { font-size: var(--text-36); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight-2); margin: 0 0 var(--space-3); }
+    .page-desc { font-size: var(--text-16); color: var(--color-label-secondary); line-height: var(--leading-relaxed); margin: 0 0 var(--space-12); }
+    .spec-table { width: 100%; border-collapse: collapse; font-size: var(--text-13); }
+    .spec-table th { font-size: var(--text-11); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-label-tertiary); text-align: left; padding: var(--space-2) var(--space-4) var(--space-2) 0; border-bottom: var(--border-subtle); }
+    .spec-table td { padding: var(--space-3) var(--space-4) var(--space-3) 0; border-bottom: var(--border-subtle); color: var(--color-label-secondary); vertical-align: middle; }
+    .spec-table td:first-child { color: var(--color-label-primary); }
+    .spec-table tr:last-child td { border-bottom: none; }
+    .group-label { font-size: var(--text-11); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.10em; color: var(--color-label-tertiary); margin: var(--space-10) 0 var(--space-4); }
+    .group-label:first-child { margin-top: 0; }
+    .demo-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; padding: var(--space-5) 0; border-bottom: var(--border-subtle); }
+    .demo-row:last-child { border-bottom: none; }
+    .demo-row-label { font-size: var(--text-11); font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-label-tertiary); width: 72px; flex-shrink: 0; }
+    code { font-family: var(--font-mono); font-size: var(--text-12); color: var(--color-accent-teal); background: var(--color-surface-2); border: var(--border-subtle); border-radius: var(--radius-xs); padding: 2px 6px; }
+  </style>
+<main class="page">
+
+  <a href="../index.html" class="page-back">
+    <span aria-hidden="true">←</span>
+    Back to Design System
+  </a>
+
+  <span style="display: block; font-size: var(--text-11); font-weight: var(--weight-semibold); letter-spacing: 0.10em; text-transform: uppercase; color: var(--color-label-tertiary); margin-bottom: var(--space-3);">Components</span>
+  <h1 class="page-title">Buttons</h1>
+  <p class="page-desc">
+    All button variants, sizes, and states. Fast 100ms transitions.
+    Active state: <code>scale(0.98)</code>. Focus: white outline, 2px offset.
+    No decoration — function drives form.
+  </p>
+
+  <!-- Variants -->
+  <div class="group-label">Variants</div>
+  <div class="demo-row">
+    <span class="demo-row-label">Primary</span>
+    <button class="btn btn-primary">Deploy</button>
+    <code>.btn-primary</code>
+    <span style="font-size: var(--text-12); color: var(--color-label-tertiary);">White fill / black text — dominant CTA on dark bg</span>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">Secondary</span>
+    <button class="btn btn-secondary">View Logs</button>
+    <code>.btn-secondary</code>
+    <span style="font-size: var(--text-12); color: var(--color-label-tertiary);">Surface-2 fill, bordered</span>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">Ghost</span>
+    <button class="btn btn-ghost">Redeploy</button>
+    <code>.btn-ghost</code>
+    <span style="font-size: var(--text-12); color: var(--color-label-tertiary);">Transparent fill, border visible</span>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">Danger</span>
+    <button class="btn btn-danger">Delete Project</button>
+    <code>.btn-danger</code>
+    <span style="font-size: var(--text-12); color: var(--color-label-tertiary);">Error red fill — destructive actions only</span>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">Success</span>
+    <button class="btn btn-success">Restore</button>
+    <code>.btn-success</code>
+    <span style="font-size: var(--text-12); color: var(--color-label-tertiary);">Positive confirmation actions</span>
+  </div>
+
+  <!-- Sizes -->
+  <div class="group-label">Sizes</div>
+  <div class="demo-row">
+    <span class="demo-row-label">sm / 28px</span>
+    <button class="btn btn-primary btn-sm">Deploy</button>
+    <button class="btn btn-secondary btn-sm">Cancel</button>
+    <button class="btn btn-ghost btn-sm">More</button>
+    <code>.btn-sm</code>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">md / 36px</span>
+    <button class="btn btn-primary">Deploy</button>
+    <button class="btn btn-secondary">Cancel</button>
+    <button class="btn btn-ghost">More</button>
+    <code>.btn</code>
+    <span style="font-size: var(--text-12); color: var(--color-label-tertiary);">Default</span>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">lg / 44px</span>
+    <button class="btn btn-primary btn-lg">Get Started</button>
+    <button class="btn btn-ghost btn-lg">Learn More →</button>
+    <code>.btn-lg</code>
+  </div>
+
+  <!-- Icon buttons -->
+  <div class="group-label">Icon Buttons</div>
+  <div class="demo-row">
+    <span class="demo-row-label">md / 36px</span>
+    <button class="btn btn-icon" aria-label="Visit deployment">
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M2 10L10 2M10 2H6M10 2V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="btn btn-icon" aria-label="Redeploy">
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M10 6a4 4 0 1 1-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M6 2l1.5-1.5L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="btn btn-icon" aria-label="More options">
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <circle cx="3" cy="6" r="1" fill="currentColor"/>
+        <circle cx="6" cy="6" r="1" fill="currentColor"/>
+        <circle cx="9" cy="6" r="1" fill="currentColor"/>
+      </svg>
+    </button>
+    <code>.btn-icon</code>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">sm / 28px</span>
+    <button class="btn btn-icon btn-sm" aria-label="Visit">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M2 10L10 2M10 2H6M10 2V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="btn btn-icon btn-sm" aria-label="More">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <circle cx="3" cy="6" r="1" fill="currentColor"/>
+        <circle cx="6" cy="6" r="1" fill="currentColor"/>
+        <circle cx="9" cy="6" r="1" fill="currentColor"/>
+      </svg>
+    </button>
+    <code>.btn-icon.btn-sm</code>
+  </div>
+
+  <!-- States -->
+  <div class="group-label">States</div>
+  <div class="demo-row">
+    <span class="demo-row-label">Loading</span>
+    <button class="btn btn-primary loading">Deploying</button>
+    <button class="btn btn-secondary loading">Building</button>
+    <code>.btn.loading</code>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">Disabled</span>
+    <button class="btn btn-primary" disabled>Deploy</button>
+    <button class="btn btn-secondary" disabled>Cancel</button>
+    <button class="btn btn-ghost" disabled>More</button>
+    <code>[disabled]</code>
+    <span style="font-size: var(--text-12); color: var(--color-label-tertiary);">Opacity 0.38, pointer-events none</span>
+  </div>
+
+  <!-- Button group -->
+  <div class="group-label">Button Group</div>
+  <div class="demo-row">
+    <span class="demo-row-label">Group</span>
+    <div class="btn-group">
+      <button class="btn btn-ghost">Cancel</button>
+      <button class="btn btn-primary">Save Changes</button>
+    </div>
+  </div>
+  <div class="demo-row">
+    <span class="demo-row-label">With icon</span>
+    <button class="btn btn-primary" style="gap: var(--space-2);">
+      <span aria-hidden="true">▲</span>
+      Deploy
+    </button>
+    <button class="btn btn-secondary">
+      <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M10 6a4 4 0 1 1-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M6 2l1.5-1.5L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Redeploy
+    </button>
+  </div>
+
+  <!-- Spec table -->
+  <div class="group-label">Specification</div>
+  <table class="spec-table">
+    <thead>
+      <tr>
+        <th>Token</th>
+        <th>Value</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Height (sm)</td><td>28px</td><td>Compact table rows, secondary actions</td></tr>
+      <tr><td>Height (md)</td><td>36px</td><td>Default</td></tr>
+      <tr><td>Height (lg)</td><td>44px</td><td>Hero CTAs, prominent actions</td></tr>
+      <tr><td>Padding (md)</td><td>0 16px</td><td>Horizontal rhythm</td></tr>
+      <tr><td>Border Radius</td><td>6px</td><td>Precise, not rounded — engineered feel</td></tr>
+      <tr><td>Font size</td><td>14px / 600</td><td>Label weight for clarity</td></tr>
+      <tr><td>Transition</td><td>100ms cubic-bezier(0.4,0,0.2,1)</td><td>Instant feel, no lag</td></tr>
+      <tr><td>Active transform</td><td>scale(0.98)</td><td>Physical press feedback</td></tr>
+      <tr><td>Focus ring</td><td>2px white, 2px offset</td><td>Accessible on dark backgrounds</td></tr>
+      <tr><td>Disabled opacity</td><td>0.38</td><td>Standard accessibility threshold</td></tr>
+    </tbody>
+  </table>
+
+</main>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="Cards">
+<h2>Cards</h2>
+<p>Static rendition of Vercel/components/cards.html</p>
+<div class="gallery-frame">
+<div class="ds-preview">
+<style>
+    .page { max-width: 1000px; margin: 0 auto; padding: var(--space-10) var(--space-6); }
+    .page-back { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-13); color: var(--color-label-secondary); text-decoration: none; margin-bottom: var(--space-8); transition: color var(--duration-instant) var(--ease-vercel); }
+    .page-back:hover { color: var(--color-label-primary); text-decoration: none; }
+    .page-title { font-size: var(--text-36); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight-2); margin: 0 0 var(--space-3); }
+    .page-desc { font-size: var(--text-16); color: var(--color-label-secondary); line-height: var(--leading-relaxed); margin: 0 0 var(--space-12); }
+    .group-label { font-size: var(--text-11); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.10em; color: var(--color-label-tertiary); margin: var(--space-12) 0 var(--space-5); }
+    .group-label:first-child { margin-top: 0; }
+    code { font-family: var(--font-mono); font-size: var(--text-12); color: var(--color-accent-teal); background: var(--color-surface-2); border: var(--border-subtle); border-radius: var(--radius-xs); padding: 2px 6px; }
+
+    /* Stats card specific */
+    .stats-card {
+      background: var(--color-surface-1);
+      border: var(--border-default);
+      border-radius: var(--radius-card);
+      padding: var(--space-5);
+    }
+
+    .stats-value {
+      font-size: var(--text-36);
+      font-weight: var(--weight-bold);
+      letter-spacing: var(--tracking-tight-2);
+      line-height: 1;
+      margin-bottom: var(--space-1);
+    }
+
+    .stats-label {
+      font-size: var(--text-13);
+      color: var(--color-label-secondary);
+      margin-bottom: var(--space-3);
+    }
+
+    .stats-change {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: var(--text-12);
+      font-weight: var(--weight-medium);
+    }
+
+    .stats-change--up { color: var(--color-success); }
+    .stats-change--down { color: var(--color-error); }
+
+    /* Feature card */
+    .feature-card {
+      background: var(--color-surface-1);
+      border: var(--border-default);
+      border-radius: var(--radius-card);
+      padding: var(--space-6);
+      position: relative;
+      overflow: hidden;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      transition: border-color var(--duration-fast) var(--ease-vercel);
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        160deg,
+        rgba(80, 227, 194, 0.05) 0%,
+        transparent 60%
+      );
+      pointer-events: none;
+    }
+
+    .feature-card:hover {
+      border-color: var(--color-border-strong);
+    }
+
+    .feature-card-icon {
+      position: absolute;
+      top: var(--space-5);
+      right: var(--space-5);
+      font-size: 32px;
+      opacity: 0.15;
+    }
+
+    .feature-card-title {
+      font-size: var(--text-20);
+      font-weight: var(--weight-semibold);
+      color: var(--color-label-primary);
+      margin-bottom: var(--space-2);
+      letter-spacing: var(--tracking-tight-1);
+    }
+
+    .feature-card-desc {
+      font-size: var(--text-14);
+      color: var(--color-label-secondary);
+      line-height: var(--leading-relaxed);
+    }
+  </style>
+<main class="page">
+
+  <a href="../index.html" class="page-back">
+    <span aria-hidden="true">←</span>
+    Back to Design System
+  </a>
+
+  <span style="display: block; font-size: var(--text-11); font-weight: var(--weight-semibold); letter-spacing: 0.10em; text-transform: uppercase; color: var(--color-label-tertiary); margin-bottom: var(--space-3);">Components</span>
+  <h1 class="page-title">Cards</h1>
+  <p class="page-desc">
+    Surface-1 background, 1px bordered, 8px radius. Hover brightens border.
+    Cards serve as the primary content container — project cards, stats, feature highlights.
+  </p>
+
+  <!-- Project Cards -->
+  <div class="group-label">Project Cards <code>.project-card</code></div>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4);">
+
+    <article class="project-card">
+      <div class="project-preview">
+        <span class="project-preview-url">acme.vercel.app</span>
+      </div>
+      <div class="project-name">acme-corp</div>
+      <a href="#" class="project-domain">acme.vercel.app</a>
+      <div class="project-meta">
+        <span class="project-meta-branch">main</span>
+        <span>·</span>
+        <span>4m ago</span>
+        <span style="margin-left: auto;">
+          <span class="status-badge status-badge--ready">
+            <span class="badge-dot"></span>Ready
+          </span>
+        </span>
+      </div>
+    </article>
+
+    <article class="project-card">
+      <div class="project-preview">
+        <span class="project-preview-url">storefront.vercel.app</span>
+      </div>
+      <div class="project-name">storefront</div>
+      <a href="#" class="project-domain">storefront.vercel.app</a>
+      <div class="project-meta">
+        <span class="project-meta-branch">feature/cart</span>
+        <span>·</span>
+        <span>Just now</span>
+        <span style="margin-left: auto;">
+          <span class="status-badge status-badge--building">
+            <span class="badge-dot"></span>Building
+          </span>
+        </span>
+      </div>
+    </article>
+
+    <article class="project-card">
+      <div class="project-preview">
+        <span class="project-preview-url">blog.acme.com</span>
+      </div>
+      <div class="project-name">acme-blog</div>
+      <a href="#" class="project-domain">blog.acme.com</a>
+      <div class="project-meta">
+        <span class="project-meta-branch">main</span>
+        <span>·</span>
+        <span>2h ago</span>
+        <span style="margin-left: auto;">
+          <span class="status-badge status-badge--error">
+            <span class="badge-dot"></span>Error
+          </span>
+        </span>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="group-label">Stats Cards</div>
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4);">
+
+    <div class="stats-card">
+      <div class="stats-value text-success">99.9%</div>
+      <div class="stats-label">Uptime (30d)</div>
+      <span class="stats-change stats-change--up">↑ +0.1%</span>
+    </div>
+
+    <div class="stats-card">
+      <div class="stats-value">47ms</div>
+      <div class="stats-label">Avg Response</div>
+      <span class="stats-change stats-change--up">↓ -12ms</span>
+    </div>
+
+    <div class="stats-card">
+      <div class="stats-value">2.4M</div>
+      <div class="stats-label">Requests (24h)</div>
+      <span class="stats-change stats-change--up">↑ +18%</span>
+    </div>
+
+    <div class="stats-card">
+      <div class="stats-value text-error">3</div>
+      <div class="stats-label">Errors (1h)</div>
+      <span class="stats-change stats-change--down">↑ +3</span>
+    </div>
+
+  </div>
+
+  <!-- Feature Cards -->
+  <div class="group-label">Feature Highlight Cards</div>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4);">
+
+    <div class="feature-card">
+      <span class="feature-card-icon" aria-hidden="true">⚡</span>
+      <div class="feature-card-title">Edge Network</div>
+      <div class="feature-card-desc">Deployed to 100+ regions. Sub-50ms latency worldwide.</div>
+    </div>
+
+    <div class="feature-card" style="border-color: rgba(80,227,194,0.2);">
+      <span style="position: absolute; inset: 0; background: linear-gradient(160deg, rgba(80,227,194,0.08) 0%, transparent 60%); pointer-events: none;"></span>
+      <span class="feature-card-icon" aria-hidden="true" style="opacity: 0.25; color: var(--color-accent-teal);">▲</span>
+      <div class="feature-card-title">Zero Config</div>
+      <div class="feature-card-desc">Auto-detect framework. No build configuration needed.</div>
+    </div>
+
+    <div class="feature-card">
+      <span class="feature-card-icon" aria-hidden="true">🔒</span>
+      <div class="feature-card-title">Secure by Default</div>
+      <div class="feature-card-desc">HTTPS, DDoS protection, and access controls out of the box.</div>
+    </div>
+
+  </div>
+
+  <!-- Deployment list card -->
+  <div class="group-label">Deployment List <code>.deployment-list</code></div>
+  <div class="deployment-list" role="list">
+
+    <div class="deployment-row" role="listitem">
+      <div class="deployment-status">
+        <span class="deployment-dot deployment-dot--ready"></span>
+      </div>
+      <span class="deployment-branch">main</span>
+      <span class="deployment-commit">a4f3c12</span>
+      <span class="deployment-domain"><a href="#">acme-git-main.vercel.app</a></span>
+      <span class="deployment-time">3m ago</span>
+      <div class="deployment-actions">
+        <button class="btn btn-icon btn-sm" aria-label="Visit">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M2 10L10 2M10 2H6M10 2V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="btn btn-icon btn-sm" aria-label="More">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <circle cx="3" cy="6" r="1" fill="currentColor"/>
+            <circle cx="6" cy="6" r="1" fill="currentColor"/>
+            <circle cx="9" cy="6" r="1" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="deployment-row" role="listitem">
+      <div class="deployment-status">
+        <span class="deployment-dot deployment-dot--building"></span>
+      </div>
+      <span class="deployment-branch">fix/navigation</span>
+      <span class="deployment-commit">c9d1e44</span>
+      <span class="deployment-domain">acme-fix-navigation.vercel.app</span>
+      <span class="deployment-time">Just now</span>
+      <div class="deployment-actions">
+        <button class="btn btn-icon btn-sm" aria-label="More">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <circle cx="3" cy="6" r="1" fill="currentColor"/>
+            <circle cx="6" cy="6" r="1" fill="currentColor"/>
+            <circle cx="9" cy="6" r="1" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="deployment-row" role="listitem">
+      <div class="deployment-status">
+        <span class="deployment-dot deployment-dot--error"></span>
+      </div>
+      <span class="deployment-branch">staging</span>
+      <span class="deployment-commit">b2f9a77</span>
+      <span class="deployment-domain">acme-staging.vercel.app</span>
+      <span class="deployment-time">22m ago</span>
+      <div class="deployment-actions">
+        <button class="btn btn-icon btn-sm" aria-label="Redeploy">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M10 6a4 4 0 1 1-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M6 2l1.5-1.5L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="btn btn-icon btn-sm" aria-label="More">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <circle cx="3" cy="6" r="1" fill="currentColor"/>
+            <circle cx="6" cy="6" r="1" fill="currentColor"/>
+            <circle cx="9" cy="6" r="1" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="ControlConfirm">
+<h2>ControlConfirm</h2>
+<p>Confirming a grill command</p>
+<div class="gallery-frame">
+<div style="padding: var(--space-8) var(--space-6); background: var(--color-overlay); font-family: var(--font-sans); color: var(--color-label-primary); display: flex; justify-content: center;">
+  <div role="alertdialog" aria-labelledby="cc-title" aria-describedby="cc-body" style="width: 420px; background: var(--color-bg); border: var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);">
+    <div style="padding: var(--space-5) var(--space-6) var(--space-4);">
+      <h2 id="cc-title" class="heading-5" style="margin: 0 0 var(--space-2);">Turn the grill off?</h2>
+      <p id="cc-body" style="margin: 0; font-size: var(--text-14); line-height: 1.6; color: var(--color-label-secondary);">Turn the grill off. The fan will run for about 10 minutes.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary">Cancel</button>
+      <button type="button" class="btn btn-danger">Turn off</button>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="Forms">
+<h2>Forms</h2>
+<p>Static rendition of Vercel/components/forms.html</p>
+<div class="gallery-frame">
+<div class="ds-preview">
+<style>
+    .page { max-width: 860px; margin: 0 auto; padding: var(--space-10) var(--space-6); }
+    .page-back { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-13); color: var(--color-label-secondary); text-decoration: none; margin-bottom: var(--space-8); transition: color var(--duration-instant) var(--ease-vercel); }
+    .page-back:hover { color: var(--color-label-primary); text-decoration: none; }
+    .page-title { font-size: var(--text-36); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight-2); margin: 0 0 var(--space-3); }
+    .page-desc { font-size: var(--text-16); color: var(--color-label-secondary); line-height: var(--leading-relaxed); margin: 0 0 var(--space-12); }
+    .group-label { font-size: var(--text-11); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.10em; color: var(--color-label-tertiary); margin: var(--space-12) 0 var(--space-5); border-top: var(--border-subtle); padding-top: var(--space-8); }
+    .group-label:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    code { font-family: var(--font-mono); font-size: var(--text-12); color: var(--color-accent-teal); background: var(--color-surface-2); border: var(--border-subtle); border-radius: var(--radius-xs); padding: 2px 6px; }
+    .form-demo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-10); }
+    @media (max-width: 700px) { .form-demo { grid-template-columns: 1fr; } }
+  </style>
+<main class="page">
+
+  <a href="../index.html" class="page-back">← Back to Design System</a>
+
+  <span style="display: block; font-size: var(--text-11); font-weight: var(--weight-semibold); letter-spacing: 0.10em; text-transform: uppercase; color: var(--color-label-tertiary); margin-bottom: var(--space-3);">Components</span>
+  <h1 class="page-title">Forms</h1>
+  <p class="page-desc">
+    Dark-styled inputs. Surface-2 background, 1px border, 6px radius.
+    Focus: white border + shadow ring. Instant 100ms transitions.
+    Mono variant for env vars, paths, tokens, hashes.
+  </p>
+
+  <!-- Text Inputs -->
+  <div class="group-label">Text Inputs <code>.input</code></div>
+  <div class="form-demo">
+    <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+
+      <div class="form-group">
+        <label class="form-label" for="f1">Project Name</label>
+        <input type="text" id="f1" class="input" placeholder="my-app" value="my-app">
+        <span class="form-helper">Default state</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="f2">Domain</label>
+        <div class="input-wrapper">
+          <span class="input-icon-left" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M8 1.5C6 4 5 6 5 8s1 4 3 6.5M8 1.5C10 4 11 6 11 8s-1 4-3 6.5M1.5 8h13" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+          </span>
+          <input type="text" id="f2" class="input has-icon-left" placeholder="myapp.com" value="myapp.vercel.app">
+        </div>
+        <span class="form-helper">With icon left</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label required" for="f3">Email</label>
+        <input type="email" id="f3" class="input" placeholder="you@example.com">
+        <span class="form-helper">Required field</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="f4">Search</label>
+        <div class="input-wrapper">
+          <span class="input-icon-left" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <input type="search" id="f4" class="input has-icon-left" placeholder="Search deployments…">
+        </div>
+      </div>
+
+    </div>
+    <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+
+      <div class="form-group">
+        <label class="form-label" for="f5">Error State</label>
+        <input type="text" id="f5" class="input error" value="bad-project-name!!">
+        <span class="form-error">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+            <path d="M6 1a5 5 0 1 0 0 10A5 5 0 0 0 6 1ZM5.5 3.5h1v3h-1v-3Zm0 4h1v1h-1v-1Z"/>
+          </svg>
+          Only lowercase letters, numbers, and hyphens are allowed.
+        </span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="f6">Success State</label>
+        <input type="text" id="f6" class="input success" value="my-new-project">
+        <span class="form-helper" style="color: var(--color-success);">✓ Name is available</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="f7">Disabled</label>
+        <input type="text" id="f7" class="input" value="read-only-value" disabled>
+        <span class="form-helper">Cannot be edited</span>
+      </div>
+
+      <!-- Sizes -->
+      <div class="form-group">
+        <span class="form-label">Sizes</span>
+        <input type="text" class="input input-sm" placeholder="Small (28px)" style="margin-bottom: var(--space-2);">
+        <input type="text" class="input" placeholder="Medium (36px)" style="margin-bottom: var(--space-2);">
+        <input type="text" class="input input-lg" placeholder="Large (44px)">
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Mono Inputs -->
+  <div class="group-label">Monospace Inputs <code>.input-mono</code></div>
+  <div class="form-demo">
+    <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+
+      <div class="form-group">
+        <label class="form-label" for="m1">Build Command</label>
+        <input type="text" id="m1" class="input input-mono" value="next build">
+        <span class="form-helper">Executed during build step</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="m2">Output Directory</label>
+        <input type="text" id="m2" class="input input-mono" value=".next">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="m3">Root Directory</label>
+        <input type="text" id="m3" class="input input-mono" value="./">
+      </div>
+
+    </div>
+    <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+
+      <div class="form-group">
+        <label class="form-label" for="m4">API Secret Key</label>
+        <input type="password" id="m4" class="input input-mono" placeholder="sk_live_••••••••••••••••">
+        <span class="form-helper">Secret — never shown after save</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="m5">Webhook URL</label>
+        <input type="url" id="m5" class="input input-mono" placeholder="https://hooks.example.com/vercel">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="m6">Commit SHA</label>
+        <input type="text" id="m6" class="input input-mono" value="a4f3c127e9b2d71c8f0d3b993ef88022" readonly>
+        <span class="form-helper">Read-only hash</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Textarea -->
+  <div class="group-label">Textarea <code>.textarea</code></div>
+  <div class="form-demo">
+    <div class="form-group">
+      <label class="form-label" for="ta1">Deployment Notes</label>
+      <textarea id="ta1" class="textarea" rows="4" placeholder="Describe what changed in this deployment…"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="ta2">Environment Variables (Bulk Edit)</label>
+      <textarea id="ta2" class="textarea input-mono" rows="4" placeholder="KEY=value&#10;ANOTHER_KEY=another_value">DATABASE_URL=postgres://localhost:5432/mydb
+NEXT_PUBLIC_API_URL=https://api.example.com
+NODE_ENV=production</textarea>
+      <span class="form-helper">One variable per line in KEY=value format</span>
+    </div>
+  </div>
+
+  <!-- Select -->
+  <div class="group-label">Select <code>.select</code></div>
+  <div class="form-demo">
+    <div class="form-group">
+      <label class="form-label" for="s1">Framework Preset</label>
+      <div class="select-wrapper">
+        <select id="s1" class="select">
+          <option>Next.js</option>
+          <option>Nuxt</option>
+          <option>SvelteKit</option>
+          <option>Astro</option>
+          <option>Remix</option>
+          <option>Gatsby</option>
+          <option>Create React App</option>
+          <option>Other</option>
+        </select>
+        <span class="select-chevron" aria-hidden="true">▾</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="s2">Node.js Version</label>
+      <div class="select-wrapper">
+        <select id="s2" class="select">
+          <option>22.x (Latest)</option>
+          <option selected>20.x (LTS)</option>
+          <option>18.x</option>
+          <option>16.x</option>
+        </select>
+        <span class="select-chevron" aria-hidden="true">▾</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checkboxes -->
+  <div class="group-label">Checkboxes <code>.checkbox-wrapper</code></div>
+  <div style="display: flex; flex-direction: column; gap: var(--space-3); max-width: 400px;">
+    <label class="checkbox-wrapper">
+      <span class="checkbox">
+        <input type="checkbox" checked>
+        <span class="checkbox-box"></span>
+      </span>
+      <span class="checkbox-label">Auto-deploy on git push</span>
+    </label>
+    <label class="checkbox-wrapper">
+      <span class="checkbox">
+        <input type="checkbox" checked>
+        <span class="checkbox-box"></span>
+      </span>
+      <span class="checkbox-label">Enable deployment protection</span>
+    </label>
+    <label class="checkbox-wrapper">
+      <span class="checkbox">
+        <input type="checkbox">
+        <span class="checkbox-box"></span>
+      </span>
+      <span class="checkbox-label">Preview URLs for pull requests</span>
+    </label>
+    <label class="checkbox-wrapper">
+      <span class="checkbox">
+        <input type="checkbox" disabled>
+        <span class="checkbox-box"></span>
+      </span>
+      <span class="checkbox-label" style="opacity: 0.4;">Disabled option</span>
+    </label>
+  </div>
+
+  <!-- Toggles -->
+  <div class="group-label">Toggle Switches <code>.toggle</code></div>
+  <div style="display: flex; flex-direction: column; gap: var(--space-4); max-width: 320px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <div style="font-size: var(--text-14); color: var(--color-label-primary); margin-bottom: 2px;">Edge Runtime</div>
+        <div style="font-size: var(--text-12); color: var(--color-label-tertiary);">Use Vercel Edge Functions</div>
+      </div>
+      <label class="toggle-label">
+        <span class="toggle">
+          <input type="checkbox" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </span>
+      </label>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <div style="font-size: var(--text-14); color: var(--color-label-primary); margin-bottom: 2px;">Streaming</div>
+        <div style="font-size: var(--text-12); color: var(--color-label-tertiary);">Enable React Server Component streaming</div>
+      </div>
+      <label class="toggle-label">
+        <span class="toggle">
+          <input type="checkbox" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </span>
+      </label>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <div style="font-size: var(--text-14); color: var(--color-label-primary); margin-bottom: 2px;">Vercel Analytics</div>
+        <div style="font-size: var(--text-12); color: var(--color-label-tertiary);">Collect Real User Monitoring data</div>
+      </div>
+      <label class="toggle-label">
+        <span class="toggle">
+          <input type="checkbox">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Complete form example -->
+  <div class="group-label">Complete Form Example — New Project</div>
+  <form style="max-width: 480px; display: flex; flex-direction: column; gap: var(--space-5);" onsubmit="return false;">
+
+    <div class="form-group">
+      <label class="form-label required" for="np-name">Project Name</label>
+      <input type="text" id="np-name" class="input" placeholder="my-next-app">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label required" for="np-repo">Git Repository</label>
+      <div class="input-wrapper">
+        <span class="input-icon-left" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+        </span>
+        <input type="url" id="np-repo" class="input has-icon-left" placeholder="github.com/you/my-next-app">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="np-framework">Framework</label>
+      <div class="select-wrapper">
+        <select id="np-framework" class="select">
+          <option>Next.js</option>
+          <option>Nuxt</option>
+          <option>SvelteKit</option>
+          <option>Astro</option>
+          <option>Remix</option>
+        </select>
+        <span class="select-chevron" aria-hidden="true">▾</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="np-env">Environment Variables</label>
+      <textarea id="np-env" class="textarea input-mono" rows="3" placeholder="KEY=value"></textarea>
+      <span class="form-helper">Add environment variables for this project.</span>
+    </div>
+
+    <div style="display: flex; gap: var(--space-2);">
+      <button type="button" class="btn btn-ghost" style="flex: 1;">Cancel</button>
+      <button type="submit" class="btn btn-primary" style="flex: 2;">
+        <span aria-hidden="true">▲</span>
+        Deploy
+      </button>
+    </div>
+
+  </form>
+
+</main>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="GrillReadout">
+<h2>GrillReadout</h2>
+<p>The hero reading: grill temperature against its set point</p>
+<div class="gallery-frame">
+<div style="padding: var(--space-6); background: var(--color-bg); font-family: var(--font-sans); color: var(--color-label-primary); display: flex; gap: var(--space-6); flex-wrap: wrap;">
+  <section class="project-card" aria-labelledby="gr-label" style="width: 340px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span id="gr-label" class="section-label" style="margin: 0;">Grill</span>
+      <span class="status-badge status-badge--ready"><span class="deployment-dot deployment-dot--ready" aria-hidden="true"></span>Holding</span>
+    </div>
+    <div style="display: flex; align-items: flex-start; gap: 4px; margin-top: var(--space-3);">
+      <span style="font-family: var(--font-mono); font-size: 96px; line-height: 1; font-weight: 600; letter-spacing: -0.04em;">224</span>
+      <span style="font-family: var(--font-mono); font-size: var(--text-24); color: var(--color-label-secondary); margin-top: 8px;">°F</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: var(--space-4); font-size: var(--text-14); color: var(--color-label-secondary);">
+      <span>Set <span style="font-family: var(--font-mono); color: var(--color-label-primary);">225°F</span></span>
+      <span style="font-family: var(--font-mono);">1° below</span>
+    </div>
+    <div class="metric-bar-track" style="margin-top: var(--space-2);" role="img" aria-label="99% of set temperature">
+      <div class="metric-bar-fill" style="width: 99%; background: var(--series-grill);"></div>
+    </div>
+  </section>
+
+  <section class="project-card" aria-labelledby="gr-label-2" style="width: 340px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span id="gr-label-2" class="section-label" style="margin: 0;">Grill</span>
+      <span class="status-badge status-badge--building"><span class="deployment-dot deployment-dot--building" aria-hidden="true"></span>Off target 12 min</span>
+    </div>
+    <div style="display: flex; align-items: flex-start; gap: 4px; margin-top: var(--space-3);">
+      <span style="font-family: var(--font-mono); font-size: 96px; line-height: 1; font-weight: 600; letter-spacing: -0.04em;">197</span>
+      <span style="font-family: var(--font-mono); font-size: var(--text-24); color: var(--color-label-secondary); margin-top: 8px;">°F</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: var(--space-4); font-size: var(--text-14); color: var(--color-label-secondary);">
+      <span>Set <span style="font-family: var(--font-mono); color: var(--color-label-primary);">225°F</span></span>
+      <span style="font-family: var(--font-mono); color: var(--color-warning);">28° below</span>
+    </div>
+    <div class="metric-bar-track" style="margin-top: var(--space-2);" role="img" aria-label="88% of set temperature">
+      <div class="metric-bar-fill" style="width: 88%; background: var(--color-warning);"></div>
+    </div>
+  </section>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="Modals">
+<h2>Modals</h2>
+<p>Static rendition of Vercel/components/modals.html</p>
+<div class="gallery-frame">
+<div class="ds-preview">
+<style>
+    .page { max-width: 960px; margin: 0 auto; padding: var(--space-10) var(--space-6); }
+    .page-back { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-13); color: var(--color-label-secondary); text-decoration: none; margin-bottom: var(--space-8); transition: color var(--duration-instant) var(--ease-vercel); }
+    .page-back:hover { color: var(--color-label-primary); text-decoration: none; }
+    .page-title { font-size: var(--text-36); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight-2); margin: 0 0 var(--space-3); }
+    .page-desc { font-size: var(--text-16); color: var(--color-label-secondary); line-height: var(--leading-relaxed); margin: 0 0 var(--space-12); }
+    .group-label { font-size: var(--text-11); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.10em; color: var(--color-label-tertiary); margin: var(--space-12) 0 var(--space-5); border-top: var(--border-subtle); padding-top: var(--space-8); }
+    .group-label:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    code { font-family: var(--font-mono); font-size: var(--text-12); color: var(--color-accent-teal); background: var(--color-surface-2); border: var(--border-subtle); border-radius: var(--radius-xs); padding: 2px 6px; }
+    .modals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); }
+    @media (max-width: 700px) { .modals-grid { grid-template-columns: 1fr; } }
+    .modal-preview-label { font-size: var(--text-12); color: var(--color-label-tertiary); margin-bottom: var(--space-3); }
+
+    /* Overlay simulation for inline display */
+    .modal-inline-wrap {
+      background: rgba(0,0,0,0.50);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+<main class="page">
+
+  <a href="../index.html" class="page-back">← Back to Design System</a>
+
+  <span style="display: block; font-size: var(--text-11); font-weight: var(--weight-semibold); letter-spacing: 0.10em; text-transform: uppercase; color: var(--color-label-tertiary); margin-bottom: var(--space-3);">Components</span>
+  <h1 class="page-title">Modals &amp; Overlays</h1>
+  <p class="page-desc">
+    Surface-2 background, 12px radius, shadow-xl.
+    Backdrop: rgba(0,0,0,0.8) + blur(4px).
+    Animation: <code>fadeSlideUp</code> 200ms ease-out.
+    Max-width 480px.
+  </p>
+
+  <!-- Standard modals -->
+  <div class="group-label">Standard Modal <code>.modal</code></div>
+  <div class="modals-grid">
+
+    <div>
+      <div class="modal-preview-label">Transfer Project</div>
+      <div class="modal-inline-wrap">
+        <div class="modal" style="position: static; animation: none; max-width: 100%; width: 100%;">
+          <div class="modal-header">
+            <span class="modal-title">Transfer Project</span>
+            <button class="modal-close" aria-label="Close">✕</button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size: var(--text-14); color: var(--color-label-secondary); margin: 0 0 var(--space-4); line-height: var(--leading-relaxed);">
+              Transfer <code>my-app</code> to another team or personal account.
+              The new owner will have full control over this project and all its resources.
+            </p>
+            <div class="form-group">
+              <label class="form-label" for="transfer-scope">Transfer to</label>
+              <div class="select-wrapper">
+                <select id="transfer-scope" class="select">
+                  <option>Select a team or account…</option>
+                  <option>acme-team</option>
+                  <option>personal (you)</option>
+                </select>
+                <span class="select-chevron" aria-hidden="true">▾</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost">Cancel</button>
+            <button class="btn btn-primary">Transfer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="modal-preview-label">Add Custom Domain</div>
+      <div class="modal-inline-wrap">
+        <div class="modal" style="position: static; animation: none; max-width: 100%; width: 100%;">
+          <div class="modal-header">
+            <span class="modal-title">Add Domain</span>
+            <button class="modal-close" aria-label="Close">✕</button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size: var(--text-14); color: var(--color-label-secondary); margin: 0 0 var(--space-4); line-height: var(--leading-relaxed);">
+              Add a custom domain to your project. You'll need to configure DNS records after adding it.
+            </p>
+            <div class="form-group">
+              <label class="form-label required" for="domain-input">Domain</label>
+              <input type="text" id="domain-input" class="input input-mono" placeholder="example.com">
+              <span class="form-helper">You can add an apex domain or a subdomain.</span>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost">Cancel</button>
+            <button class="btn btn-primary">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Danger modals -->
+  <div class="group-label">Danger Dialog <code>.dialog-danger</code></div>
+  <div class="modals-grid">
+
+    <div>
+      <div class="modal-preview-label">Delete Deployment</div>
+      <div class="modal-inline-wrap">
+        <div class="modal dialog-danger" style="position: static; animation: none; max-width: 100%; width: 100%;">
+          <div class="modal-header">
+            <span class="modal-title">Delete Deployment</span>
+            <button class="modal-close" aria-label="Close">✕</button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size: var(--text-14); line-height: var(--leading-relaxed); margin: 0;">
+              This will permanently delete deployment <code>abc1234</code>.
+              This action cannot be undone.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost">Cancel</button>
+            <button class="btn btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="modal-preview-label">Delete Project (Type to confirm)</div>
+      <div class="modal-inline-wrap">
+        <div class="modal dialog-danger" style="position: static; animation: none; max-width: 100%; width: 100%;">
+          <div class="modal-header">
+            <span class="modal-title">Delete Project</span>
+            <button class="modal-close" aria-label="Close">✕</button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size: var(--text-14); line-height: var(--leading-relaxed); margin: 0 0 var(--space-4);">
+              This will permanently delete <strong>my-app</strong>, all its deployments,
+              domains, and environment variables. This action <strong>cannot be undone</strong>.
+            </p>
+            <div class="form-group">
+              <label class="form-label" style="font-size: var(--text-13); color: var(--color-label-secondary);">
+                Type <code>my-app</code> to confirm:
+              </label>
+              <input type="text" class="input input-mono" placeholder="my-app">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost">Cancel</button>
+            <button class="btn btn-danger">Delete Project</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tooltips -->
+  <div class="group-label">Tooltips <code>.tooltip</code></div>
+  <div style="display: flex; gap: var(--space-8); align-items: flex-end; flex-wrap: wrap; padding: var(--space-12) var(--space-8); background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-md);">
+
+    <div class="tooltip-wrapper">
+      <button class="btn btn-secondary">Deploy</button>
+      <div class="tooltip" role="tooltip">Push to production</div>
+    </div>
+
+    <div class="tooltip-wrapper">
+      <span class="region-badge" style="cursor: default;">iad1</span>
+      <div class="tooltip" role="tooltip">US East (N. Virginia)</div>
+    </div>
+
+    <div class="tooltip-wrapper">
+      <span class="status-badge status-badge--ready" style="cursor: default;"><span class="badge-dot"></span>Ready</span>
+      <div class="tooltip" role="tooltip">Deployed 4 minutes ago</div>
+    </div>
+
+    <div class="tooltip-wrapper">
+      <button class="btn btn-icon" aria-label="View details">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M7 6v4M7 4.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <div class="tooltip" role="tooltip">View deployment details</div>
+    </div>
+
+  </div>
+
+  <!-- Toast notifications (static display) -->
+  <div class="group-label">Toast Notifications <code>.toast</code></div>
+  <div style="display: flex; flex-direction: column; gap: var(--space-3); max-width: 360px;">
+
+    <div class="toast success" style="animation: none; pointer-events: auto;">
+      <span class="toast-indicator" style="background: var(--color-success);"></span>
+      <div class="toast-content">
+        <div class="toast-title">Deployed successfully</div>
+        <div class="toast-message">my-app is live at my-app.vercel.app</div>
+      </div>
+      <button class="toast-close" aria-label="Dismiss">✕</button>
+    </div>
+
+    <div class="toast error" style="animation: none; pointer-events: auto;">
+      <span class="toast-indicator" style="background: var(--color-error);"></span>
+      <div class="toast-content">
+        <div class="toast-title">Build failed</div>
+        <div class="toast-message">Error: Cannot find module './components/Header'</div>
+      </div>
+      <button class="toast-close" aria-label="Dismiss">✕</button>
+    </div>
+
+    <div class="toast warning" style="animation: none; pointer-events: auto;">
+      <span class="toast-indicator" style="background: var(--color-warning);"></span>
+      <div class="toast-content">
+        <div class="toast-title">Domain not configured</div>
+        <div class="toast-message">Add CNAME records to complete domain setup.</div>
+      </div>
+      <button class="toast-close" aria-label="Dismiss">✕</button>
+    </div>
+
+    <div class="toast info" style="animation: none; pointer-events: auto;">
+      <span class="toast-indicator" style="background: var(--color-info);"></span>
+      <div class="toast-content">
+        <div class="toast-title">Build queued</div>
+        <div class="toast-message">Your deployment is in the build queue.</div>
+      </div>
+      <button class="toast-close" aria-label="Dismiss">✕</button>
+    </div>
+
+  </div>
+
+  <!-- Progress bar -->
+  <div class="group-label">Progress Bars <code>.progress</code></div>
+  <div style="display: flex; flex-direction: column; gap: var(--space-4); max-width: 480px;">
+
+    <div>
+      <div style="display: flex; justify-content: space-between; font-size: var(--text-12); color: var(--color-label-secondary); margin-bottom: var(--space-2);">
+        <span>Build progress</span>
+        <span>72%</span>
+      </div>
+      <div class="progress" style="height: 3px;">
+        <div class="progress-fill" style="width: 72%;"></div>
+      </div>
+    </div>
+
+    <div>
+      <div style="display: flex; justify-content: space-between; font-size: var(--text-12); color: var(--color-label-secondary); margin-bottom: var(--space-2);">
+        <span>Function execution</span>
+        <span>Success</span>
+      </div>
+      <div class="progress" style="height: 3px;">
+        <div class="progress-fill progress-fill--success" style="width: 100%;"></div>
+      </div>
+    </div>
+
+    <div>
+      <div style="display: flex; justify-content: space-between; font-size: var(--text-12); color: var(--color-label-secondary); margin-bottom: var(--space-2);">
+        <span>Error rate</span>
+        <span style="color: var(--color-error);">12%</span>
+      </div>
+      <div class="progress" style="height: 3px;">
+        <div class="progress-fill progress-fill--error" style="width: 12%;"></div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size: var(--text-12); color: var(--color-label-secondary); margin-bottom: var(--space-2);">Uploading assets…</div>
+      <div class="progress progress--indeterminate" style="height: 2px;">
+        <div class="progress-fill progress-fill--blue"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Dividers -->
+  <div class="group-label">Dividers</div>
+  <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+
+    <div>
+      <div style="font-size: var(--text-12); color: var(--color-label-tertiary); margin-bottom: var(--space-2);">Subtle</div>
+      <hr class="divider">
+    </div>
+
+    <div>
+      <div style="font-size: var(--text-12); color: var(--color-label-tertiary); margin-bottom: var(--space-2);">Default</div>
+      <hr class="divider divider-default">
+    </div>
+
+    <div>
+      <div style="font-size: var(--text-12); color: var(--color-label-tertiary); margin-bottom: var(--space-2);">Labeled</div>
+      <div class="divider-labeled">or continue with</div>
+    </div>
+
+  </div>
+
+</main>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="Navigation">
+<h2>Navigation</h2>
+<p>Static rendition of Vercel/components/navigation.html</p>
+<div class="gallery-frame">
+<div class="ds-preview">
+<style>
+    .page { max-width: 960px; margin: 0 auto; padding: var(--space-10) var(--space-6); }
+    .page-back { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-13); color: var(--color-label-secondary); text-decoration: none; margin-bottom: var(--space-8); transition: color var(--duration-instant) var(--ease-vercel); }
+    .page-back:hover { color: var(--color-label-primary); text-decoration: none; }
+    .page-title { font-size: var(--text-36); font-weight: var(--weight-bold); letter-spacing: var(--tracking-tight-2); margin: 0 0 var(--space-3); }
+    .page-desc { font-size: var(--text-16); color: var(--color-label-secondary); line-height: var(--leading-relaxed); margin: 0 0 var(--space-12); }
+    .group-label { font-size: var(--text-11); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.10em; color: var(--color-label-tertiary); margin: var(--space-12) 0 var(--space-5); border-top: var(--border-subtle); padding-top: var(--space-8); }
+    .group-label:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+    code { font-family: var(--font-mono); font-size: var(--text-12); color: var(--color-accent-teal); background: var(--color-surface-2); border: var(--border-subtle); border-radius: var(--radius-xs); padding: 2px 6px; }
+    .demo-frame { background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-md); overflow: hidden; }
+    .demo-bar { height: 52px; background: rgba(0,0,0,0.8); border-bottom: var(--border-subtle); display: flex; align-items: center; padding: 0 var(--space-5); gap: var(--space-5); backdrop-filter: blur(12px); }
+    .demo-logo { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-14); font-weight: var(--weight-semibold); color: var(--color-label-primary); flex-shrink: 0; }
+    .demo-links { display: flex; flex: 1; justify-content: center; gap: 0; }
+    .demo-link { font-size: var(--text-14); color: var(--color-label-secondary); padding: var(--space-1) var(--space-3); cursor: default; border-radius: var(--radius-sm); transition: color var(--duration-instant) var(--ease-vercel); }
+    .demo-link:hover { color: var(--color-label-primary); }
+    .demo-actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+    .sidebar-demo-wrap { display: flex; height: 360px; }
+    .sidebar-panel { width: 200px; flex-shrink: 0; background: var(--color-surface-1); border-right: var(--border-subtle); padding: var(--space-4) var(--space-3); overflow-y: auto; }
+    .content-panel { flex: 1; padding: var(--space-5); }
+    .content-placeholder { background: var(--color-surface-2); border-radius: var(--radius-sm); margin-bottom: var(--space-3); }
+  </style>
+<main class="page">
+
+  <a href="../index.html" class="page-back">← Back to Design System</a>
+
+  <span style="display: block; font-size: var(--text-11); font-weight: var(--weight-semibold); letter-spacing: 0.10em; text-transform: uppercase; color: var(--color-label-tertiary); margin-bottom: var(--space-3);">Components</span>
+  <h1 class="page-title">Navigation</h1>
+  <p class="page-desc">
+    Global nav, docs sidebar, breadcrumbs, and underline tabs.
+    All dark-first. Frosted glass for the global nav. 14px nav links, label-secondary → white on hover.
+  </p>
+
+  <!-- Global Nav -->
+  <div class="group-label">Global Nav <code>.nav-global</code></div>
+  <div class="demo-frame">
+    <div class="demo-bar">
+      <div class="demo-logo">
+        <span aria-hidden="true">▲</span>
+        <span>Vercel</span>
+      </div>
+      <div class="demo-links">
+        <span class="demo-link">Products</span>
+        <span class="demo-link">Solutions</span>
+        <span class="demo-link">Resources</span>
+        <span class="demo-link">Enterprise</span>
+        <span class="demo-link">Pricing</span>
+      </div>
+      <div class="demo-actions">
+        <button class="btn btn-ghost btn-sm">Log In</button>
+        <button class="btn btn-primary btn-sm">Sign Up</button>
+      </div>
+    </div>
+    <div style="padding: var(--space-5);">
+      <div style="font-size: var(--text-13); color: var(--color-label-tertiary);">
+        Height: 64px · Pure black + blur(12px) backdrop · Border-bottom subtle · Sticky z-200
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard Nav -->
+  <div class="group-label">Dashboard Nav Bar</div>
+  <div class="demo-frame">
+    <div class="demo-bar" style="height: 52px;">
+      <div class="demo-logo">
+        <span aria-hidden="true">▲</span>
+        <span>acme</span>
+      </div>
+      <div class="demo-links">
+        <span class="demo-link" style="color: var(--color-label-primary);">Overview</span>
+        <span class="demo-link">Deployments</span>
+        <span class="demo-link">Domains</span>
+        <span class="demo-link">Analytics</span>
+        <span class="demo-link">Settings</span>
+      </div>
+      <div class="demo-actions">
+        <button class="btn btn-icon btn-sm" aria-label="Notifications">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M7 1a4.5 4.5 0 0 1 4.5 4.5c0 2 1 3.5 1.5 4H1c.5-.5 1.5-2 1.5-4A4.5 4.5 0 0 1 7 1Z" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M5.5 12a1.5 1.5 0 0 0 3 0" stroke="currentColor" stroke-width="1.3"/>
+          </svg>
+        </button>
+        <div class="avatar avatar-sm">A</div>
+      </div>
+    </div>
+
+    <!-- Project tabs below nav -->
+    <div style="border-bottom: var(--border-default); padding: 0 var(--space-5);">
+      <div class="tabs" style="border-bottom: none;">
+        <button class="tab-item active" role="tab">Deployments</button>
+        <button class="tab-item" role="tab">Logs</button>
+        <button class="tab-item" role="tab">Analytics</button>
+        <button class="tab-item" role="tab">Speed Insights</button>
+        <button class="tab-item" role="tab">Storage</button>
+        <button class="tab-item" role="tab">Settings</button>
+      </div>
+    </div>
+
+    <div style="padding: var(--space-5);">
+      <div style="font-size: var(--text-13); color: var(--color-label-tertiary);">
+        Project nav: 52px · Tabs: underline active, 2px white indicator
+      </div>
+    </div>
+  </div>
+
+  <!-- Docs Sidebar -->
+  <div class="group-label">Docs Sidebar + Layout <code>.nav-docs</code></div>
+  <div class="demo-frame">
+    <div class="sidebar-demo-wrap">
+
+      <nav class="sidebar-panel" aria-label="Docs sidebar">
+
+        <div style="margin-bottom: var(--space-4);">
+          <span class="nav-docs-section-label">Getting Started</span>
+          <a class="nav-docs-item active" href="#">Introduction</a>
+          <a class="nav-docs-item" href="#">Quick Start</a>
+          <a class="nav-docs-item" href="#">Framework Support</a>
+          <div class="nav-docs-nested">
+            <a class="nav-docs-item" href="#">Next.js</a>
+            <a class="nav-docs-item" href="#">Nuxt</a>
+            <a class="nav-docs-item" href="#">SvelteKit</a>
+            <a class="nav-docs-item" href="#">Astro</a>
+          </div>
+        </div>
+
+        <div style="margin-bottom: var(--space-4);">
+          <span class="nav-docs-section-label">Platform</span>
+          <a class="nav-docs-item" href="#">Deployments</a>
+          <a class="nav-docs-item" href="#">Domains</a>
+          <a class="nav-docs-item" href="#">Environment Vars</a>
+          <a class="nav-docs-item" href="#">Functions</a>
+          <a class="nav-docs-item" href="#">Edge Middleware</a>
+          <a class="nav-docs-item" href="#">Analytics</a>
+        </div>
+
+        <div>
+          <span class="nav-docs-section-label">Reference</span>
+          <a class="nav-docs-item" href="#">CLI Reference</a>
+          <a class="nav-docs-item" href="#">REST API</a>
+          <a class="nav-docs-item" href="#">Edge Runtime API</a>
+          <a class="nav-docs-item" href="#">OG Image Generation</a>
+        </div>
+
+      </nav>
+
+      <div class="content-panel">
+        <nav aria-label="Breadcrumb" style="margin-bottom: var(--space-5);">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="#">Docs</a></li>
+            <li class="breadcrumb-item"><span class="breadcrumb-separator" aria-hidden="true">/</span> Getting Started</li>
+            <li class="breadcrumb-item"><span class="breadcrumb-separator" aria-hidden="true">/</span> Introduction</li>
+          </ol>
+        </nav>
+
+        <h2 style="font-size: var(--text-24); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight-1); margin: 0 0 var(--space-3);">Introduction to Vercel</h2>
+        <p style="font-size: var(--text-14); color: var(--color-label-secondary); line-height: var(--leading-relaxed); margin: 0 0 var(--space-4);">
+          Vercel provides the developer tools and cloud infrastructure to build, scale, and secure a faster, more personalized web.
+        </p>
+
+        <!-- Skeleton content -->
+        <div class="content-placeholder skeleton" style="height: 12px; width: 90%; margin-bottom: var(--space-2);"></div>
+        <div class="content-placeholder skeleton" style="height: 12px; width: 75%; margin-bottom: var(--space-2);"></div>
+        <div class="content-placeholder skeleton" style="height: 12px; width: 82%;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Breadcrumbs -->
+  <div class="group-label">Breadcrumbs <code>.breadcrumb</code></div>
+  <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+
+    <div style="padding: var(--space-4); background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-sm);">
+      <nav aria-label="Breadcrumb example 1">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="#">acme</a></li>
+          <li class="breadcrumb-item"><span class="breadcrumb-separator" aria-hidden="true">/</span><a href="#">my-app</a></li>
+          <li class="breadcrumb-item"><span class="breadcrumb-separator" aria-hidden="true">/</span> Settings</li>
+        </ol>
+      </nav>
+    </div>
+
+    <div style="padding: var(--space-4); background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-sm);">
+      <nav aria-label="Breadcrumb example 2">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="#">Docs</a></li>
+          <li class="breadcrumb-item"><span class="breadcrumb-separator" aria-hidden="true">/</span><a href="#">Getting Started</a></li>
+          <li class="breadcrumb-item"><span class="breadcrumb-separator" aria-hidden="true">/</span><a href="#">Framework Support</a></li>
+          <li class="breadcrumb-item"><span class="breadcrumb-separator" aria-hidden="true">/</span> Next.js</li>
+        </ol>
+      </nav>
+    </div>
+
+  </div>
+
+  <!-- Tabs -->
+  <div class="group-label">Tabs <code>.tabs</code> / <code>.tab-item</code></div>
+
+  <div style="padding: 0 var(--space-4); background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-sm); margin-bottom: var(--space-4);">
+    <div class="tabs" role="tablist">
+      <button class="tab-item active" role="tab" aria-selected="true">Deployments</button>
+      <button class="tab-item" role="tab" aria-selected="false">Logs</button>
+      <button class="tab-item" role="tab" aria-selected="false">Analytics</button>
+      <button class="tab-item" role="tab" aria-selected="false">Speed Insights</button>
+      <button class="tab-item" role="tab" aria-selected="false">Storage</button>
+      <button class="tab-item" role="tab" aria-selected="false">Settings</button>
+    </div>
+  </div>
+
+  <!-- Tabs with badge counts -->
+  <div style="padding: 0 var(--space-4); background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-sm);">
+    <div class="tabs" role="tablist">
+      <button class="tab-item active" role="tab" aria-selected="true">
+        All
+        <span class="badge" style="font-size: var(--text-11); height: 16px; padding: 0 5px;">24</span>
+      </button>
+      <button class="tab-item" role="tab" aria-selected="false">
+        Ready
+        <span class="badge badge--success" style="font-size: var(--text-11); height: 16px; padding: 0 5px;">18</span>
+      </button>
+      <button class="tab-item" role="tab" aria-selected="false">
+        Building
+        <span class="badge badge--warning" style="font-size: var(--text-11); height: 16px; padding: 0 5px;">3</span>
+      </button>
+      <button class="tab-item" role="tab" aria-selected="false">
+        Error
+        <span class="badge badge--error" style="font-size: var(--text-11); height: 16px; padding: 0 5px;">3</span>
+      </button>
+    </div>
+  </div>
+
+</main>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="NumberStepper">
+<h2>NumberStepper</h2>
+<p>A number input with - and + buttons, desktop and phone size</p>
+<div class="gallery-frame">
+<div id="ns-root" style="padding: var(--space-6); background: var(--color-bg); font-family: var(--font-sans); color: var(--color-label-primary); display: flex; flex-direction: column; gap: var(--space-5);">
+  <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <label for="ns-set" style="font-size: var(--text-14); color: var(--color-label-secondary); width: 140px;">Set grill to</label>
+    <div class="stepper" role="group" aria-label="Set grill to" data-min="180" data-max="500" data-step="5">
+      <button type="button" class="stepper-btn" aria-label="Lower by 5°" data-dir="-1">−</button>
+      <input id="ns-set" class="input" type="number" inputmode="numeric" value="225">
+      <button type="button" class="stepper-btn" aria-label="Raise by 5°" data-dir="1">+</button>
+    </div>
+    <span class="mono" style="color: var(--color-label-secondary);">°F</span>
+    <button type="button" class="btn btn-primary btn-sm">Set</button>
+  </div>
+  <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <label for="ns-poll" style="font-size: var(--text-14); color: var(--color-label-secondary); width: 140px;">Read the grill every</label>
+    <div class="stepper" role="group" aria-label="Read the grill every" data-min="1" data-max="60" data-step="1">
+      <button type="button" class="stepper-btn" aria-label="Lower by 1 second" data-dir="-1" disabled>−</button>
+      <input id="ns-poll" class="input" type="number" inputmode="numeric" value="1">
+      <button type="button" class="stepper-btn" aria-label="Raise by 1 second" data-dir="1">+</button>
+    </div>
+    <span class="mono" style="color: var(--color-label-secondary);">s</span>
+    <span style="font-size: var(--text-12); color: var(--color-label-secondary);">At its minimum, so − is dimmed</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <label for="ns-touch" style="font-size: var(--text-14); color: var(--color-label-secondary); width: 140px;">Phone size</label>
+    <div class="stepper stepper--touch" role="group" aria-label="Set grill to, phone size" data-min="180" data-max="500" data-step="5">
+      <button type="button" class="stepper-btn" aria-label="Lower by 5°" data-dir="-1">−</button>
+      <input id="ns-touch" class="input" type="number" inputmode="numeric" value="225">
+      <button type="button" class="stepper-btn" aria-label="Raise by 5°" data-dir="1">+</button>
+    </div>
+    <span class="mono" style="color: var(--color-label-secondary);">°F</span>
+  </div>
+</div>
+<script>
+document.querySelectorAll("#ns-root .stepper").forEach((group) => {
+  const input = group.querySelector("input");
+  const [down, up] = group.querySelectorAll(".stepper-btn");
+  const min = Number(group.dataset.min), max = Number(group.dataset.max), step = Number(group.dataset.step);
+  let wait = null, repeat = null;
+  const sync = () => { const v = Number(input.value); down.disabled = v <= min; up.disabled = v >= max; };
+  const set = (v) => { input.value = String(Math.min(max, Math.max(min, v))); sync(); };
+  const move = (dir) => { const v = Number(input.value); const base = Number.isFinite(v) ? Math.round(v / step) * step : min; set(base + dir * step); if (Number(input.value) <= min || Number(input.value) >= max) stop(); };
+  const stop = () => { clearTimeout(wait); clearInterval(repeat); };
+  [down, up].forEach((btn) => {
+    const dir = Number(btn.dataset.dir);
+    btn.addEventListener("pointerdown", () => { stop(); move(dir); wait = setTimeout(() => { repeat = setInterval(() => move(dir), 90); }, 400); });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((e) => btn.addEventListener(e, stop));
+    btn.addEventListener("click", (e) => { if (e.detail === 0) move(dir); });
+  });
+  input.addEventListener("blur", () => { const v = Number(input.value); set(Number.isFinite(v) ? Math.round(v / step) * step : min); });
+  sync();
+});
+</script>
+</div>
+</section>
+<section class="gallery-item" id="ProbeCard">
+<h2>ProbeCard</h2>
+<p>A food probe: reading, target and alert</p>
+<div class="gallery-frame">
+<div style="padding: var(--space-6); background: var(--color-bg); font-family: var(--font-sans); color: var(--color-label-primary); display: grid; grid-template-columns: repeat(3, minmax(0, 220px)); gap: var(--space-4);">
+  <section class="project-card" aria-labelledby="pc-1">
+    <div style="display: flex; align-items: center; gap: var(--space-2);">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--series-probe-1);"></span>
+      <span id="pc-1" class="section-label" style="margin: 0;">Probe 1</span>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: var(--text-48); font-weight: 600; line-height: 1.1; margin-top: var(--space-3); letter-spacing: -0.03em;">152<span style="font-size: var(--text-18); color: var(--color-label-secondary);">°F</span></div>
+    <div style="font-size: var(--text-13); color: var(--color-label-secondary); margin-top: var(--space-1);">Target <span style="font-family: var(--font-mono); color: var(--color-label-primary);">165°</span></div>
+    <div class="metric-bar-track" style="margin-top: var(--space-3);" role="img" aria-label="92% of target"><div class="metric-bar-fill" style="width: 92%; background: var(--series-probe-1);"></div></div>
+    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: var(--space-4);">Edit alert</button>
+  </section>
+
+  <section class="project-card" aria-labelledby="pc-2">
+    <div style="display: flex; align-items: center; gap: var(--space-2);">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--series-probe-2);"></span>
+      <span id="pc-2" class="section-label" style="margin: 0;">Probe 2</span>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: var(--text-48); font-weight: 600; line-height: 1.1; margin-top: var(--space-3); letter-spacing: -0.03em;">134<span style="font-size: var(--text-18); color: var(--color-label-secondary);">°F</span></div>
+    <div style="font-size: var(--text-13); color: var(--color-label-secondary); margin-top: var(--space-1);">No target</div>
+    <div class="metric-bar-track" style="margin-top: var(--space-3);" aria-hidden="true"></div>
+    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: var(--space-4);">Set alert</button>
+  </section>
+
+  <section class="project-card" aria-labelledby="pc-3" style="border-color: var(--color-success-border);">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: var(--space-2);">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--series-probe-1);"></span>
+        <span id="pc-3" class="section-label" style="margin: 0;">Probe 1</span>
+      </div>
+      <span class="status-badge status-badge--ready"><span class="deployment-dot deployment-dot--ready" aria-hidden="true"></span>Done</span>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: var(--text-48); font-weight: 600; line-height: 1.1; margin-top: var(--space-3); letter-spacing: -0.03em;">166<span style="font-size: var(--text-18); color: var(--color-label-secondary);">°F</span></div>
+    <div style="font-size: var(--text-13); color: var(--color-label-secondary); margin-top: var(--space-1);">Target <span style="font-family: var(--font-mono); color: var(--color-label-primary);">165°</span> · reached 4 min ago</div>
+    <div class="metric-bar-track" style="margin-top: var(--space-3);" role="img" aria-label="Target reached"><div class="metric-bar-fill" style="width: 100%; background: var(--color-success);"></div></div>
+    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: var(--space-4);">Edit alert</button>
+  </section>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="SettingsPanel">
+<h2>SettingsPanel</h2>
+<p>Linear-style section list and setting rows, in the Vercel-style tokens</p>
+<div class="gallery-frame">
+<div style="padding: var(--space-6); background: var(--color-overlay); font-family: var(--font-sans); color: var(--color-label-primary);">
+  <div role="dialog" aria-labelledby="sp-title" style="max-width: 860px; margin: 0 auto; background: var(--color-bg); border: var(--border-default); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); overflow: hidden; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5); border-bottom: var(--border-subtle);">
+      <h2 id="sp-title" class="heading-5" style="margin: 0;">Settings</h2>
+      <button type="button" class="btn btn-ghost btn-sm">Close</button>
+    </div>
+    <div style="display: flex; min-height: 380px;">
+      <nav aria-label="Settings sections" style="width: 200px; flex-shrink: 0; padding: var(--space-3) var(--space-2); background: var(--color-surface-1); border-right: var(--border-subtle); display: flex; flex-direction: column; gap: 2px;">
+        <a class="nav-docs-item active" href="#" aria-current="page" style="justify-content: space-between;"><span>Grill</span><span class="mono" style="font-size: var(--text-12); color: var(--color-label-secondary);">WiFi</span></a>
+        <a class="nav-docs-item" href="#" style="justify-content: space-between;"><span>Alerts</span><span class="mono" style="font-size: var(--text-12);">On</span></a>
+        <a class="nav-docs-item" href="#" style="justify-content: space-between;"><span>Home Assistant</span><span class="mono" style="font-size: var(--text-12);">Off</span></a>
+        <a class="nav-docs-item" href="#" style="justify-content: space-between;"><span>Access &amp; control</span></a>
+        <a class="nav-docs-item" href="#"><span>System</span></a>
+      </nav>
+      <div style="flex: 1; min-width: 0; padding: var(--space-5) var(--space-6);">
+        <div role="status" style="display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-13); color: var(--color-label-secondary); margin-bottom: var(--space-5);">
+          <span class="deployment-dot deployment-dot--ready" aria-hidden="true"></span><span style="color: var(--color-label-primary);">Connected over WiFi</span> · <span class="mono">2 s ago</span>
+        </div>
+
+        <span class="section-label">Connection</span>
+        <div style="border: var(--border-default); border-radius: var(--radius-md);">
+          <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: var(--border-subtle);">
+            <div style="flex: 1;"><div class="form-label">Source</div><div style="font-size: var(--text-12); color: var(--color-label-secondary);">From .env</div></div>
+            <div class="tabs" role="radiogroup" aria-label="Source" style="display: inline-flex; gap: 2px; padding: 2px; background: var(--color-surface-2); border-radius: var(--radius-sm);">
+              <button type="button" role="radio" aria-checked="true" class="btn btn-sm" style="background: var(--color-bg); color: var(--color-label-primary); box-shadow: var(--shadow-border);">WiFi</button>
+              <button type="button" role="radio" aria-checked="false" class="btn btn-ghost btn-sm">Bluetooth</button>
+              <button type="button" role="radio" aria-checked="false" class="btn btn-ghost btn-sm">Demo</button>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: var(--border-subtle);">
+            <label for="sp-host" class="form-label" style="flex: 1;">Grill address</label>
+            <input id="sp-host" class="input input-mono input-sm" value="192.168.1.40" style="width: 200px;">
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: var(--border-subtle);">
+            <div style="flex: 1; display: flex; align-items: center; gap: var(--space-2);"><label for="sp-model" class="form-label">Model</label><span class="badge">Custom</span><button type="button" class="btn btn-ghost btn-sm" aria-label="Reset model to default">Reset</button></div>
+            <input id="sp-model" class="input input-mono input-sm" value="PB1150PS2" style="width: 200px;">
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4);">
+            <div class="form-label" style="flex: 1;">Grill password</div>
+            <span class="mono" style="color: var(--color-label-secondary);">••••••</span>
+            <button type="button" class="btn btn-secondary btn-sm" aria-label="Change grill password">Change</button>
+          </div>
+        </div>
+
+        <span class="section-label" style="margin-top: var(--space-6);">Access</span>
+        <div style="border: var(--border-default); border-radius: var(--radius-md);">
+          <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: var(--border-subtle);">
+            <div style="flex: 1;"><div class="form-label">Dashboard password</div><div class="form-helper" style="color: var(--color-label-secondary);">A password is needed to open the dashboard.</div></div>
+            <label class="toggle" aria-label="Dashboard password"><input type="checkbox" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4);">
+            <div style="flex: 1;"><div class="form-label">Read the grill every</div></div>
+            <input class="input input-mono input-sm" type="number" value="2" aria-label="Poll seconds" style="width: 72px; text-align: right;"><span style="font-size: var(--text-13); color: var(--color-label-secondary);">s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content: space-between; padding: var(--space-3) var(--space-5);">
+      <span role="status" style="font-size: var(--text-13); color: var(--color-warning);">1 unsaved change</span>
+      <div style="display: flex; gap: var(--space-2);"><button type="button" class="btn btn-secondary btn-sm">Discard</button><button type="button" class="btn btn-primary btn-sm">Save &amp; apply</button></div>
+    </div>
+  </div>
+</div>
+</div>
+</section>
+<section class="gallery-item" id="StatusStrip">
+<h2>StatusStrip</h2>
+<p>Connection line, component states and error flags</p>
+<div class="gallery-frame">
+<div style="padding: var(--space-6); background: var(--color-bg); font-family: var(--font-sans); color: var(--color-label-primary); display: flex; flex-direction: column; gap: var(--space-4); max-width: 720px;">
+  <div role="status" style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: var(--color-surface-1); border: var(--border-subtle); border-radius: var(--radius-md); font-size: var(--text-13); color: var(--color-label-secondary);">
+    <span class="deployment-dot deployment-dot--ready" aria-hidden="true"></span>
+    <span style="color: var(--color-label-primary);">Connected over WiFi</span>
+    <span>·</span><span class="mono">last reading 2 s ago</span>
+  </div>
+
+  <ul aria-label="Components" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2);">
+    <li style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-md); font-size: var(--text-14);">Power <span class="status-badge status-badge--ready">On</span></li>
+    <li style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); background: var(--color-surface-1); border: var(--border-default); border-radius: var(--radius-md); font-size: var(--text-14);">Fan <span class="status-badge status-badge--ready">On</span></li>
+    <li style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); background: var(--color-surface-1); border: var(--border-subtle); border-radius: var(--radius-md); font-size: var(--text-14); color: var(--color-label-secondary);">Igniter <span class="status-badge status-badge--queued">Off</span></li>
+    <li style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); background: var(--color-surface-1); border: var(--border-subtle); border-radius: var(--radius-md); font-size: var(--text-14); color: var(--color-label-secondary);">Auger <span class="status-badge status-badge--queued">Off</span></li>
+  </ul>
+
+  <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+    <span class="badge badge--success">No error flags</span>
+    <span class="badge badge--warning">Stale: no reading for 45 s</span>
+    <span class="badge badge--error">High temp error</span>
+  </div>
+</div>
+</div>
+</section>
+<script>
+document.getElementById("gallery-theme").addEventListener("click", () => {
+  const root = document.documentElement;
+  root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+});
+</script>
+</body>
+</html>

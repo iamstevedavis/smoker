@@ -1,0 +1,52 @@
+<!-- @dsCard group="Smokestack" height=220 subtitle="A number input with - and + buttons, desktop and phone size" -->
+<div id="ns-root" style="padding: var(--space-6); background: var(--color-bg); font-family: var(--font-sans); color: var(--color-label-primary); display: flex; flex-direction: column; gap: var(--space-5);">
+  <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <label for="ns-set" style="font-size: var(--text-14); color: var(--color-label-secondary); width: 140px;">Set grill to</label>
+    <div class="stepper" role="group" aria-label="Set grill to" data-min="180" data-max="500" data-step="5">
+      <button type="button" class="stepper-btn" aria-label="Lower by 5°" data-dir="-1">−</button>
+      <input id="ns-set" class="input" type="number" inputmode="numeric" value="225">
+      <button type="button" class="stepper-btn" aria-label="Raise by 5°" data-dir="1">+</button>
+    </div>
+    <span class="mono" style="color: var(--color-label-secondary);">°F</span>
+    <button type="button" class="btn btn-primary btn-sm">Set</button>
+  </div>
+  <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <label for="ns-poll" style="font-size: var(--text-14); color: var(--color-label-secondary); width: 140px;">Read the grill every</label>
+    <div class="stepper" role="group" aria-label="Read the grill every" data-min="1" data-max="60" data-step="1">
+      <button type="button" class="stepper-btn" aria-label="Lower by 1 second" data-dir="-1" disabled>−</button>
+      <input id="ns-poll" class="input" type="number" inputmode="numeric" value="1">
+      <button type="button" class="stepper-btn" aria-label="Raise by 1 second" data-dir="1">+</button>
+    </div>
+    <span class="mono" style="color: var(--color-label-secondary);">s</span>
+    <span style="font-size: var(--text-12); color: var(--color-label-secondary);">At its minimum, so − is dimmed</span>
+  </div>
+  <div style="display: flex; align-items: center; gap: var(--space-3);">
+    <label for="ns-touch" style="font-size: var(--text-14); color: var(--color-label-secondary); width: 140px;">Phone size</label>
+    <div class="stepper stepper--touch" role="group" aria-label="Set grill to, phone size" data-min="180" data-max="500" data-step="5">
+      <button type="button" class="stepper-btn" aria-label="Lower by 5°" data-dir="-1">−</button>
+      <input id="ns-touch" class="input" type="number" inputmode="numeric" value="225">
+      <button type="button" class="stepper-btn" aria-label="Raise by 5°" data-dir="1">+</button>
+    </div>
+    <span class="mono" style="color: var(--color-label-secondary);">°F</span>
+  </div>
+</div>
+<script>
+document.querySelectorAll("#ns-root .stepper").forEach((group) => {
+  const input = group.querySelector("input");
+  const [down, up] = group.querySelectorAll(".stepper-btn");
+  const min = Number(group.dataset.min), max = Number(group.dataset.max), step = Number(group.dataset.step);
+  let wait = null, repeat = null;
+  const sync = () => { const v = Number(input.value); down.disabled = v <= min; up.disabled = v >= max; };
+  const set = (v) => { input.value = String(Math.min(max, Math.max(min, v))); sync(); };
+  const move = (dir) => { const v = Number(input.value); const base = Number.isFinite(v) ? Math.round(v / step) * step : min; set(base + dir * step); if (Number(input.value) <= min || Number(input.value) >= max) stop(); };
+  const stop = () => { clearTimeout(wait); clearInterval(repeat); };
+  [down, up].forEach((btn) => {
+    const dir = Number(btn.dataset.dir);
+    btn.addEventListener("pointerdown", () => { stop(); move(dir); wait = setTimeout(() => { repeat = setInterval(() => move(dir), 90); }, 400); });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((e) => btn.addEventListener(e, stop));
+    btn.addEventListener("click", (e) => { if (e.detail === 0) move(dir); });
+  });
+  input.addEventListener("blur", () => { const v = Number(input.value); set(Number.isFinite(v) ? Math.round(v / step) * step : min); });
+  sync();
+});
+</script>

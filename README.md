@@ -91,6 +91,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - [Bluetooth setup](docs/ble.md)
 - [Docker operations](docs/docker.md): upgrade, backup, migrating the old `./data` mount
 - [Releasing](docs/releasing.md): versions, tags, release notes and images
+- [Design](docs/design/README.md): the dashboard's design system, Smokestack-style
 
 ## Development
 

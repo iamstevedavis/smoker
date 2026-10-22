@@ -1,0 +1,38 @@
+<!-- @dsCard group="Smokestack" height=240 subtitle="A food probe: reading, target and alert" -->
+<div style="padding: var(--space-6); background: var(--color-bg); font-family: var(--font-sans); color: var(--color-label-primary); display: grid; grid-template-columns: repeat(3, minmax(0, 220px)); gap: var(--space-4);">
+  <section class="project-card" aria-labelledby="pc-1">
+    <div style="display: flex; align-items: center; gap: var(--space-2);">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--series-probe-1);"></span>
+      <span id="pc-1" class="section-label" style="margin: 0;">Probe 1</span>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: var(--text-48); font-weight: 600; line-height: 1.1; margin-top: var(--space-3); letter-spacing: -0.03em;">152<span style="font-size: var(--text-18); color: var(--color-label-secondary);">°F</span></div>
+    <div style="font-size: var(--text-13); color: var(--color-label-secondary); margin-top: var(--space-1);">Target <span style="font-family: var(--font-mono); color: var(--color-label-primary);">165°</span></div>
+    <div class="metric-bar-track" style="margin-top: var(--space-3);" role="img" aria-label="92% of target"><div class="metric-bar-fill" style="width: 92%; background: var(--series-probe-1);"></div></div>
+    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: var(--space-4);">Edit alert</button>
+  </section>
+
+  <section class="project-card" aria-labelledby="pc-2">
+    <div style="display: flex; align-items: center; gap: var(--space-2);">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--series-probe-2);"></span>
+      <span id="pc-2" class="section-label" style="margin: 0;">Probe 2</span>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: var(--text-48); font-weight: 600; line-height: 1.1; margin-top: var(--space-3); letter-spacing: -0.03em;">134<span style="font-size: var(--text-18); color: var(--color-label-secondary);">°F</span></div>
+    <div style="font-size: var(--text-13); color: var(--color-label-secondary); margin-top: var(--space-1);">No target</div>
+    <div class="metric-bar-track" style="margin-top: var(--space-3);" aria-hidden="true"></div>
+    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: var(--space-4);">Set alert</button>
+  </section>
+
+  <section class="project-card" aria-labelledby="pc-3" style="border-color: var(--color-success-border);">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: var(--space-2);">
+        <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--series-probe-1);"></span>
+        <span id="pc-3" class="section-label" style="margin: 0;">Probe 1</span>
+      </div>
+      <span class="status-badge status-badge--ready"><span class="deployment-dot deployment-dot--ready" aria-hidden="true"></span>Done</span>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: var(--text-48); font-weight: 600; line-height: 1.1; margin-top: var(--space-3); letter-spacing: -0.03em;">166<span style="font-size: var(--text-18); color: var(--color-label-secondary);">°F</span></div>
+    <div style="font-size: var(--text-13); color: var(--color-label-secondary); margin-top: var(--space-1);">Target <span style="font-family: var(--font-mono); color: var(--color-label-primary);">165°</span> · reached 4 min ago</div>
+    <div class="metric-bar-track" style="margin-top: var(--space-3);" role="img" aria-label="Target reached"><div class="metric-bar-fill" style="width: 100%; background: var(--color-success);"></div></div>
+    <button type="button" class="btn btn-secondary btn-sm" style="margin-top: var(--space-4);">Edit alert</button>
+  </section>
+</div>

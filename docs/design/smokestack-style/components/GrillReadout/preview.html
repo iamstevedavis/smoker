@@ -1,0 +1,38 @@
+<!-- @dsCard group="Smokestack" height=300 subtitle="The hero reading: grill temperature against its set point" -->
+<div style="padding: var(--space-6); background: var(--color-bg); font-family: var(--font-sans); color: var(--color-label-primary); display: flex; gap: var(--space-6); flex-wrap: wrap;">
+  <section class="project-card" aria-labelledby="gr-label" style="width: 340px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span id="gr-label" class="section-label" style="margin: 0;">Grill</span>
+      <span class="status-badge status-badge--ready"><span class="deployment-dot deployment-dot--ready" aria-hidden="true"></span>Holding</span>
+    </div>
+    <div style="display: flex; align-items: flex-start; gap: 4px; margin-top: var(--space-3);">
+      <span style="font-family: var(--font-mono); font-size: 96px; line-height: 1; font-weight: 600; letter-spacing: -0.04em;">224</span>
+      <span style="font-family: var(--font-mono); font-size: var(--text-24); color: var(--color-label-secondary); margin-top: 8px;">°F</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: var(--space-4); font-size: var(--text-14); color: var(--color-label-secondary);">
+      <span>Set <span style="font-family: var(--font-mono); color: var(--color-label-primary);">225°F</span></span>
+      <span style="font-family: var(--font-mono);">1° below</span>
+    </div>
+    <div class="metric-bar-track" style="margin-top: var(--space-2);" role="img" aria-label="99% of set temperature">
+      <div class="metric-bar-fill" style="width: 99%; background: var(--series-grill);"></div>
+    </div>
+  </section>
+
+  <section class="project-card" aria-labelledby="gr-label-2" style="width: 340px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span id="gr-label-2" class="section-label" style="margin: 0;">Grill</span>
+      <span class="status-badge status-badge--building"><span class="deployment-dot deployment-dot--building" aria-hidden="true"></span>Off target 12 min</span>
+    </div>
+    <div style="display: flex; align-items: flex-start; gap: 4px; margin-top: var(--space-3);">
+      <span style="font-family: var(--font-mono); font-size: 96px; line-height: 1; font-weight: 600; letter-spacing: -0.04em;">197</span>
+      <span style="font-family: var(--font-mono); font-size: var(--text-24); color: var(--color-label-secondary); margin-top: 8px;">°F</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: var(--space-4); font-size: var(--text-14); color: var(--color-label-secondary);">
+      <span>Set <span style="font-family: var(--font-mono); color: var(--color-label-primary);">225°F</span></span>
+      <span style="font-family: var(--font-mono); color: var(--color-warning);">28° below</span>
+    </div>
+    <div class="metric-bar-track" style="margin-top: var(--space-2);" role="img" aria-label="88% of set temperature">
+      <div class="metric-bar-fill" style="width: 88%; background: var(--color-warning);"></div>
+    </div>
+  </section>
+</div>
