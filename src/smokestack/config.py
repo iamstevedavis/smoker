@@ -22,6 +22,7 @@ class Settings:
     source: str = "fake"
     model: str = "PB850PS2"
     device_name: str = ""
+    ble_adapter: str = ""
     host: str = ""
     password: str = ""
     db_path: Path = Path("data/smokestack.sqlite")
@@ -49,6 +50,7 @@ class Settings:
             source=os.getenv("PITBOSS_SOURCE", "fake"),
             model=os.getenv("PITBOSS_MODEL", "PB850PS2"),
             device_name=os.getenv("PITBOSS_DEVICE_NAME", ""),
+            ble_adapter=os.getenv("SMOKESTACK_BLE_ADAPTER", ""),
             host=os.getenv("PITBOSS_HOST", ""),
             password=os.getenv("PITBOSS_PASSWORD", ""),
             db_path=Path(os.getenv("SMOKESTACK_DB", "data/smokestack.sqlite")),
@@ -79,7 +81,8 @@ class Settings:
 
 
 # Fields the dashboard may change, by group, in display order. Everything
-# else (DB path, port, collector switch) is env only. The dashboard login lives
+# else (DB path, port, collector switch, Bluetooth adapter) is env only. The
+# dashboard login lives
 # in its own table; see auth.py.
 EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
     "grill": (
@@ -111,6 +114,7 @@ ENV_ONLY = (
     "SMOKESTACK_DB",
     "SMOKESTACK_PORT",
     "SMOKESTACK_START_COLLECTOR",
+    "SMOKESTACK_BLE_ADAPTER",
 )
 _DEFAULTS = {f.name: f.default for f in fields(Settings)}
 
