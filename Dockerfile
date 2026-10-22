@@ -10,10 +10,11 @@ COPY src ./src
 
 # One image for WiFi and Bluetooth. Bluetooth needs no system packages: bleak
 # talks to the host's bluetoothd over the host's D-Bus socket, which
-# docker-compose.ble.yml mounts, using the pure-Python dbus-fast.
+# docker-compose.yml mounts, using the pure-Python dbus-fast.
 RUN python -m pip install --no-cache-dir ".[mqtt]"
 
-# Fixed gid to match SMOKESTACK_RUN_AS in docker-compose.yml.
+# The default user without compose; docker-compose.yml runs as `nobody` instead
+# (see docker/entrypoint.sh).
 RUN groupadd --system --gid 10001 smokestack \
     && useradd --system --uid 10001 --gid 10001 --create-home smokestack \
     && mkdir /data \

@@ -5,7 +5,7 @@
 **Upgrading from the old `./data` bind mount:** earlier versions kept the
 database in `./data` as `pitboss.sqlite` and ran as root. The named volume
 starts empty, so copy the old database in once, under its new name
-`smokestack.sqlite` (and hand it to the container's non-root user, uid 10001),
+`smokestack.sqlite` (and hand it to the container's unprivileged user, `nobody`, uid 65534),
 before starting the new version:
 
 ```bash
@@ -13,7 +13,7 @@ docker compose down
 docker compose up --no-start          # creates the smokestack-data volume
 VOL=$(docker compose config | sed -n 's/^ *name: \(.*_smokestack-data\)$/\1/p')
 docker run --rm -v "$VOL":/data -v "$PWD/data":/old:ro alpine \
-  sh -c 'cp -a /old/. /data/ && mv /data/pitboss.sqlite /data/smokestack.sqlite && chown -R 10001:10001 /data'
+  sh -c 'cp -a /old/. /data/ && mv /data/pitboss.sqlite /data/smokestack.sqlite && chown -R 65534:65534 /data'
 docker compose up -d
 ```
 

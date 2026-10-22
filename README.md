@@ -34,8 +34,10 @@ Runs on any always-on machine (NAS, mini-PC, Raspberry Pi). No Bluetooth adapter
 **No readings?** `curl http://<server>:8000/api/health` shows the bridge's
 `last_error`. If it says it could not read the grill, first check that
 `PITBOSS_HOST` is right and the grill is on. If it is, your grill probably
-doesn't serve local HTTP and needs [Bluetooth](docs/ble.md) instead:
-`docker compose -f docker-compose.ble.yml pull && docker compose -f docker-compose.ble.yml up -d`.
+doesn't serve local HTTP and needs [Bluetooth](docs/ble.md) instead: on a
+Linux host with Bluetooth, the same container can use it. Pick **Bluetooth**
+under **Settings → Grill → Source**, or set `PITBOSS_SOURCE=ble` and
+`PITBOSS_DEVICE_NAME` in `.env`.
 
 No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up -d`.
 
@@ -81,7 +83,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
 - The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
 - **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`.
-- The source list only offers what can actually run: `fake` and `http` (WiFi) always, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
+- The source list only offers what can actually run: `fake` and `http` (WiFi) always, and `ble` only when the host's Bluetooth is reachable: a Linux host with `bluetoothd` running ([docs/ble.md](docs/ble.md)). With Docker Compose that's the same container either way, so switching between WiFi and Bluetooth is just a setting.
 
 ## More
 
