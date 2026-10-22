@@ -77,6 +77,10 @@ command, a blank frame, `Unauthorized` once, a reboot that never comes back).
 
 ### Dashboard changes
 
+The dashboard's look comes from the Smokestack-style design system in
+[`docs/design/`](docs/design/README.md): build from its tokens, component
+markup and decisions rather than inventing new styles.
+
 CI only checks the dashboard's HTML and JS as text. After changing
 `src/smokestack/static/`, run the app with the `fake` source and use it in a
 browser (headless Chromium with Playwright is fine): the changed flow, at
