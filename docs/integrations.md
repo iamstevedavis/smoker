@@ -13,6 +13,10 @@ and override `.env`; see [Changing settings from the dashboard](../README.md#cha
 - `SMOKESTACK_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
 - `SMOKESTACK_ENABLE_CONTROL` (default `false`): lets signed-in dashboard users turn the grill off, set its temperature, switch its unit while it is off and restart its WiFi module. Off by default; it also needs the dashboard login switched on. There is no way to turn the grill on. See [Grill control](#grill-control).
 
+Env only, so changing one needs a restart:
+
+- `SMOKESTACK_BLE_ADAPTER` (default empty, the system default adapter): the Bluetooth adapter the `ble` source scans and connects with, e.g. `hci1`. See [Choosing the Bluetooth adapter](ble.md#choosing-the-bluetooth-adapter).
+
 ## Home Assistant (MQTT)
 
 The bridge can publish to MQTT with Home Assistant discovery, so the grill shows

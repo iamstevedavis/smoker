@@ -62,6 +62,7 @@ Set these in `.env` (Docker) or the environment. Settings for the grill start wi
 | `PITBOSS_DEVICE_NAME` | | BLE device name for `ble` |
 | `PITBOSS_PASSWORD` | | Grill password, if set |
 | `PITBOSS_MODEL` | `PB850PS2` | Grill model |
+| `SMOKESTACK_BLE_ADAPTER` | | Bluetooth adapter for `ble`, e.g. `hci1`, on hosts with more than one ([details](docs/ble.md#choosing-the-bluetooth-adapter)). Empty uses the system default |
 | `SMOKESTACK_DB` | `data/smokestack.sqlite` | SQLite path (`/data/smokestack.sqlite` in Docker) |
 | `SMOKESTACK_POLL_SECONDS` | `2` | Polling interval |
 | `SMOKESTACK_STALE_AFTER_SECONDS` | `30` | Age at which a reading counts as stale |
@@ -79,7 +80,7 @@ The wrench button opens a settings panel. **Save & apply** restarts the grill co
 - Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Each field shows where its value comes from (Default, .env or UI); **Reset** drops the saved value and falls back to `.env` or the default.
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
 - The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
-- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`.
+- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT`, `SMOKESTACK_START_COLLECTOR` and `SMOKESTACK_BLE_ADAPTER`.
 - The source list only offers what can actually run: `fake` and `http` (WiFi) always, and `ble` only when the host's Bluetooth is reachable, which in Docker means `docker-compose.ble.yml` ([docs/ble.md](docs/ble.md)). So switching from WiFi to Bluetooth means switching compose files.
 
 ## More

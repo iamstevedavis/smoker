@@ -105,6 +105,7 @@ def make_source(settings: Settings) -> Any:
         return PytbossBleSource(
             model=settings.model,
             device_name=settings.device_name,
+            adapter=settings.ble_adapter,
             password=settings.password,
             poll_seconds=settings.poll_seconds,
         )

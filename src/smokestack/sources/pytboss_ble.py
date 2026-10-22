@@ -39,6 +39,9 @@ class PytbossBleSource:
     device_name: str
     password: str
     poll_seconds: float = 2.0
+    # The BlueZ adapter to scan and connect with, e.g. "hci1". Empty uses the
+    # system default.
+    adapter: str = ""
     name: str = "ble"
     uptime_refresh_seconds: float = 20.0
     stats: PollStats = field(default_factory=PollStats)
@@ -73,14 +76,9 @@ class PytbossBleSource:
 
     async def readings(self) -> AsyncIterator[dict[str, Any]]:
         self.validate()
-        from bleak import BleakScanner
         from pytboss import BleConnection, PitBoss
 
-        logger.info("Scanning for Pit Boss BLE device %r", self.device_name)
-        device = await BleakScanner.find_device_by_filter(
-            lambda d, ad: d.name == self.device_name
-            or ad.local_name == self.device_name
-        )
+        device = await self._find_device()
         if device is None:
             raise RuntimeError(f"Pit Boss BLE device not found: {self.device_name}")
 
@@ -101,6 +99,36 @@ class PytbossBleSource:
             self.commands.close()
             logger.info("Disconnecting from %s", self.device_name)
             await boss.stop()
+
+    async def _find_device(self) -> Any:
+        """Scan for the grill, on `adapter` when one is set.
+
+        On BlueZ the found device carries its adapter's D-Bus path, so
+        BleConnection connects through the same adapter.
+        """
+        from bleak import BleakScanner
+        from bleak.exc import BleakError
+
+        kwargs = {"adapter": self.adapter} if self.adapter else {}
+        logger.info(
+            "Scanning for Pit Boss BLE device %r on %s",
+            self.device_name,
+            self.adapter or "the default adapter",
+        )
+        try:
+            return await BleakScanner.find_device_by_filter(
+                lambda d, ad: d.name == self.device_name
+                or ad.local_name == self.device_name,
+                **kwargs,
+            )
+        except BleakError as exc:
+            if not self.adapter:
+                raise
+            raise RuntimeError(
+                f"Can't scan on Bluetooth adapter {self.adapter!r} "
+                f"(SMOKESTACK_BLE_ADAPTER): {exc}. "
+                "List the adapters with `bluetoothctl list`."
+            ) from exc
 
     async def _poll(self, boss: Any, refresher: UptimeRefresher) -> Any:
         """One reading, with a pending password change as a fallback.
