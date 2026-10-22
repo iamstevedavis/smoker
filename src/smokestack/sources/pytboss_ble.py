@@ -78,6 +78,17 @@ class PytbossBleSource:
         self.validate()
         from pytboss import BleConnection, PitBoss
 
+        from smokestack.runtime import DEFAULT_SYSTEM_BUS, system_bus_reachable
+
+        # Without this, bleak fails with a bare "[Errno 2] No such file or
+        # directory" when PITBOSS_SOURCE=ble but the host's D-Bus isn't there.
+        if not system_bus_reachable():
+            raise RuntimeError(
+                "Can't reach the host's Bluetooth: no system D-Bus socket "
+                f"at {DEFAULT_SYSTEM_BUS}. Bluetooth needs a Linux host with "
+                "bluetoothd running; in Docker, start docker-compose.yml, "
+                "which mounts /run/dbus."
+            )
         device = await self._find_device()
         if device is None:
             raise RuntimeError(f"Pit Boss BLE device not found: {self.device_name}")

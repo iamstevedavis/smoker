@@ -344,6 +344,10 @@ async def test_ble_source_sends_commands_between_polls(monkeypatch):
     monkeypatch.setattr(pytboss, "PitBoss", Boss)
     monkeypatch.setattr(pytboss, "BleConnection", lambda device: device)
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find_device)
+    # The scan is mocked, so this must not depend on the host's D-Bus.
+    from smokestack import runtime
+
+    monkeypatch.setattr(runtime, "system_bus_reachable", lambda: True)
     source = PytbossBleSource(
         model="PB850PS2", device_name="PBL-1", password="", poll_seconds=5
     )
