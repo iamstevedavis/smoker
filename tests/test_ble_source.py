@@ -72,6 +72,20 @@ async def test_ble_source_names_the_setting_when_the_adapter_is_missing(monkeypa
         await source._find_device()
 
 
+async def test_ble_source_says_when_the_host_bluetooth_is_unreachable(monkeypatch):
+    pytest.importorskip("pytboss")
+    from smokestack import runtime
+
+    monkeypatch.setattr(runtime, "system_bus_reachable", lambda: False)
+    calls = _scan(monkeypatch)
+    source = PytbossBleSource(model="PB850PS2", device_name="PBL-1", password="")
+
+    with pytest.raises(RuntimeError, match="host's Bluetooth.*D-Bus"):
+        async for _ in source.readings():
+            pass
+    assert calls == []
+
+
 def test_ble_adapter_comes_from_the_env_and_reaches_the_source(monkeypatch):
     from smokestack.runtime import make_source
 
