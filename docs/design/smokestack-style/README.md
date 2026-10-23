@@ -40,7 +40,7 @@ Additions to the base's colours: `color-ember` (#e8703f in dark, #c2410c in ligh
 - `sans`: Geist, falling back to Inter and the system stack. `mono`: Geist Mono, falling back to JetBrains Mono and the system mono stack.
 - Readings, set points, ages and the command log are always `--font-mono`, so digits don't jump as they change.
 - The scale is the base's `text-11` to `text-48`. The grill's hero reading goes up to 96px.
-- Geist and Geist Mono (free, OFL) are **self-hosted**: the app ships their woff2 files and serves them itself, with no font CDN. The files aren't in this system yet; they're added with the restyle (#71).
+- Geist and Geist Mono (free, OFL) are **self-hosted**: the app ships their woff2 files and serves them itself, with no font CDN. The files are in the app (`src/smokestack/static/fonts/`), added with the restyle (#71).
 
 ## Space and shape
 
