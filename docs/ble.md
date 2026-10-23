@@ -48,7 +48,11 @@ SMOKESTACK_RUN_AS=1000:1000
 The container runs without Docker's AppArmor profile (`apparmor=unconfined`).
 That profile has no D-Bus rules, so on AppArmor hosts such as Ubuntu, Mint
 and Debian the host bus answers every call with `AccessDenied ... An AppArmor
-policy prevents this sender`. The rest of the hardening stays: no root, no
+policy prevents this sender`. It also runs without SELinux labelling
+(`label=disable`): on SELinux hosts such as Fedora and RHEL the container
+can't open the mounted `/run/dbus` at all, so the settings panel doesn't offer
+Bluetooth. Don't relabel the mount with `:z` instead, which changes the label
+on the host's own `/run/dbus`. The rest of the hardening stays: no root, no
 capabilities, `no-new-privs`, Docker's seccomp filter, no host networking.
 
 Upgrading from the earlier setups needs nothing extra for the data: the
