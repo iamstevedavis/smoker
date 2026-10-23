@@ -18,9 +18,13 @@ services:
     user: root
     # Docker's default AppArmor profile has no D-Bus rules, so on AppArmor
     # hosts (Ubuntu, Mint, Debian) the host bus rejects every message from
-    # the container. No effect on hosts without AppArmor.
+    # the container. On SELinux hosts (Fedora, RHEL) the container can't even
+    # open the mounted /run/dbus, so Bluetooth isn't offered; label=disable
+    # lifts that for this container only. Each has no effect on hosts without
+    # its module.
     security_opt:
       - apparmor=unconfined
+      - label=disable
     env_file:
       - path: .env
         required: false
