@@ -17,8 +17,8 @@
   const SERIES = [
     { key: "grill", field: "grillTemp", label: "Grill", short: "Grill", color: "--series-grill" },
     { key: "set", field: "grillSetTemp", label: "Set", short: "Set", color: "--series-set", dashed: true, step: true },
-    { key: "p1", field: "p1Temp", label: "Probe 1", short: "P1", color: "--series-p1" },
-    { key: "p2", field: "p2Temp", label: "Probe 2", short: "P2", color: "--series-p2" },
+    { key: "p1", field: "p1Temp", label: "Probe 1", short: "P1", color: "--series-probe-1" },
+    { key: "p2", field: "p2Temp", label: "Probe 2", short: "P2", color: "--series-probe-2" },
   ];
 
   const ERROR_FLAGS = [
@@ -422,6 +422,9 @@
       fill.style.width = "0";
     }
     el.dataset.state = stateName;
+    // The card says so in words, and shows a badge when the target is reached.
+    const done = el.querySelector(".probe-done");
+    if (done) done.hidden = stateName !== "done";
   }
 
   function renderIndicator(el, value) {
@@ -440,6 +443,7 @@
 
     list.replaceChildren(...active.map(([, label]) => {
       const li = document.createElement("li");
+      li.className = "badge badge--error";
       li.textContent = label;
       return li;
     }));
@@ -613,7 +617,7 @@
 
     const css = getComputedStyle(document.documentElement);
     const color = (name) => css.getPropertyValue(name).trim();
-    const font = "12px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+    const font = '12px "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
     const end = serverNow();
     const start = end - state.hours * 3600e3;
@@ -647,8 +651,8 @@
     // Grid and axes: recessive.
     ctx.font = font;
     ctx.lineWidth = 1;
-    ctx.strokeStyle = color("--grid");
-    ctx.fillStyle = color("--muted");
+    ctx.strokeStyle = color("--color-border-subtle");
+    ctx.fillStyle = color("--color-label-secondary");
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let v = yMin; v <= yMax + step / 2; v += step) {
@@ -721,7 +725,7 @@
     ctx.font = "600 " + font;
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = color("--text-2");
+    ctx.fillStyle = color("--color-label-secondary");
     for (const e of ends) {
       ctx.fillText(e.s.short, Math.min(e.px, pad.l + pw) + 6, Math.min(Math.max(e.py, pad.t + 6), pad.t + ph));
     }
@@ -755,7 +759,7 @@
     const px = L.x(p.t);
     if (Math.abs(px - state.cursorX) > 40) { tip.hidden = true; return; }
 
-    ctx.strokeStyle = L.color("--muted");
+    ctx.strokeStyle = L.color("--color-label-secondary");
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(Math.round(px) + 0.5, L.pad.t);
@@ -767,7 +771,7 @@
       ctx.beginPath();
       ctx.arc(px, L.y(v), 4.5, 0, Math.PI * 2);
       ctx.fillStyle = L.color(s.color);
-      ctx.strokeStyle = L.color("--surface");
+      ctx.strokeStyle = L.color("--color-surface-1");
       ctx.lineWidth = 2;
       ctx.fill();
       ctx.stroke();
@@ -869,7 +873,7 @@
       btn.textContent = mode[0].toUpperCase() + mode.slice(1);
       btn.setAttribute("aria-label", "Theme: " + mode + ". Click to change.");
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+      if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim();
       scheduleChart();
     };
     let mode = store.get("theme");
@@ -978,7 +982,7 @@
     if (alerts.busy) return;
     const box = probeAlert(probe);
     alerts.busy = true;
-    box.querySelector(".alert-save").disabled = true;
+    box.querySelector("[data-alert-save]").disabled = true;
     try {
       const res = await apiFetch("api/probe-targets", {
         method: "PUT",
@@ -1000,7 +1004,7 @@
       if (e.message !== "not authenticated") alertNote(box, "Can't reach the bridge.", "error");
     } finally {
       alerts.busy = false;
-      box.querySelector(".alert-save").disabled = false;
+      box.querySelector("[data-alert-save]").disabled = false;
     }
   }
 
@@ -1045,7 +1049,7 @@
   // `notice` is a request the bridge refused, shown until the next command.
   // `asked` and `applied` count the status requests, so a slow answer to an
   // older request cannot undo a newer one.
-  const control = { status: null, sending: null, notice: null, asked: 0, applied: 0 };
+  const control = { status: null, sending: null, notice: null, asked: 0, applied: 0, live: false, busy: false, tempEdited: false };
 
   async function loadControl() {
     const asked = ++control.asked;
@@ -1076,6 +1080,105 @@
     const points = control.status && control.status.setpoints;
     if (!Array.isArray(points) || !points.length) return null;
     return points.reduce((best, p) => (Math.abs(p - value) < Math.abs(best - value) ? p : best), points[0]);
+  }
+
+  // The setpoints the grill accepts, in order.
+  function tempSetpoints() {
+    const points = control.status && control.status.setpoints;
+    if (!Array.isArray(points)) return [];
+    return points.filter((p) => typeof p === "number" && Number.isFinite(p)).sort((a, b) => a - b);
+  }
+
+  // The value the stepper moves from: what is typed, or the grill's set point.
+  function tempStepValue(points) {
+    const typed = Number($("control-temp").value);
+    if (Number.isFinite(typed) && typed > 0) return typed;
+    const current = num(state.fields.grillSetTemp);
+    return current === null ? points[0] : current;
+  }
+
+  function fillTempInput() {
+    const input = $("control-temp");
+    const current = num(state.fields.grillSetTemp);
+    if (!input || current === null || control.tempEdited) return;
+    input.value = String(current);
+  }
+
+  // The stepper dims the button that has nowhere to go.
+  function syncTempStepper() {
+    const group = document.querySelector("#control-temp-form .stepper");
+    if (!group) return;
+    const [down, up] = group.querySelectorAll(".stepper-btn");
+    const points = tempSetpoints();
+    if (!points.length) {
+      down.disabled = true;
+      up.disabled = true;
+      return;
+    }
+    const value = tempStepValue(points);
+    const blocked = !control.live || control.busy;
+    down.disabled = blocked || !points.some((p) => p < value);
+    up.disabled = blocked || !points.some((p) => p > value);
+  }
+
+  // One step to the next setpoint the grill accepts, so a tap never lands on
+  // a temperature it would refuse.
+  function stepTemp(direction) {
+    const points = tempSetpoints();
+    if (!points.length) return false;
+    const input = $("control-temp");
+    const value = tempStepValue(points);
+    const next = direction > 0
+      ? points.find((p) => p > value)
+      : points.slice().reverse().find((p) => p < value);
+    if (next === undefined) return false;
+    input.value = String(next);
+    control.tempEdited = true;
+    syncTempStepper();
+    return true;
+  }
+
+  function setupTempStepper() {
+    const group = document.querySelector("#control-temp-form .stepper");
+    if (!group) return;
+    const input = group.querySelector("input");
+    const [down, up] = group.querySelectorAll(".stepper-btn");
+    let wait = null;
+    let repeat = null;
+    const stop = () => {
+      clearTimeout(wait);
+      clearInterval(repeat);
+      wait = null;
+      repeat = null;
+    };
+    const hold = (direction) => {
+      stop();
+      if (!stepTemp(direction)) return;
+      // Holding repeats, so a long press walks through the setpoints.
+      wait = setTimeout(() => {
+        repeat = setInterval(() => { if (!stepTemp(direction)) stop(); }, 90);
+      }, 400);
+    };
+    for (const [button, direction] of [[down, -1], [up, 1]]) {
+      button.addEventListener("pointerdown", () => hold(direction));
+      for (const event of ["pointerup", "pointerleave", "pointercancel"]) {
+        button.addEventListener(event, stop);
+      }
+      // A keyboard click has no pointer, so it steps once.
+      button.addEventListener("click", (event) => { if (event.detail === 0) stepTemp(direction); });
+    }
+    input.addEventListener("input", () => { control.tempEdited = true; });
+    // A typed value snaps to the nearest setpoint when the field loses focus.
+    input.addEventListener("blur", () => {
+      const points = tempSetpoints();
+      const typed = Number(input.value);
+      if (!points.length || !Number.isFinite(typed) || typed <= 0) return;
+      const snapped = snapTemp(typed);
+      if (snapped === null) return;
+      input.value = String(snapped);
+      control.tempEdited = true;
+      syncTempStepper();
+    });
   }
 
   function controlLive() {
@@ -1154,6 +1257,10 @@
   function renderControls() {
     const s = control.status;
     const section = $("controls");
+    const live = controlLive();
+    const busy = Boolean(control.sending || (s && s.in_flight));
+    control.live = live;
+    control.busy = busy;
     // Also shown while control is off if there is a log left to look at.
     section.hidden = !s || !(s.enabled || s.log_count > 0);
     if (section.hidden) return;
@@ -1162,11 +1269,9 @@
     reason.hidden = s.available;
     setText(reason, s.available ? "" : s.reason || "Grill control isn't available.");
     $("controls-actions").hidden = !s.available;
-    const live = controlLive();
     $("controls-stale").hidden = live;
     // A password change the bridge hasn't settled: it needs the user.
     $("controls-pending").hidden = !s.pending_password_change;
-    const busy = Boolean(control.sending || s.in_flight);
     section.querySelectorAll("[data-control]").forEach((node) => { node.disabled = !live || busy; });
     // The unit can only be switched while the grill is off (#58).
     const off = state.fields.moduleIsOn === false;
@@ -1176,15 +1281,22 @@
       node.disabled = !live || busy || !off || current || !s.unit;
     });
     $("control-unit-hint").hidden = off || !live;
+    fillTempInput();
+    syncTempStepper();
     renderControlResult();
   }
 
-  function confirmControl(title, text, action) {
+  // `variant` picks the button: the danger one for turning the grill off and
+  // for deleting the log, the primary one for the other commands.
+  function confirmControl(title, text, action, variant) {
     const dialog = $("control-confirm");
     if (typeof dialog.showModal !== "function") return Promise.resolve(confirm(text));
     setText($("control-confirm-title"), title);
     setText($("control-confirm-text"), text);
-    setText($("control-confirm-ok"), action);
+    const ok = $("control-confirm-ok");
+    ok.classList.toggle("btn-danger", variant === "danger");
+    ok.classList.toggle("btn-primary", variant !== "danger");
+    setText(ok, action);
     dialog.returnValue = "";
     dialog.showModal();
     $("control-confirm-ok").focus();
@@ -1389,6 +1501,7 @@
         "Prune the command log?",
         "Delete " + what + (all ? ", the whole log" : " older than " + days + " days") + ". This can't be undone.",
         "Delete " + what,
+        "danger",
       );
       if (!ok) return;
       const { deleted } = await pruneRequest(cutoff ? { cutoff, max_id: maxId } : { max_id: maxId });
@@ -1429,8 +1542,9 @@
 
   function setupGrillControls() {
     setupCommandLog();
+    setupTempStepper();
     $("control-off").addEventListener("click", async () => {
-      const ok = await confirmControl("Turn the grill off?", "Turn the grill off. The fan will run for about 10 minutes.", "Turn off");
+      const ok = await confirmControl("Turn the grill off?", "Turn the grill off. The fan will run for about 10 minutes.", "Turn off", "danger");
       if (ok) sendControl("turn-off");
     });
     document.querySelectorAll("[data-unit-target]").forEach((button) => button.addEventListener("click", async () => {
@@ -1551,8 +1665,14 @@
     const id = "set-" + field.name;
     const value = field.value;
     if (meta.type === "bool") {
-      return el("select", { id, name: field.name }, [["true", "On"], ["false", "Off"]].map(([option, label]) =>
-        el("option", { value: option, textContent: label, selected: String(Boolean(value)) === option })));
+      // A switch, with its state in words next to it.
+      const input = el("input", { id, name: field.name, type: "checkbox", checked: Boolean(value) });
+      const label = el("label", { className: "toggle" });
+      label.setAttribute("aria-label", meta.label);
+      label.append(input, el("span", { className: "toggle-track" }), el("span", { className: "toggle-thumb" }));
+      const state = el("span", { className: "toggle-state", textContent: value ? "On" : "Off" });
+      input.addEventListener("change", () => setText(state, input.checked ? "On" : "Off"));
+      return el("div", { className: "toggle-wrap" }, [label, state]);
     }
     if (meta.type === "adapter") {
       const options = [["", "System default"]];
@@ -1562,20 +1682,21 @@
       }
       // Keep a saved adapter that isn't plugged in now visible.
       if (value && !options.some(([option]) => option === value)) options.push([value, value + " (not found)"]);
-      return el("select", { id, name: field.name }, options.map(([option, label]) =>
+      return el("select", { id, name: field.name, className: "select" }, options.map(([option, label]) =>
         el("option", { value: option, textContent: label, selected: option === (value || "") })));
     }
     if (meta.type === "source" || meta.type === "log") {
       const options = meta.type === "log" ? LOG_LEVELS : settings.payload.sources.slice();
       // Keep a current value the image no longer offers visible.
       if (!options.includes(value)) options.push(value);
-      return el("select", { id, name: field.name }, options.map((option) =>
+      return el("select", { id, name: field.name, className: "select" }, options.map((option) =>
         el("option", { value: option, textContent: SOURCE_LABELS[option] && meta.type === "source" ? SOURCE_LABELS[option] : option, selected: option === value })));
     }
     const numeric = meta.type === "number" || meta.type === "int";
     const input = el("input", {
       id,
       name: field.name,
+      className: "input",
       type: numeric ? "number" : meta.type === "secret" ? "password" : "text",
       value: value === null || value === undefined ? "" : String(value),
       autocomplete: meta.type === "secret" ? "new-password" : "off",
@@ -1650,7 +1771,7 @@
     groups.replaceChildren();
     for (const group of payload.groups) {
       const fieldset = el("fieldset", { className: "setting-group" }, [
-        el("legend", { textContent: SETTING_GROUPS[group.name] || group.name }),
+        el("legend", { className: "nav-docs-item", textContent: SETTING_GROUPS[group.name] || group.name }),
       ]);
       for (const field of group.fields) {
         settings.fields[field.name] = field;
@@ -1677,13 +1798,14 @@
       }
       const raw = input.value.trim();
       let value = raw;
-      if (meta.type === "number" || meta.type === "int") {
+      if (meta.type === "bool") {
+        value = input.checked;
+      } else if (meta.type === "number" || meta.type === "int") {
         if (raw === "" || !Number.isFinite(Number(raw))) {
           errors[name] = "Enter a number.";
           continue;
         } else value = Number(raw);
       }
-      if (meta.type === "bool") value = raw === "true";
       if (value !== field.value) changes[name] = value;
     }
     return { changes, errors };
@@ -1821,7 +1943,7 @@
         go();
       });
     }
-    const button = el("button", { type: "button", className: "login-btn", textContent: label });
+    const button = el("button", { type: "button", className: "btn btn-primary", textContent: label });
     button.addEventListener("click", go);
     const rows = inputs.map(([id, text], i) => el("div", { className: "setting" }, [
       el("label", { htmlFor: id, textContent: text }),
@@ -1874,7 +1996,7 @@
       ([password]) => sendAuth("api/auth", "PUT", { required: true, password }, "Password turned on."),
     );
 
-    const toggle = el("button", { type: "button", className: "theme-btn", textContent: on ? "Turn off password" : "Turn on password" });
+    const toggle = el("button", { type: "button", className: "btn btn-secondary btn-sm", textContent: on ? "Turn off password" : "Turn on password" });
     toggle.addEventListener("click", () => {
       if (!on) {
         enableForm.hidden = !enableForm.hidden;
@@ -1891,7 +2013,7 @@
     status.setAttribute("role", "status");
     const box = $("settings-auth");
     box.replaceChildren(
-      el("legend", { textContent: "Login" }),
+      el("legend", { className: "nav-docs-item", textContent: "Login" }),
       summary,
       el("div", { className: "auth-actions" }, [toggle]),
       el("p", { className: "settings-note", textContent: "Change the password under Profile." }),

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Smokestack</title>
   <meta name="description" content="Live grill and probe temperatures from your Pit Boss grill.">
-  <meta name="theme-color" content="#0f0f0e">
+  <meta name="theme-color" content="#000000">
   <meta name="color-scheme" content="light dark">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -26,17 +26,17 @@
 <body>
   <header class="top">
     <div class="brand">
-      <img src="static/icons/icon.svg" alt="" width="28" height="28">
-      <span>Smokestack</span>
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Smokestack</span>
     </div>
-    <div id="status" class="pill" data-kind="connecting" role="status" aria-live="polite">
-      <span class="dot" aria-hidden="true"></span><span id="status-text">Connecting</span>
+    <div id="status" class="status-badge" data-kind="waiting" role="status" aria-live="polite">
+      <span class="badge-dot" aria-hidden="true"></span><span id="status-text">Connecting</span>
     </div>
-    <button id="theme" class="theme-btn" type="button" aria-label="Theme: auto">Auto</button>
-    <button id="profile-open" class="theme-btn icon-btn" type="button" aria-label="Profile" title="Profile" aria-haspopup="dialog">
+    <button id="theme" class="btn btn-ghost btn-sm" type="button" aria-label="Theme: auto">Auto</button>
+    <button id="profile-open" class="btn btn-icon" type="button" aria-label="Profile" title="Profile" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
     </button>
-    <button id="settings-open" class="theme-btn icon-btn" type="button" aria-label="Settings" title="Settings" aria-haspopup="dialog">
+    <button id="settings-open" class="btn btn-icon" type="button" aria-label="Settings" title="Settings" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
     </button>
   </header>
@@ -45,7 +45,7 @@
     <form id="settings-form" class="settings-form" novalidate>
       <div class="settings-head">
         <h2 id="settings-title">Settings</h2>
-        <button id="settings-close" class="theme-btn" type="button">Close</button>
+        <button id="settings-close" class="btn btn-ghost btn-sm" type="button">Close</button>
       </div>
       <div class="settings-body">
         <p class="settings-intro">Saved values live in the bridge's data volume and override <code>.env</code>. Reset a field to fall back to <code>.env</code> or the default.</p>
@@ -55,7 +55,7 @@
       </div>
       <div class="settings-foot">
         <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
-        <button id="settings-save" class="login-btn" type="submit">Save &amp; apply</button>
+        <button id="settings-save" class="btn btn-primary" type="submit">Save &amp; apply</button>
       </div>
     </form>
   </dialog>
@@ -64,29 +64,29 @@
     <form id="profile-form" class="settings-form" novalidate>
       <div class="settings-head">
         <h2 id="profile-title">Profile</h2>
-        <button id="profile-close" class="theme-btn" type="button">Close</button>
+        <button id="profile-close" class="btn btn-ghost btn-sm" type="button">Close</button>
       </div>
       <div class="settings-body">
         <fieldset class="setting-group">
           <legend>Change password</legend>
           <div class="setting">
             <label for="profile-current">Current password</label>
-            <input id="profile-current" name="current" type="password" autocomplete="current-password" required>
+            <input id="profile-current" class="input" name="current" type="password" autocomplete="current-password" required>
           </div>
           <div class="setting">
             <label for="profile-new">New password</label>
-            <input id="profile-new" name="new" type="password" autocomplete="new-password" minlength="8" required>
+            <input id="profile-new" class="input" name="new" type="password" autocomplete="new-password" minlength="8" required>
             <p class="setting-hint">At least 8 characters. Other devices are signed out.</p>
           </div>
           <div class="setting">
             <label for="profile-confirm">Confirm new password</label>
-            <input id="profile-confirm" name="confirm" type="password" autocomplete="new-password" required>
+            <input id="profile-confirm" class="input" name="confirm" type="password" autocomplete="new-password" required>
           </div>
         </fieldset>
       </div>
       <div class="settings-foot">
         <p id="profile-status" class="settings-status" role="status" aria-live="polite"></p>
-        <button id="profile-save" class="login-btn" type="submit">Change password</button>
+        <button id="profile-save" class="btn btn-primary" type="submit">Change password</button>
       </div>
     </form>
   </dialog>
@@ -95,25 +95,25 @@
     <div class="settings-form">
       <div class="settings-head">
         <h2 id="control-log-title">Command log</h2>
-        <button id="control-log-close" class="theme-btn" type="button">Close</button>
+        <button id="control-log-close" class="btn btn-ghost btn-sm" type="button">Close</button>
       </div>
       <div class="settings-body">
         <p class="settings-intro">Every command sent to the grill from this bridge, and every attempt it refused. Kept until you prune it here.</p>
         <ul id="control-log-list" class="log-list"></ul>
         <p id="control-log-empty" class="settings-note" hidden>No commands yet.</p>
-        <button id="control-log-more" class="theme-btn" type="button" hidden>Load older</button>
+        <button id="control-log-more" class="btn btn-secondary btn-sm" type="button" hidden>Load older</button>
       </div>
       <form id="control-log-prune" class="settings-foot log-prune" novalidate>
         <label for="control-log-scope">Prune</label>
-        <select id="control-log-scope">
+        <select id="control-log-scope" class="select">
           <option value="older">Older than</option>
           <option value="all">All entries</option>
         </select>
         <span id="control-log-days-wrap" class="with-unit">
-          <input id="control-log-days" type="number" inputmode="numeric" min="1" step="1" value="90" aria-label="Days">
+          <input id="control-log-days" class="input" type="number" inputmode="numeric" min="1" step="1" value="90" aria-label="Days">
           <span class="unit-label">days</span>
         </span>
-        <button id="control-log-prune-btn" class="login-btn" type="submit">Prune</button>
+        <button id="control-log-prune-btn" class="btn btn-secondary" type="submit">Prune</button>
         <p id="control-log-status" class="settings-status" role="status" aria-live="polite"></p>
       </form>
     </div>
@@ -124,8 +124,8 @@
       <h2 id="control-confirm-title">Confirm</h2>
       <p id="control-confirm-text"></p>
       <div class="confirm-actions">
-        <button class="theme-btn" type="submit" value="cancel">Cancel</button>
-        <button class="login-btn" id="control-confirm-ok" type="submit" value="ok">Send</button>
+        <button class="btn btn-secondary" type="submit" value="cancel">Cancel</button>
+        <button class="btn btn-primary" id="control-confirm-ok" type="submit" value="ok">Send</button>
       </div>
     </form>
   </dialog>
@@ -134,27 +134,27 @@
     <form id="password-form" class="settings-form" novalidate>
       <div class="settings-head">
         <h2 id="password-dialog-title">Change the grill's password</h2>
-        <button id="password-close" class="theme-btn" type="button">Close</button>
+        <button id="password-close" class="btn btn-ghost btn-sm" type="button">Close</button>
       </div>
       <div class="settings-body">
         <p class="settings-intro">The bridge connects to the grill with this password, so it changes to match. Nothing else about the grill changes.</p>
         <div class="setting">
           <label for="password-new">New grill password</label>
-          <input id="password-new" name="password" type="password" autocomplete="new-password" required>
+          <input id="password-new" class="input" name="password" type="password" autocomplete="new-password" required>
         </div>
         <div class="setting">
           <label for="password-confirm">Confirm new password</label>
-          <input id="password-confirm" name="confirm" type="password" autocomplete="new-password" required>
+          <input id="password-confirm" class="input" name="confirm" type="password" autocomplete="new-password" required>
         </div>
         <div class="setting">
           <label for="password-dashboard">Your dashboard password</label>
-          <input id="password-dashboard" name="dashboard_password" type="password" autocomplete="current-password" required>
+          <input id="password-dashboard" class="input" name="dashboard_password" type="password" autocomplete="current-password" required>
           <p class="setting-hint">Asked again, because this is the one change that can lock the bridge out.</p>
         </div>
       </div>
       <div class="settings-foot">
         <p id="password-status" class="settings-status" role="status" aria-live="polite"></p>
-        <button id="password-save" class="login-btn" type="submit">Change password</button>
+        <button id="password-save" class="btn btn-primary" type="submit">Change password</button>
       </div>
     </form>
   </dialog>
@@ -169,10 +169,9 @@
 
   <main id="main" class="is-waiting">
     <section class="card hero" aria-labelledby="grill-label">
-      <div class="card-label">
-        <span class="key key-grill" aria-hidden="true"></span>
-        <span id="grill-label">Grill</span>
-        <span id="power-tag" class="tag" hidden>Off</span>
+      <div class="card-head">
+        <span id="grill-label" class="label">Grill</span>
+        <span id="power-tag" class="status-badge status-badge--queued" hidden>Off</span>
       </div>
       <div class="big reading">
         <span id="grill-temp">--</span><span class="unit" data-unit>°F</span>
@@ -181,31 +180,34 @@
         <span>Set <strong id="set-temp">--</strong><span data-unit>°F</span></span>
         <span id="delta" class="delta"></span>
       </div>
-      <div class="meter" aria-hidden="true">
-        <div id="grill-fill" class="meter-fill meter-grill"></div>
-        <div id="set-mark" class="meter-mark"></div>
+      <div class="metric-bar-track" aria-hidden="true">
+        <div id="grill-fill" class="metric-bar-fill metric-bar-fill--grill"></div>
+        <div id="set-mark" class="metric-mark"></div>
       </div>
     </section>
 
     <section class="probes" aria-label="Probes">
       <article class="card probe" id="probe-1">
-        <div class="card-label"><span class="key key-p1" aria-hidden="true"></span>Probe 1</div>
+        <div class="card-head">
+          <span class="label with-key"><span class="key key-p1" aria-hidden="true"></span>Probe 1</span>
+          <span class="status-badge status-badge--ready probe-done" hidden>Done</span>
+        </div>
         <div class="mid reading"><span data-temp>--</span><span class="unit" data-unit>°F</span></div>
         <div class="probe-target" data-target>Not connected</div>
-        <div class="meter thin" aria-hidden="true"><div class="meter-fill meter-p1" data-fill></div></div>
+        <div class="metric-bar-track" aria-hidden="true"><div class="metric-bar-fill metric-bar-fill--probe-1" data-fill></div></div>
         <div class="probe-alert" data-probe="1">
-          <button type="button" class="alert-btn" data-alert-open aria-expanded="false" aria-controls="alert-form-1">
+          <button type="button" class="btn btn-secondary btn-sm alert-btn" data-alert-open aria-expanded="false" aria-controls="alert-form-1">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             <span data-alert-label>Set alert</span>
           </button>
           <form id="alert-form-1" class="alert-form" data-alert-form novalidate hidden>
             <label for="alert-input-1">Alert when probe 1 reaches</label>
             <div class="with-unit">
-              <input id="alert-input-1" type="number" inputmode="decimal" step="any" min="1" max="1000" autocomplete="off">
+              <input id="alert-input-1" class="input" type="number" inputmode="decimal" step="any" min="1" max="1000" autocomplete="off">
               <span class="unit-label" data-alert-unit>°F</span>
             </div>
             <div class="alert-actions">
-              <button type="submit" class="alert-save">Set</button>
+              <button type="submit" class="btn btn-primary btn-sm" data-alert-save>Set</button>
               <button type="button" class="link-btn" data-alert-clear>Clear</button>
               <button type="button" class="link-btn" data-alert-cancel>Cancel</button>
             </div>
@@ -214,23 +216,26 @@
         </div>
       </article>
       <article class="card probe" id="probe-2">
-        <div class="card-label"><span class="key key-p2" aria-hidden="true"></span>Probe 2</div>
+        <div class="card-head">
+          <span class="label with-key"><span class="key key-p2" aria-hidden="true"></span>Probe 2</span>
+          <span class="status-badge status-badge--ready probe-done" hidden>Done</span>
+        </div>
         <div class="mid reading"><span data-temp>--</span><span class="unit" data-unit>°F</span></div>
         <div class="probe-target" data-target>Not connected</div>
-        <div class="meter thin" aria-hidden="true"><div class="meter-fill meter-p2" data-fill></div></div>
+        <div class="metric-bar-track" aria-hidden="true"><div class="metric-bar-fill metric-bar-fill--probe-2" data-fill></div></div>
         <div class="probe-alert" data-probe="2">
-          <button type="button" class="alert-btn" data-alert-open aria-expanded="false" aria-controls="alert-form-2">
+          <button type="button" class="btn btn-secondary btn-sm alert-btn" data-alert-open aria-expanded="false" aria-controls="alert-form-2">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             <span data-alert-label>Set alert</span>
           </button>
           <form id="alert-form-2" class="alert-form" data-alert-form novalidate hidden>
             <label for="alert-input-2">Alert when probe 2 reaches</label>
             <div class="with-unit">
-              <input id="alert-input-2" type="number" inputmode="decimal" step="any" min="1" max="1000" autocomplete="off">
+              <input id="alert-input-2" class="input" type="number" inputmode="decimal" step="any" min="1" max="1000" autocomplete="off">
               <span class="unit-label" data-alert-unit>°F</span>
             </div>
             <div class="alert-actions">
-              <button type="submit" class="alert-save">Set</button>
+              <button type="submit" class="btn btn-primary btn-sm" data-alert-save>Set</button>
               <button type="button" class="link-btn" data-alert-clear>Clear</button>
               <button type="button" class="link-btn" data-alert-cancel>Cancel</button>
             </div>
@@ -272,21 +277,25 @@
     </section>
 
     <section class="card controls" id="controls" aria-labelledby="controls-title" hidden>
-      <div class="card-label"><span id="controls-title">Controls</span></div>
+      <div class="card-head"><span id="controls-title" class="label">Controls</span></div>
       <p id="controls-reason" class="controls-note" hidden></p>
       <div id="controls-actions" class="controls-actions">
         <form id="control-temp-form" class="control-temp" novalidate>
           <label for="control-temp">Set grill to</label>
-          <div class="with-unit">
-            <input id="control-temp" type="number" inputmode="numeric" step="any" min="1" max="1000" autocomplete="off" data-control>
+          <div class="control-temp-row">
+            <div class="stepper" role="group" aria-label="Set grill to">
+              <button type="button" class="stepper-btn" data-dir="-1" aria-label="Lower the set temperature" data-control>−</button>
+              <input id="control-temp" class="input" type="number" inputmode="numeric" step="any" min="1" max="1000" autocomplete="off" data-control>
+              <button type="button" class="stepper-btn" data-dir="1" aria-label="Raise the set temperature" data-control>+</button>
+            </div>
             <span class="unit-label" data-unit>°F</span>
-            <button type="submit" class="alert-save" data-control>Set</button>
+            <button type="submit" class="btn btn-primary btn-sm" data-control>Set</button>
           </div>
         </form>
         <div class="control-buttons">
-          <button type="button" class="theme-btn" id="control-off" data-control>Turn off</button>
-          <button type="button" class="theme-btn" id="control-reboot" data-control>Restart WiFi</button>
-          <button type="button" class="theme-btn" id="control-password" data-control>Change password</button>
+          <button type="button" class="btn btn-danger btn-sm" id="control-off" data-control>Turn off</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="control-reboot" data-control>Restart WiFi</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="control-password" data-control>Change password</button>
         </div>
         <div class="control-unit">
           <span id="control-unit-label">Grill unit</span>
@@ -312,7 +321,7 @@
 
     <section class="card chart-card" aria-labelledby="chart-title">
       <div class="chart-head">
-        <h2 id="chart-title">Temperature</h2>
+        <h2 id="chart-title" class="card-title">Temperature</h2>
         <div class="seg" role="group" aria-label="Time range">
           <button type="button" data-hours="1">1h</button>
           <button type="button" data-hours="3">3h</button>
