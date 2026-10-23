@@ -4,6 +4,12 @@ A self-hosted dashboard and alert service for Pit Boss pellet grills (built and 
 
 ![Dashboard](docs/images/dashboard-desktop.png)
 
+The dashboard's look is the Smokestack-style design system in
+[docs/design/](docs/design/README.md): dark first, high contrast for reading
+the grill outdoors, Geist and Geist Mono served by the app itself, and one
+ember accent that marks the grill. The theme button (Auto / Light / Dark) is
+in the header.
+
 ## Quick start (Docker)
 
 Runs on any always-on machine (NAS, mini-PC, Raspberry Pi). No Bluetooth adapter needed.
