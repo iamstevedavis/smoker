@@ -15,6 +15,7 @@ from smokestack.sources.commands import (
     Job,
     JobQueue,
     PasswordCheck,
+    RestartWatch,
     celsius_setpoints,
     queue_timeout_for,
 )
@@ -28,6 +29,9 @@ FAULTS = frozenset(
         "blank_frame",  # the frame after an MCU command is blank, as on the grill
         "unauthorized_once",  # the next command is rejected as Unauthorized
         "reboot_never_returns",  # after a reboot the source stays unreachable
+        # a reboot restarts the module between two polls, as over HTTP, so
+        # the stream never drops; only the module's uptime shows it
+        "reboot_keeps_session",
         "password_reply_lost",  # the password changed, but the reply never came
     }
 )
@@ -40,7 +44,8 @@ class FakeGrillSource:
     It also takes the grill commands: turning off winds the temperature down,
     setting the temperature changes `grillSetTemp`, switching the unit flips
     `isFahrenheit` and converts every value, a reboot drops the stream for
-    `reboot_seconds`, and changing the password changes the one the grill
+    `reboot_seconds` (or, with the `reboot_keeps_session` fault, only resets
+    the module's uptime), and changing the password changes the one the grill
     answers to.
     """
 
@@ -75,6 +80,16 @@ class FakeGrillSource:
         self._blank_next = False
         self._drop_next = False
         self._down_until: float | None = None
+        self._booted_at = clock()
+        self.restart_watch = RestartWatch(clock)
+
+    @property
+    def module_restarts(self) -> int:
+        return self.restart_watch.restarts
+
+    def uptime(self) -> float:
+        """Seconds since the WiFi module last started."""
+        return self._clock() - self._booted_at
 
     def accepted_setpoints(self, fahrenheit: bool) -> list[int]:
         if fahrenheit:
@@ -93,6 +108,7 @@ class FakeGrillSource:
             if self._clock() < self._down_until:
                 raise ConnectionError("the WiFi module is restarting")
             self._down_until = None
+            self._booted_at = self._clock()
         self.commands.open()
         try:
             while True:
@@ -104,6 +120,8 @@ class FakeGrillSource:
                         else self._clock() + self.reboot_seconds
                     )
                     raise ConnectionError("the WiFi module is restarting")
+                if self.restart_watch.armed:
+                    self.restart_watch.observe(self.uptime())
                 if self._blank_next:
                     self._blank_next = False
                     yield {}
@@ -136,7 +154,11 @@ class FakeGrillSource:
         elif command.name == "set-temperature" and command.temp is not None:
             self.set_temp = command.temp
         elif command.name == "reboot":
-            self._drop_next = True
+            self.restart_watch.arm()
+            if "reboot_keeps_session" in self.faults:
+                self._booted_at = self._clock()
+            else:
+                self._drop_next = True
         elif command.name == "set-unit" and command.fahrenheit != self.fahrenheit:
             # The setpoint and cool-down temperature are kept in the grill's
             # unit, so they convert with it.

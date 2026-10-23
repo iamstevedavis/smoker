@@ -16,6 +16,7 @@ from smokestack.sources._pytboss import (
     accepted_setpoints,
     check_password,
     poll_state,
+    read_uptime,
     run_command,
 )
 from smokestack.sources.commands import (
@@ -23,7 +24,9 @@ from smokestack.sources.commands import (
     Command,
     Job,
     JobQueue,
+    RESTART_WATCH_SECONDS,
     PasswordCheck,
+    RestartWatch,
     queue_timeout_for,
 )
 
@@ -49,6 +52,9 @@ class PytbossHttpSource:
     blank_frame_expected: bool = False
     # The passwords a pending password change may have left the grill with.
     pending_passwords: tuple[str, ...] = ()
+    # Restarts of the WiFi module seen after a reboot, which over HTTP may
+    # not drop the session.
+    restart_watch: RestartWatch = field(default_factory=RestartWatch)
 
     def validate(self) -> None:
         if not self.host:
@@ -58,6 +64,10 @@ class PytbossHttpSource:
         # The loop serves commands between polls, so the wait for one has to
         # cover a poll interval.
         self.commands.timeout = queue_timeout_for(self.poll_seconds)
+
+    @property
+    def module_restarts(self) -> int:
+        return self.restart_watch.restarts
 
     def accepted_setpoints(self, fahrenheit: bool) -> list[int]:
         return accepted_setpoints(self.model, fahrenheit)
@@ -112,6 +122,11 @@ class PytbossHttpSource:
         """
         from pytboss.exceptions import Unauthorized
 
+        if self.restart_watch.armed:
+            # Read before the state, so a module that restarted has its
+            # fresh uptime in the key the poll is sent with.
+            if self.restart_watch.observe(await read_uptime(boss)):
+                logger.info("The WiFi module at %s restarted", self.host)
         try:
             return await poll_state(boss)
         except Unauthorized:
@@ -126,4 +141,6 @@ class PytbossHttpSource:
             return await check_password(boss, job.password)
         if job.name in MCU_COMMANDS:
             self.blank_frame_expected = True
+        if job.name == "reboot":
+            self.restart_watch.arm(max(RESTART_WATCH_SECONDS, 4 * self.poll_seconds))
         await run_command(boss, job)

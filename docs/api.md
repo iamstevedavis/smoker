@@ -168,8 +168,12 @@ curl -b jar -X POST localhost:8000/api/control/set-temperature \
 ```
 
 The bridge sends the command between polls, then waits for the grill to
-report the change: 30 s, or 90 s for a reboot (the module drops off and
-reconnects; the no-data alert is held back meanwhile). The wait is longer
+report the change: 30 s, or 90 s for a reboot (the no-data alert is held
+back meanwhile). A reboot is confirmed once the module is reporting again
+after restarting: over BLE the connection drops and comes back; over `http`
+the module can restart between two polls without any poll failing, so the
+bridge also reads the module's uptime after a reboot and counts a reset as
+the restart. The wait is longer
 when the source polls slowly, since the grill's answer arrives one poll at a
 time. The answer, `200`, is the result:
 

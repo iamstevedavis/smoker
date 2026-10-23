@@ -73,7 +73,8 @@ Adding or changing one needs the owner's approval first (see Rules), then:
 
 Test control with the fake source's failure injection: add names from
 `FAULTS` in `sources/fake.py` to `source.faults` (an RPC error, an ignored
-command, a blank frame, `Unauthorized` once, a reboot that never comes back).
+command, a blank frame, `Unauthorized` once, a reboot that never comes back,
+a reboot that keeps the session).
 
 ### Dashboard changes
 
