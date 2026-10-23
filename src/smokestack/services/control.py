@@ -93,6 +93,11 @@ def _degrees(value: float, unit: str | None) -> str:
     return f"{value:g}°{unit or ''}"
 
 
+def _module_restarts(runtime: Runtime) -> int:
+    """WiFi-module restarts the source has seen, for sources that watch."""
+    return getattr(runtime.collector.source, "module_restarts", 0)
+
+
 class GrillControl:
     """Checks, sends and confirms grill commands one at a time.
 
@@ -463,6 +468,7 @@ class GrillControl:
 
         health = runtime.health
         reconnects = health.reconnect_count
+        restarts = _module_restarts(runtime)
         reboot = command.name == "reboot"
         window = self._window(
             runtime, self.reboot_confirm_seconds if reboot else self.confirm_seconds
@@ -492,9 +498,16 @@ class GrillControl:
                     break
                 frame_values = frame.values_dict()
                 if reboot:
-                    # A new session counts once the frame that started it
-                    # was published; the collector updates health after that.
-                    done = health.reconnect_count > reconnects
+                    # Either the session dropped and a new one delivered
+                    # data (BLE, or HTTP when a poll failed), or the source
+                    # saw the module's uptime reset: over HTTP that is the
+                    # only sign of a restart between two polls. A new
+                    # session counts once the frame that started it was
+                    # published; the collector updates health after that.
+                    done = (
+                        health.reconnect_count > reconnects
+                        or _module_restarts(runtime) > restarts
+                    )
                 elif command.name == "turn-off":
                     done = frame_values.get("moduleIsOn") is False
                 elif command.name == "set-unit":

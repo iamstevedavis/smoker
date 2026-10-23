@@ -13,6 +13,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -232,3 +234,49 @@ class JobQueue:
             if not pending.future.done():
                 pending.future.set_result(result)
         return pending.job
+
+
+# How long after a reboot a source keeps checking the module's uptime, at
+# least. Longer than the bridge's confirmation window (90 s, or three polls
+# when the source polls slowly, which `arm` is given room for).
+RESTART_WATCH_SECONDS = 300.0
+
+
+class RestartWatch:
+    """Notices the WiFi module restarting, from its uptime.
+
+    Over HTTP the module can restart between two polls, so the session never
+    drops and the reconnect count can't show the reboot. Its uptime can: once
+    the uptime is no longer than the time since the reboot was sent, the module
+    started after the command. `restarts` counts those, for the bridge to
+    confirm a reboot by.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self.restarts = 0
+        self._sent_at: float | None = None
+        self._until = 0.0
+
+    @property
+    def armed(self) -> bool:
+        if self._sent_at is not None and self._clock() > self._until:
+            self._sent_at = None
+        return self._sent_at is not None
+
+    def arm(self, seconds: float = RESTART_WATCH_SECONDS) -> None:
+        """Start watching, just before the reboot is sent."""
+        self._sent_at = self._clock()
+        self._until = self._sent_at + seconds
+
+    def observe(self, uptime: float | None) -> bool:
+        """Check an uptime read after the reboot; True if the module restarted."""
+        if not self.armed or uptime is None or self._sent_at is None:
+            return False
+        # A module that kept running has been up for longer than the time
+        # since the reboot was sent: at least since the bridge connected.
+        if uptime > self._clock() - self._sent_at:
+            return False
+        self.restarts += 1
+        self._sent_at = None
+        return True

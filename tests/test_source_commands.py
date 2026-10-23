@@ -425,6 +425,73 @@ async def test_fake_source_reboot_that_never_comes_back():
         await anext(source.readings())
 
 
+async def test_fake_source_reboot_can_keep_the_session():
+    now = [100.0]
+    source = FakeGrillSource(interval_seconds=0, clock=lambda: now[0])
+    source.faults.add("reboot_keeps_session")
+    stream = source.readings()
+    await anext(stream)
+    assert source.uptime() == 0
+    now[0] = 200
+    assert source.uptime() == 100
+
+    await _send(source, stream, Command("reboot"))
+    now[0] = 205
+
+    # The stream carried on, and the uptime reset shows the restart.
+    assert source.uptime() == 5
+    assert source.module_restarts == 1
+    assert source.restart_watch.armed is False
+
+
+async def test_fake_source_counts_the_restart_after_a_dropped_session():
+    now = [100.0]
+    source = FakeGrillSource(interval_seconds=0, reboot_seconds=10, clock=lambda: now[0])
+    stream = source.readings()
+    await anext(stream)
+    task = asyncio.create_task(source.execute(Command("reboot")))
+    with pytest.raises(ConnectionError):
+        await anext(stream)
+    await task
+    now[0] = 110
+    await anext(source.readings())
+
+    assert source.module_restarts == 1
+
+
+# Restart watch -------------------------------------------------------------
+
+
+def test_restart_watch_counts_an_uptime_shorter_than_the_reboot():
+    now = [1000.0]
+    watch = commands.RestartWatch(lambda: now[0])
+    assert watch.observe(0) is False  # not armed
+
+    watch.arm()
+    now[0] = 1010
+    # Still running: it has been up for longer than the 10 s since.
+    assert watch.observe(5000) is False
+    assert watch.observe(None) is False
+    assert watch.armed
+    # Started 4 s ago, after the reboot was sent.
+    assert watch.observe(4) is True
+    assert watch.restarts == 1
+    assert watch.armed is False
+    assert watch.observe(4) is False
+    assert watch.restarts == 1
+
+
+def test_restart_watch_stops_watching_after_a_while():
+    now = [0.0]
+    watch = commands.RestartWatch(lambda: now[0])
+    watch.arm(60)
+    now[0] = 61
+
+    assert watch.armed is False
+    assert watch.observe(1) is False
+    assert watch.restarts == 0
+
+
 @pytest.mark.parametrize(
     ("fault", "error"),
     [("rpc_error", RuntimeError), ("unauthorized_once", CommandUnauthorized)],

@@ -399,6 +399,29 @@ def test_reboot_is_confirmed_when_the_source_comes_back(tmp_path, monkeypatch):
     assert holds == [3, 3, 0]
 
 
+def test_reboot_is_confirmed_when_the_session_never_drops(tmp_path, monkeypatch):
+    # Over HTTP the module can restart between two polls (#77): no poll
+    # fails, so there is no reconnect, only the module's uptime resetting.
+    app = _app(tmp_path)
+    _source(app).faults.add("reboot_keeps_session")
+    holds = []
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        monkeypatch.setattr(app.state.runtime, "hold_stale_alert", holds.append)
+        before = app.state.health.reconnect_count
+        started = time.monotonic()
+        body = _post(client, "reboot").json()
+        took = time.monotonic() - started
+        after = app.state.health.reconnect_count
+
+    assert body["outcome"] == "confirmed"
+    assert after == before
+    assert _source(app).module_restarts == 1
+    # Confirmed by the next frame, not at the end of the 3 s window.
+    assert took < 2
+    assert holds == [3, 3, 0]
+
+
 def test_a_reboot_that_never_comes_back_is_unconfirmed(tmp_path, monkeypatch):
     app = _app(tmp_path)
     _source(app).faults.add("reboot_never_returns")

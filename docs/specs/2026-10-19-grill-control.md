@@ -122,9 +122,15 @@ A command is not "done" because the RPC returned. Flow:
    when the source polls slowly: the command goes out between polls and the
    grill's answer comes back in the frames after it, one poll apart, so a
    bridge that polls every 30 s needs more than 30 s to see the change it
-   made. For `reboot`, wait up to 90 s for the source to drop and
-   reconnect and for a fresh frame to arrive; the stale-data alert is held
-   back for that window so a deliberate reboot does not page anyone.
+   made. For `reboot`, wait up to 90 s for a fresh frame after the module
+   restarted: either the source dropped and reconnected, or (#77) the source
+   saw the module's uptime reset. Over `http` the module can restart between
+   two polls without any poll failing, so after a reboot the `http` source
+   reads the uptime (`PB.GetTime`, a read) before each poll until it is
+   no longer than the time since the reboot was sent, for up to 5 minutes
+   (or four polls, if longer). The
+   stale-data alert is held back for the window so a deliberate reboot does
+   not page anyone.
 6. Result, returned and stored as `last_result`:
    - `confirmed`: expected state observed.
    - `unconfirmed`: command sent, state did not change in time. The UI says so
@@ -178,7 +184,8 @@ control buttons are disabled while the source is stale.
   and winds the simulated temperature down, `set-temperature` updates
   `grillSetTemp`, `reboot` drops the stream briefly and reconnects. It also supports failure
   injection (RPC error, ignored command so the state never changes, blank frame
-  after a command, `Unauthorized` once, a reboot that never comes back).
+  after a command, `Unauthorized` once, a reboot that never comes back, a
+  reboot that only resets the module's uptime without dropping the stream).
 - Unit tests cover the session requirement (including login switched off),
   the enable setting and its save round-trip, snapping (including a Celsius
   grill), rate limiting, the command lock, idempotence (including missing

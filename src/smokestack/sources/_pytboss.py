@@ -80,6 +80,21 @@ async def poll_state(
         return await boss.get_state()
 
 
+async def read_uptime(boss: Any) -> float | None:
+    """The WiFi module's uptime, read from the grill rather than extrapolated.
+
+    None when the reply has no uptime. Dropping the cache first also means
+    that the next key is derived from the grill's own clock, which matters
+    once the module has restarted and its uptime has reset.
+    """
+    boss._last_uptime = None
+    uptime = await boss.get_uptime()
+    # pytboss answers 0.0 for a reply without an uptime, and caches nothing.
+    if boss._last_uptime is None:
+        return None
+    return float(uptime)
+
+
 def accepted_setpoints(model: str, fahrenheit: bool) -> list[int]:
     """Setpoints `model`'s control board accepts, in the given unit.
 
