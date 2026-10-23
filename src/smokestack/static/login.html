@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Smokestack: sign in</title>
-  <meta name="theme-color" content="#0f0f0e">
+  <meta name="theme-color" content="#000000">
   <meta name="color-scheme" content="light dark">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="static/icons/icon.svg" type="image/svg+xml">
@@ -21,18 +21,18 @@
   <main class="login">
     <form id="login" class="card login-card">
       <div class="brand">
-        <img src="static/icons/icon.svg" alt="" width="28" height="28">
-        <span>Smokestack</span>
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Smokestack</span>
       </div>
       <p id="setup-intro" class="login-intro" hidden>Welcome. Create a password for this bridge. You'll use it to sign in, and you can turn it off later in Settings.</p>
       <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <input id="password" class="input" name="password" type="password" autocomplete="current-password" required autofocus>
       <div id="confirm-row" class="login-field" hidden>
         <label for="confirm">Confirm password</label>
-        <input id="confirm" name="confirm" type="password" autocomplete="new-password">
+        <input id="confirm" class="input" name="confirm" type="password" autocomplete="new-password">
       </div>
       <p id="login-error" class="login-error" role="alert" hidden></p>
-      <button id="submit" type="submit" class="login-btn">Sign in</button>
+      <button id="submit" type="submit" class="btn btn-primary">Sign in</button>
     </form>
   </main>
   <script>

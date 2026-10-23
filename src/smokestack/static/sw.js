@@ -1,7 +1,7 @@
 /* Service worker: caches the app shell only. API responses are never cached. */
 "use strict";
 
-const CACHE = "smoker-shell-v4";
+const CACHE = "smoker-shell-v5";
 const SHELL = [
   "./",
   "static/app.css",
@@ -11,6 +11,11 @@ const SHELL = [
   "static/icons/icon-192.png",
   "static/icons/icon-512.png",
   "static/icons/apple-touch-icon.png",
+  "static/fonts/Geist-Regular.woff2",
+  "static/fonts/Geist-Medium.woff2",
+  "static/fonts/Geist-SemiBold.woff2",
+  "static/fonts/GeistMono-Regular.woff2",
+  "static/fonts/GeistMono-SemiBold.woff2",
 ];
 
 const shellUrls = () => SHELL.map((path) => new URL(path, self.registration.scope).href);
