@@ -295,3 +295,20 @@ def test_settings_panel_has_sections_and_saves_as_you_go(app):
     assert 'id="profile"' not in html
     assert "setupProfile" not in js
     assert "settings-password-form" in js
+
+
+def test_settings_panel_handles_new_sources_and_cancelled_secrets(app):
+    with TestClient(app) as client:
+        js = client.get("/static/app.js").text
+
+    # Choosing a source that needs a host or name shows its fields first, then
+    # saves the switch once that field is saved.
+    assert 'const SOURCE_REQUIRED = { http: "host", ble: "device_name" };' in js
+    assert "function chooseSource(name)" in js
+    assert "settings.draftSource = name" in js
+    assert "settings.draftSource === value" in js
+
+    # Cancel wins over the blur save, and a saved secret returns to its mask.
+    assert 'cancel.addEventListener("pointerdown"' in js
+    assert "settings.cancelSecret === field.name" in js
+    assert 'if (meta.type === "secret") settings.changing.delete(name);' in js
