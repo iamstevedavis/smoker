@@ -1,7 +1,7 @@
 /* Service worker: caches the app shell only. API responses are never cached. */
 "use strict";
 
-const CACHE = "smoker-shell-v5";
+const CACHE = "smoker-shell-v6";
 const SHELL = [
   "./",
   "static/app.css",

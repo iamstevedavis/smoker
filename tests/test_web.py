@@ -29,6 +29,23 @@ def test_root_serves_dashboard_html(app):
     assert "static/app.js" in response.text
 
 
+def test_dashboard_puts_the_controls_before_the_other_cards(app):
+    # The controls are the actions a cook reaches for, so they sit under the
+    # grill readout instead of after the probes, components and errors.
+    with TestClient(app) as client:
+        html = client.get("/").text
+
+    order = [
+        html.index('class="card hero"'),
+        html.index('id="controls"'),
+        html.index('class="probes"'),
+        html.index('class="card indicators"'),
+        html.index('class="card errors"'),
+        html.index('class="card chart-card"'),
+    ]
+    assert order == sorted(order)
+
+
 def test_static_assets_are_served(app):
     with TestClient(app) as client:
         js = client.get("/static/app.js")
