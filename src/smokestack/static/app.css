@@ -2204,10 +2204,19 @@ main.login {
 
 /* ---- Phones ------------------------------------------------------------- */
 
-/* The header holds the brand, the status and three buttons. */
-@media (max-width: 440px) {
+/* The header holds the brand, the status and source, and three buttons. */
+@media (max-width: 480px) {
   .top { gap: var(--space-2); }
   .top .brand-name { display: none; }
+}
+
+/* The narrowest phones: drop the brand dot so the source still fits. */
+@media (max-width: 340px) {
+  .top {
+    gap: var(--space-1);
+    padding-inline: 12px;
+  }
+  .top .brand { display: none; }
 }
 
 @media (max-width: 480px) {

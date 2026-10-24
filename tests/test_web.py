@@ -46,6 +46,26 @@ def test_dashboard_puts_the_controls_before_the_other_cards(app):
     assert order == sorted(order)
 
 
+def test_dashboard_names_the_active_source_in_the_header(app):
+    with TestClient(app) as client:
+        html = client.get("/").text
+        js = client.get("/static/app.js").text
+
+    # The source sits with the connection status, not only in the footer.
+    header = html.split("</header>", 1)[0]
+    assert 'id="status"' in header and 'id="source-badge"' in header
+    assert header.index('id="status"') < header.index('id="source-badge"')
+    # The names people know, never the internal source ids.
+    assert 'const SOURCE_LABELS = { http: "WiFi", ble: "Bluetooth", fake: "Demo" };' in js
+    assert 'setText($("source-text"), label)' in js
+    assert 'parts.push("Source: " + sourceLabel(source))' in js
+    # A connected source is the live one, so Save & apply shows the new
+    # source once it reconnects; until then the last reading's source stays.
+    active = js.split("function activeSource()", 1)[1].split("\n  }\n", 1)[0]
+    assert "health.connected" in active and "health.source" in active
+    assert "state.source" in active
+
+
 def test_static_assets_are_served(app):
     with TestClient(app) as client:
         js = client.get("/static/app.js")
