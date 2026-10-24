@@ -1698,6 +1698,10 @@
     ble_adapter: ["ble"],
   };
 
+  // The field a source can't be saved without. Choosing one of these sources
+  // shows its fields first so they can be filled in before the switch.
+  const SOURCE_REQUIRED = { http: "host", ble: "device_name" };
+
   // The switch whose off state folds these fields away.
   const SETTING_DEPENDS_ON = {
     mqtt_host: "mqtt_enabled",
@@ -1721,6 +1725,7 @@
     changing: new Set(), // secrets the user chose to change
     authOn: null, // whether the dashboard login is on; null until known
     section: "grill",
+    draftSource: null, // a source chosen before its required field is set
     open: false,
     reconnecting: false,
     watchToken: 0,
@@ -1728,6 +1733,7 @@
     lastSave: null,
     queued: {}, // name -> value already on its way to the bridge
     savedTimers: {},
+    cancelSecret: null, // a secret whose Cancel was pressed before its blur
   };
 
   const authUi = { busy: false };
@@ -1750,6 +1756,16 @@
 
   function sourceValue() {
     return fieldValue("source") || "";
+  }
+
+  // While a source is being set up, show its fields before the switch saves.
+  function shownSource() {
+    return settings.draftSource || sourceValue();
+  }
+
+  function sourceReady(name) {
+    const required = SOURCE_REQUIRED[name];
+    return !required || Boolean(fieldValue(required));
   }
 
   function alertsOn() {
@@ -1960,7 +1976,16 @@
       input.placeholder = "New value";
       const cancel = el("button", { type: "button", className: "link-btn", textContent: "Cancel" });
       cancel.setAttribute("aria-label", "Cancel changing " + meta.label);
+      // The pointer press blurs the input before the click; mark the field so
+      // the blur doesn't save the value Cancel is about to discard.
+      cancel.addEventListener("pointerdown", () => { settings.cancelSecret = field.name; });
+      ["pointerup", "pointercancel", "pointerleave"].forEach((event) => {
+        cancel.addEventListener(event, () => {
+          if (settings.cancelSecret === field.name) settings.cancelSecret = null;
+        });
+      });
       cancel.addEventListener("click", () => {
+        settings.cancelSecret = null;
         settings.changing.delete(field.name);
         refreshField(field.name);
       });
@@ -1998,6 +2023,10 @@
         }
       });
       input.addEventListener("blur", () => {
+        if (settings.cancelSecret === field.name) {
+          settings.cancelSecret = null;
+          return;
+        }
         if (input.value !== "") saveField(field.name, input.value);
       });
       return;
@@ -2117,21 +2146,49 @@
     for (const name of options) {
       const card = el("button", { type: "button", className: "source-card", role: "radio" });
       card.dataset.source = name;
-      card.setAttribute("aria-checked", String(name === field.value));
+      card.setAttribute("aria-checked", String(name === shownSource()));
       card.append(
         el("span", { className: "source-card-label", textContent: SOURCE_LABELS[name] || name }),
         el("span", { className: "source-card-hint", textContent: SOURCE_HINTS[name] || "" }),
       );
-      card.addEventListener("click", () => {
-        if (name === settings.fields.source.value) return;
-        saveField("source", name, { connection: true });
-      });
+      card.addEventListener("click", () => chooseSource(name));
       cards.append(card);
     }
 
     row.append(head, cards, el("p", { className: "setting-hint", textContent: meta.hint || "" }),
       el("p", { className: "setting-error", hidden: true }));
     return row;
+  }
+
+  function syncSourceSelection() {
+    document.querySelectorAll("#settings .source-card").forEach((card) => {
+      card.setAttribute("aria-checked", String(card.dataset.source === shownSource()));
+    });
+    applySettingsVisibility();
+  }
+
+  // A source that needs a host or device name can't be saved yet. Show its
+  // fields, then save the switch once the required field is saved.
+  function chooseSource(name) {
+    if (name === sourceValue()) {
+      settings.draftSource = null;
+      clearFieldError("source");
+      syncSourceSelection();
+      return;
+    }
+    settings.draftSource = name;
+    syncSourceSelection();
+    if (!sourceReady(name)) {
+      const required = SOURCE_REQUIRED[name];
+      const field = required && settings.fields[required];
+      const label = field ? fieldMeta(field).label.toLowerCase() : "connection details";
+      showFieldError("source", "Set the " + label + " first.");
+      const input = required && $("set-" + required);
+      if (input) input.focus();
+      return;
+    }
+    clearFieldError("source");
+    saveField("source", name, { connection: true });
   }
 
   function refreshField(name) {
@@ -2242,13 +2299,20 @@
         showFieldError(name, body.detail ? String(body.detail) : "Save failed (HTTP " + res.status + ").");
         return false;
       }
-      if (name === "password") settings.changing.delete(name);
+      if (meta.type === "secret") settings.changing.delete(name);
+      if (name === "source" && settings.draftSource === value) settings.draftSource = null;
       applyPayload(body);
       refreshField(name);
       flashSaved(name);
       if (settings.open && (options.connection || CONNECTION_FIELDS.has(name))) watchApply();
       if (name === "enable_control") loadControl();
       if (name.startsWith("ntfy_") || name.startsWith("alert_")) loadAlertTargets();
+      // A source chosen before its required field was set: the field just
+      // saved, so finish the switch.
+      const draft = settings.draftSource;
+      if (draft && draft !== sourceValue() && sourceReady(draft)) {
+        saveField("source", draft, { connection: true });
+      }
       return true;
     } catch (e) {
       if (e.message !== "not authenticated") {
@@ -2285,7 +2349,7 @@
         showFieldError(name, body.detail ? String(body.detail) : "Reset failed (HTTP " + res.status + ").");
         return false;
       }
-      if (name === "password") settings.changing.delete(name);
+      settings.changing.delete(name);
       applyPayload(body);
       refreshField(name);
       flashSaved(name);
@@ -2314,7 +2378,7 @@
   function settingAppliesToSource(name) {
     const sources = SETTING_SOURCES[name];
     if (!sources) return true;
-    return sources.includes(sourceValue());
+    return sources.includes(shownSource());
   }
 
   // Show only the fields the chosen source uses, and fold away an
@@ -2327,7 +2391,7 @@
         || Boolean(parent && !settingToggleOn(parent));
     });
     document.querySelectorAll("#settings [data-sources]").forEach((block) => {
-      block.hidden = !block.dataset.sources.split(" ").includes(sourceValue());
+      block.hidden = !block.dataset.sources.split(" ").includes(shownSource());
     });
   }
 
@@ -2416,6 +2480,7 @@
     settings.layouts = {};
     settings.placed = new Set();
     settings.changing.clear();
+    settings.draftSource = null;
     const nav = $("settings-nav");
     const sections = $("settings-sections");
     nav.replaceChildren();
