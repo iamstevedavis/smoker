@@ -57,6 +57,14 @@ Made on #71 and the settings issues:
   files and are served by it. No font CDN.
 - **Dark first**, with light as the alternative, as in the base. The dashboard keeps
   its Auto / Light / Dark theme button.
+- **The settings panel saves as you go.** Text and number fields save when they
+  lose focus, if the value changed; switches, source cards and selects save at
+  once. There is no Save button or unsaved count. A saved field says **Saved**
+  briefly, and a rejected value stays in the field with the bridge's error under
+  it. The panel is a wide dialog with a side list of sections (Grill, Alerts,
+  Home Assistant, Access & control, System), each showing its state. On a phone
+  the list comes first, then one section full screen with **Back**, as in iOS
+  Settings.
 
 ## Things to watch
 

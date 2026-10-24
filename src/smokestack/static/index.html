@@ -36,65 +36,29 @@
       <span id="source-text"></span>
     </span>
     <button id="theme" class="btn btn-ghost btn-sm" type="button" aria-label="Theme: auto">Auto</button>
-    <button id="profile-open" class="btn btn-icon" type="button" aria-label="Profile" title="Profile" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-    </button>
     <button id="settings-open" class="btn btn-icon" type="button" aria-label="Settings" title="Settings" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
     </button>
   </header>
 
-  <dialog id="settings" class="settings" aria-labelledby="settings-title">
-    <form id="settings-form" class="settings-form" novalidate>
+  <dialog id="settings" class="settings settings-panel" aria-labelledby="settings-title" data-view="section">
+    <div class="settings-form">
       <div class="settings-head">
+        <button id="settings-back" class="btn btn-ghost btn-sm settings-back" type="button">Back</button>
         <h2 id="settings-title">Settings</h2>
         <button id="settings-close" class="btn btn-ghost btn-sm" type="button">Close</button>
       </div>
-      <div class="settings-body">
-        <fieldset id="settings-auth" class="setting-group" hidden></fieldset>
-        <div id="settings-groups"><p class="settings-note">Loading…</p></div>
-        <details id="settings-dev" class="settings-dev">
-          <summary>Set only in .env</summary>
-          <p class="settings-intro">Saved values live in the bridge's data volume and override <code>.env</code>. A field saved from this page shows <strong>Custom</strong>; <strong>Reset</strong> drops it and falls back to <code>.env</code> or the default.</p>
-          <p id="settings-envonly" class="settings-note"></p>
-        </details>
+      <div class="settings-panel-body">
+        <nav id="settings-nav" class="settings-nav" aria-label="Settings sections"></nav>
+        <div id="settings-sections" class="settings-sections">
+          <p class="settings-note">Loading…</p>
+        </div>
       </div>
       <div class="settings-foot">
         <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
-        <button id="settings-save" class="btn btn-primary" type="submit">Save &amp; apply</button>
+        <p class="settings-foot-note">Changes save when you leave a field. Changing the connection reconnects to the grill.</p>
       </div>
-    </form>
-  </dialog>
-
-  <dialog id="profile" class="settings" aria-labelledby="profile-title">
-    <form id="profile-form" class="settings-form" novalidate>
-      <div class="settings-head">
-        <h2 id="profile-title">Profile</h2>
-        <button id="profile-close" class="btn btn-ghost btn-sm" type="button">Close</button>
-      </div>
-      <div class="settings-body">
-        <fieldset class="setting-group">
-          <legend>Change password</legend>
-          <div class="setting">
-            <label for="profile-current">Current password</label>
-            <input id="profile-current" class="input" name="current" type="password" autocomplete="current-password" required>
-          </div>
-          <div class="setting">
-            <label for="profile-new">New password</label>
-            <input id="profile-new" class="input" name="new" type="password" autocomplete="new-password" minlength="8" required>
-            <p class="setting-hint">At least 8 characters. Other devices are signed out.</p>
-          </div>
-          <div class="setting">
-            <label for="profile-confirm">Confirm new password</label>
-            <input id="profile-confirm" class="input" name="confirm" type="password" autocomplete="new-password" required>
-          </div>
-        </fieldset>
-      </div>
-      <div class="settings-foot">
-        <p id="profile-status" class="settings-status" role="status" aria-live="polite"></p>
-        <button id="profile-save" class="btn btn-primary" type="submit">Change password</button>
-      </div>
-    </form>
+    </div>
   </dialog>
 
   <dialog id="control-log" class="settings" aria-labelledby="control-log-title">

@@ -1802,7 +1802,7 @@ dialog::backdrop {
   background: var(--color-overlay);
 }
 
-/* The settings, profile, password and command log dialogs are drawers. */
+/* The password and command log dialogs are drawers. */
 .settings {
   width: min(100%, 560px);
   max-width: 100%;
@@ -1878,39 +1878,293 @@ dialog::backdrop {
 .settings-status[data-kind="ok"] { color: var(--color-success); }
 .settings-status[data-kind="error"] { color: var(--color-error); }
 
-#settings-groups {
-  display: grid;
-  gap: var(--space-5);
+/* The settings panel is a dialog with a side list, not a drawer. */
+.settings.settings-panel {
+  width: min(940px, calc(100% - 48px));
+  max-width: 940px;
+  height: min(760px, calc(100vh - 48px));
+  max-height: calc(100vh - 48px);
+  margin: auto;
+  border: var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
 }
 
-.setting-group {
-  margin: 0;
-  padding: 0;
+.settings-panel .settings-form {
+  min-height: 0;
+}
+
+.settings-panel-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 240px;
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-2);
+  background: var(--color-surface-1);
+  border-right: var(--border-subtle);
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  width: 100%;
   border: 0;
-  min-width: 0;
-  display: grid;
-  gap: var(--space-2);
+  background: none;
+  font: inherit;
+  text-align: left;
 }
 
-.setting-group[hidden] {
+.settings-nav-label {
+  white-space: nowrap;
+}
+
+.settings-nav-state {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-12);
+  color: var(--color-label-secondary);
+}
+
+.settings-sections {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6);
+}
+
+.settings-section {
   display: none;
 }
 
-/* The group heading is a nav row, so the drawer reads as a list of sections. */
-.setting-group legend {
-  padding: 0;
-  margin-bottom: calc(-1 * var(--space-1));
+.settings-section.is-active {
+  display: block;
+}
+
+.settings-section-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-16);
+  font-weight: var(--weight-semibold);
+}
+
+.settings-conn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  font-size: var(--text-13);
+  color: var(--color-label-secondary);
+}
+
+.settings-conn-text {
+  color: var(--color-label-primary);
+}
+
+.section-label {
+  display: block;
+  margin: var(--space-4) 0 var(--space-2);
   font-size: var(--text-11);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--color-label-secondary);
-  cursor: default;
 }
 
-.setting-group legend:hover {
-  background: transparent;
+.settings-section > .section-label:first-of-type {
+  margin-top: 0;
+}
+
+.settings-card {
+  padding: 0 var(--space-4);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+}
+
+.settings-card > .setting:first-child {
+  border-top: 0;
+}
+
+.settings-card > .setting {
+  border-top: var(--border-subtle);
+}
+
+/* Source: three choice cards rather than a select. */
+.setting.setting-source {
+  grid-template-columns: 1fr;
+}
+
+.source-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  grid-column: 1 / -1;
+  margin-top: var(--space-2);
+}
+
+.source-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-3);
+  text-align: left;
+  color: var(--color-label-primary);
+  background: var(--color-surface-2);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.source-card:hover {
+  border-color: var(--color-border-strong);
+}
+
+.source-card[aria-checked="true"] {
+  background: var(--color-fill-strong);
+  border-color: var(--color-label-primary);
+  box-shadow: 0 0 0 1px var(--color-label-primary);
+}
+
+.source-card-label {
+  font-size: var(--text-14);
+  font-weight: var(--weight-medium);
+}
+
+.source-card-hint {
+  font-size: var(--text-11);
   color: var(--color-label-secondary);
+}
+
+.settings-advanced {
+  margin-top: var(--space-4);
+  border-top: var(--border-subtle);
+}
+
+.settings-advanced summary {
+  padding: var(--space-3) 0;
+  font-size: var(--text-12);
+  color: var(--color-label-secondary);
+  cursor: pointer;
+}
+
+.settings-advanced[open] summary {
+  margin-bottom: var(--space-2);
+}
+
+.settings-advanced .settings-card {
+  margin-bottom: var(--space-3);
+}
+
+/* Two settings on one row, e.g. the MQTT broker and port. */
+.setting.setting-pair {
+  grid-template-columns: minmax(0, 1fr) 104px;
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.setting-pair-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.setting-pair-cell .input,
+.setting-pair-cell .select {
+  width: 100%;
+}
+
+/* Alert rules are sentences with the numbers inline. */
+.rules {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface-1);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.rule {
+  font-size: var(--text-14);
+  line-height: 2.2;
+  color: var(--color-label-primary);
+}
+
+.rule-field {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  vertical-align: middle;
+}
+
+.rule-field[hidden] {
+  display: none;
+}
+
+.rule-field .stepper .input {
+  width: 64px;
+}
+
+.rule-field .setting-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rule-field .setting-error {
+  display: block;
+  flex-basis: 100%;
+}
+
+.settings-test {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.settings-test .settings-note {
+  flex-basis: 100%;
+}
+
+.settings-test .settings-status {
+  margin: 0;
+}
+
+.settings-link-row {
+  padding: var(--space-3) 0;
+  border-top: var(--border-subtle);
+}
+
+.setting-saved {
+  font-size: var(--text-11);
+  font-weight: var(--weight-medium);
+  color: var(--color-success);
+}
+
+.setting-saved:empty {
+  display: none;
+}
+
+.settings-foot-note {
+  margin: 0 0 0 auto;
+  font-size: var(--text-12);
+  color: var(--color-label-secondary);
+  text-align: right;
+}
+
+.settings-back {
+  display: none;
 }
 
 /* Setting rows: the label on the left, the control on the right. */
@@ -2203,6 +2457,82 @@ main.login {
 }
 
 /* ---- Phones ------------------------------------------------------------- */
+
+/* The settings panel is full screen: the section list first, then one
+   section at a time with Back, as in iOS Settings. */
+@media (max-width: 640px) {
+  .settings.settings-panel {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .settings-panel-body {
+    flex-direction: column;
+  }
+
+  .settings-panel[data-view="list"] .settings-sections,
+  .settings-panel[data-view="section"] .settings-nav {
+    display: none;
+  }
+
+  .settings-panel[data-view="list"] .settings-nav {
+    width: 100%;
+    padding: var(--space-2) var(--space-4);
+    background: var(--color-bg);
+    border-right: 0;
+  }
+
+  .settings-panel[data-view="list"] .settings-nav-item {
+    min-height: 52px;
+    padding: var(--space-3) 0;
+    border-bottom: var(--border-subtle);
+    border-radius: 0;
+    font-size: var(--text-16);
+  }
+
+  .settings-panel[data-view="list"] .settings-nav-item.active {
+    background: none;
+  }
+
+  .settings-panel[data-view="list"] .settings-nav-item::after {
+    content: "›";
+    margin-left: var(--space-2);
+    font-size: var(--text-20);
+    line-height: 1;
+    color: var(--color-label-secondary);
+  }
+
+  .settings-panel[data-view="section"] .settings-back {
+    display: inline-flex;
+  }
+
+  .settings-sections {
+    padding: var(--space-4);
+  }
+
+  .settings-foot {
+    flex-wrap: wrap;
+  }
+
+  .settings-foot-note {
+    margin: 0;
+    text-align: left;
+  }
+
+  .source-cards {
+    gap: var(--space-1);
+  }
+
+  .source-card {
+    padding: var(--space-2);
+  }
+}
 
 /* The header holds the brand, the status and source, and three buttons. */
 @media (max-width: 480px) {

@@ -639,10 +639,75 @@ def test_settings_endpoints_require_login(tmp_path):
         assert client.get("/api/settings").status_code == 401
         assert client.put("/api/settings", json={"poll_seconds": 3}).status_code == 401
         assert client.delete("/api/settings/poll_seconds").status_code == 401
+        assert client.post("/api/alerts/test").status_code == 401
 
         client.post("/api/login", json={"password": "pw"})
         assert client.get("/api/settings").status_code == 200
         assert client.put("/api/settings", json={"poll_seconds": 3}).status_code == 200
+
+
+def test_test_alert_uses_the_saved_url_and_token(tmp_path, monkeypatch):
+    calls = []
+
+    class FakeSender:
+        def __init__(self, url, token=""):
+            calls.append(("sender", url, token))
+
+        async def send(self, notification):
+            calls.append(("send", notification))
+
+    monkeypatch.setattr(api, "NtfySender", FakeSender)
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        client.put(
+            "/api/settings",
+            json={
+                "ntfy_url": "http://ntfy.test/topic",
+                "ntfy_token": "tk_secret",
+            },
+        )
+        calls.clear()
+        response = client.post("/api/alerts/test")
+
+    assert response.status_code == 200
+    assert response.json() == {"sent": True}
+    assert calls[0] == ("sender", "http://ntfy.test/topic", "tk_secret")
+    _, notification = calls[1]
+    assert notification.title == "Smokestack test alert"
+    assert notification.message == "Alerts are working. This is a test from Smokestack."
+    assert notification.tags == ("white_check_mark",)
+
+
+def test_test_alert_needs_alerts_on_and_a_topic(tmp_path):
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        response = client.post("/api/alerts/test")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Set an ntfy topic URL first."
+
+    app = create_app(
+        _settings(tmp_path, ntfy_url="http://ntfy.test/topic", ntfy_enabled=False)
+    )
+    with TestClient(app) as client:
+        response = client.post("/api/alerts/test")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Turn alerts on first."
+
+
+def test_test_alert_returns_the_ntfy_error(tmp_path, monkeypatch):
+    class FailingSender:
+        def __init__(self, url, token=""):
+            pass
+
+        async def send(self, notification):
+            raise RuntimeError("HTTP Error 404: Not Found")
+
+    monkeypatch.setattr(api, "NtfySender", FailingSender)
+    app = create_app(_settings(tmp_path, ntfy_url="http://ntfy.test/topic"))
+    with TestClient(app) as client:
+        response = client.post("/api/alerts/test")
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "HTTP Error 404: Not Found"
 
 
 def test_saving_settings_does_not_resend_active_alerts(tmp_path, monkeypatch):

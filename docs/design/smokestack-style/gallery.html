@@ -1632,12 +1632,12 @@ document.querySelectorAll("#ns-root .stepper").forEach((group) => {
 
         <span class="section-label">Connection</span>
         <div style="border: var(--border-default); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: var(--border-subtle);">
-            <div style="flex: 1;"><div class="form-label">Source</div><div style="font-size: var(--text-12); color: var(--color-label-secondary);">From .env</div></div>
-            <div class="tabs" role="radiogroup" aria-label="Source" style="display: inline-flex; gap: 2px; padding: 2px; background: var(--color-surface-2); border-radius: var(--radius-sm);">
-              <button type="button" role="radio" aria-checked="true" class="btn btn-sm" style="background: var(--color-bg); color: var(--color-label-primary); box-shadow: var(--shadow-border);">WiFi</button>
-              <button type="button" role="radio" aria-checked="false" class="btn btn-ghost btn-sm">Bluetooth</button>
-              <button type="button" role="radio" aria-checked="false" class="btn btn-ghost btn-sm">Demo</button>
+          <div style="padding: var(--space-3) var(--space-4); border-bottom: var(--border-subtle);">
+            <div style="display: flex; align-items: center; gap: var(--space-2);"><span class="form-label">Source</span><span style="font-size: var(--text-12); color: var(--color-label-secondary);">From .env</span></div>
+            <div role="radiogroup" aria-label="Source" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin-top: var(--space-2);">
+              <button type="button" role="radio" aria-checked="true" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: var(--space-3); text-align: left; color: var(--color-label-primary); background: var(--color-fill-strong); border: 1px solid var(--color-label-primary); border-radius: var(--radius-md); box-shadow: 0 0 0 1px var(--color-label-primary);"><span style="font-size: var(--text-14); font-weight: var(--weight-medium);">WiFi</span><span style="font-size: var(--text-11); color: var(--color-label-secondary);">Local network</span></button>
+              <button type="button" role="radio" aria-checked="false" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: var(--space-3); text-align: left; color: var(--color-label-primary); background: var(--color-surface-2); border: var(--border-default); border-radius: var(--radius-md);"><span style="font-size: var(--text-14); font-weight: var(--weight-medium);">Bluetooth</span><span style="font-size: var(--text-11); color: var(--color-label-secondary);">Bluetooth radio</span></button>
+              <button type="button" role="radio" aria-checked="false" style="display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: var(--space-3); text-align: left; color: var(--color-label-primary); background: var(--color-surface-2); border: var(--border-default); border-radius: var(--radius-md);"><span style="font-size: var(--text-14); font-weight: var(--weight-medium);">Demo</span><span style="font-size: var(--text-11); color: var(--color-label-secondary);">Sample data</span></button>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: var(--border-subtle);">
@@ -1668,9 +1668,9 @@ document.querySelectorAll("#ns-root .stepper").forEach((group) => {
         </div>
       </div>
     </div>
-    <div class="modal-footer" style="justify-content: space-between; padding: var(--space-3) var(--space-5);">
-      <span role="status" style="font-size: var(--text-13); color: var(--color-warning);">1 unsaved change</span>
-      <div style="display: flex; gap: var(--space-2);"><button type="button" class="btn btn-secondary btn-sm">Discard</button><button type="button" class="btn btn-primary btn-sm">Save &amp; apply</button></div>
+    <div class="modal-footer" style="padding: var(--space-3) var(--space-5);">
+      <span role="status" style="font-size: var(--text-13); color: var(--color-success);">Saved</span>
+      <span style="margin-left: auto; font-size: var(--text-12); color: var(--color-label-secondary); text-align: right;">Changes save when you leave a field. Changing the connection reconnects to the grill.</span>
     </div>
   </div>
 </div>

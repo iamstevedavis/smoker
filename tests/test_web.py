@@ -134,6 +134,7 @@ def test_only_the_control_routes_can_write_to_the_grill(app):
                 "/api/login",
                 "/api/logout",
                 "/api/auth",
+                "/api/alerts/",
                 "/api/control/",
                 "/api/control-log/",
             )
@@ -250,6 +251,47 @@ def test_settings_panel_only_shows_fields_that_apply(app):
     assert 'textContent: "Turn on the dashboard password first."' in js
     # Only non-default values are marked, and values are stepped, not spun.
     assert 'textContent: "Custom"' in js and 'textContent: "from .env"' in js
-    assert "function settingStepper(input, meta)" in js
-    # Developer text is folded away at the bottom.
-    assert "<summary>Set only in .env</summary>" in html
+    assert "function settingStepper(input, meta, commit)" in js
+    assert "function commitNumber(name, input, meta)" in js
+    # Developer text is folded away at the bottom of System.
+    assert 'textContent: "Set only in .env"' in js
+
+
+def test_settings_panel_has_sections_and_saves_as_you_go(app):
+    with TestClient(app) as client:
+        js = client.get("/static/app.js").text
+        html = client.get("/").text
+        css = client.get("/static/app.css").text
+
+    # The five sections, with their state on the right of the side list.
+    for section in ("grill", "alerts", "home", "access", "system"):
+        assert f'{{ id: "{section}",' in js
+    for label in ("Grill", "Alerts", "Home Assistant", "Access & control", "System"):
+        assert f'label: "{label}"' in js
+    assert "settings-nav-item" in js
+    assert 'className: "settings-nav-state"' in js
+    assert "settings-nav" in html and "settings-sections" in html
+
+    # Phone: the list first, then a section with Back.
+    assert 'id="settings-back"' in html
+    assert 'data-view="section"' in html
+    assert 'settings-panel[data-view="list"] .settings-sections' in css
+    assert 'settings-panel[data-view="section"] .settings-nav' in css
+
+    # Save as you go: no Save & apply, and text/number save on blur.
+    assert "Save &amp; apply" not in html
+    assert "settings-save" not in html and "settings-save" not in js
+    assert 'input.addEventListener("blur"' in js
+    assert "saveField(field.name, value)" in js
+    assert "Changes save when you leave a field. Changing the connection reconnects to the grill." in html
+    assert "Send test alert" in js and 'apiFetch("api/alerts/test"' in js
+    # Typing a topic URL enables the test before the blur that saves it.
+    assert "function alertTestReady()" in js
+    # Rules are sentences with the number fields inline, not field-name text.
+    assert "function renderRule(parts)" in js
+    assert "const field = settings.fields[part];" in js
+
+    # The Profile dialog moved into Access & control.
+    assert 'id="profile"' not in html
+    assert "setupProfile" not in js
+    assert "settings-password-form" in js

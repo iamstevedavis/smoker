@@ -52,7 +52,7 @@ No grill handy? Try the fake source: `PITBOSS_SOURCE=fake docker compose up -d`.
 
 ## Security
 
-- **The first visit asks you to create a password.** Until then the dashboard and API are locked. After that the password protects the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. It is stored as a scrypt hash in the database, you can turn it off or back on under **Settings → Login**, and change it under **Profile** (the person button; needs the current password). Sessions are signed cookies that last 30 days; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
+- **The first visit asks you to create a password.** Until then the dashboard and API are locked. After that the password protects the dashboard, `/api/*` (except `/api/health`), the `/api/live` WebSocket and `/docs`. It is stored as a scrypt hash in the database, you can turn it off or back on under **Settings → Access & control**, and change it there too (it needs the current password). Sessions are signed cookies that last 30 days; the signing key is `session.key` next to the database (`/data` in Docker), and deleting it or changing the password signs everyone out.
 - **Turning the password off opens everything to the LAN**, including the settings panel, so anyone there could point MQTT or ntfy at their own server and collect the saved secrets. It also switches grill control off.
 - **Grill control is off by default.** With `SMOKESTACK_ENABLE_CONTROL` on, signed-in users can turn the grill off, set its temperature, switch its unit while it is off, restart its WiFi module and change the grill's password. Nothing can turn it on. Every command is logged in the database and must be confirmed on the dashboard; the log is under **Controls → Command log**. The password change asks for the dashboard password again, and the bridge keeps whichever password the grill accepts, so it cannot lock itself out.
 - **Locked out?** Run `docker compose exec smokestack smokestack reset-password`, then `docker compose restart`. The next visit shows the setup screen again. Do this right after first start too if someone else might have reached the setup screen before you.
@@ -82,15 +82,18 @@ Home Assistant (`SMOKESTACK_MQTT_*`) and ntfy alerts (`SMOKESTACK_NTFY_*`, `SMOK
 
 ### Changing settings from the dashboard
 
-The wrench button opens a settings panel. **Save & apply** restarts the grill connection, MQTT and alerts inside the bridge, so there's no container restart and the page stays up.
+The wrench button opens a settings panel with a side list of sections: **Grill**, **Alerts**, **Home Assistant**, **Access & control** and **System**. Each entry shows its current state, such as the source or whether an integration is on. On a phone the section list comes first, then one section full screen with **Back**.
 
+- **Save as you go.** There is no Save button: a text or number field saves when it loses focus, if its value changed, and switches, source cards and selects save as soon as they change. A saved field shows **Saved** for a moment. A rejected value shows the bridge's error under the field and keeps what you typed.
+- Changing the connection (source, address, Bluetooth name or adapter, or grill password) reconnects the bridge to the grill. Other changes apply without a container restart, and the page stays up.
 - **Precedence:** built-in default, then `.env`/environment, then values saved in the panel. Saved values win.
 - Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Only fields that differ from the default are marked: **Custom** with **Reset** for a saved value, "from .env" for one from the environment. **Reset** drops the saved value and falls back to `.env` or the default.
 - The panel shows only the fields the chosen source uses: the grill address for WiFi, the Bluetooth name and adapter for Bluetooth, and neither for Demo.
 - MQTT and ntfy each have a switch. Turning one off keeps its host or URL, so turning it back on just works. An integration runs only while it is on and its host or URL is set.
+- **Alerts** has a **Send test alert** button that uses the saved ntfy URL and token, and shows the error ntfy gives if it fails.
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
-- The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
-- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`, listed under **Set only in .env** at the bottom.
+- **Access & control** turns the dashboard password off or on at once and changes it. **Grill control** there is off until the password is on, and links to the command log.
+- **System** keeps the history, log level and version. **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`, listed under **Set only in .env** there.
 - The source list only offers what can actually run: `fake` and `http` (WiFi) always, and `ble` only when the host's Bluetooth is reachable: a Linux host with `bluetoothd` running ([docs/ble.md](docs/ble.md)). With Docker Compose that's the same container either way, so switching between WiFi and Bluetooth is just a setting.
 
 ## More
