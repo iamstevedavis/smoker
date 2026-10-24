@@ -282,7 +282,11 @@ def test_settings_panel_has_sections_and_saves_as_you_go(app):
     assert "Save &amp; apply" not in html
     assert "settings-save" not in html and "settings-save" not in js
     assert 'input.addEventListener("blur"' in js
-    assert "saveField(field.name, value)" in js
+    assert "saveField(field.name, input.value.trim())" in js
+    # A save that finishes late keeps a value the user typed in the meantime.
+    assert "function hasQueuedEdit(name, value)" in js
+    assert "if (!hasNewerEdit(name, value)) {" in js
+    assert "if (!pendingEdit(name, value)) refreshField(name);" in js
     assert "Changes save when you leave a field. Changing the connection reconnects to the grill." in html
     assert "Send test alert" in js and 'apiFetch("api/alerts/test"' in js
     # Typing a topic URL enables the test before the blur that saves it.
@@ -308,7 +312,8 @@ def test_settings_panel_handles_new_sources_and_cancelled_secrets(app):
     assert "settings.draftSource = name" in js
     assert "settings.draftSource === value" in js
 
-    # Cancel wins over the blur save, and a saved secret returns to its mask.
+    # Cancel wins over the blur save, and a saved secret returns to its mask
+    # unless the user has typed a newer value while the save was pending.
     assert 'cancel.addEventListener("pointerdown"' in js
     assert "settings.cancelSecret === field.name" in js
-    assert 'if (meta.type === "secret") settings.changing.delete(name);' in js
+    assert 'if (meta.type === "secret" && !hasNewerEdit(name, value)) settings.changing.delete(name);' in js
