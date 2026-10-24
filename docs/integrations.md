@@ -6,8 +6,8 @@ Every setting below can also be changed from the dashboard's settings panel
 and applied without a restart. Values saved there are stored in the data volume
 and override `.env`; see [Changing settings from the dashboard](../README.md#changing-settings-from-the-dashboard).
 
-- `SMOKESTACK_MQTT_HOST`, `SMOKESTACK_MQTT_PORT` (default `1883`), `SMOKESTACK_MQTT_USER`, `SMOKESTACK_MQTT_PASSWORD`, `SMOKESTACK_MQTT_PREFIX` (default `smokestack`): MQTT publishing, disabled when the host is unset
-- `SMOKESTACK_NTFY_URL`, `SMOKESTACK_NTFY_TOKEN`: ntfy topic URL and optional access token; alerts are off when the URL is unset
+- `SMOKESTACK_MQTT_ENABLED` (default `true`), `SMOKESTACK_MQTT_HOST`, `SMOKESTACK_MQTT_PORT` (default `1883`), `SMOKESTACK_MQTT_USER`, `SMOKESTACK_MQTT_PASSWORD`, `SMOKESTACK_MQTT_PREFIX` (default `smokestack`): MQTT publishing. It runs only when it is enabled and the host is set. Turning it off in the settings panel keeps the host and the rest for next time.
+- `SMOKESTACK_NTFY_ENABLED` (default `true`), `SMOKESTACK_NTFY_URL`, `SMOKESTACK_NTFY_TOKEN`: ntfy alerts. They run only when they are enabled and the URL is set. Turning them off in the settings panel keeps the URL and token for next time.
 - `SMOKESTACK_ALERT_DRIFT_DEGREES` (default `25`), `SMOKESTACK_ALERT_DRIFT_MINUTES` (default `10`): grill-vs-set-temp drift alert. The degrees are Fahrenheit degrees, scaled by 5/9 while the grill reports Celsius (25 °F is about 14 °C).
 - `SMOKESTACK_ALERT_STALE_SECONDS` (default `60`): seconds without data before a disconnect alert
 - `SMOKESTACK_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
@@ -74,10 +74,11 @@ control**), the dashboard gets a **Controls** section that can:
 - change the grill's own password, which the bridge then uses to talk to it.
 
 There is no way to turn the grill on: the bridge never sends power-on or
-ignition. Control also needs the dashboard login switched on, and each
-action asks for confirmation. The bridge then waits for the grill to report
-the change and shows whether it was confirmed, unconfirmed, failed or
-already applied; an unconfirmed command means: go and check the grill. The
+ignition. Control also needs the dashboard login switched on; the switch in
+Settings stays off until it is, and each action asks for confirmation. The
+bridge then waits for the grill to report the change and shows whether it was
+confirmed, unconfirmed, failed or already applied; an unconfirmed command
+means: go and check the grill. The
 buttons are disabled while readings are stale. Commands go over the same
 connection as the readings, so they work with the `http` and `ble` sources
 alike (and the `fake` one).
@@ -109,8 +110,8 @@ stays visible while control is off as long as the log has entries. API details: 
 ## Alerts (ntfy)
 
 The bridge can push notifications through [ntfy](https://ntfy.sh) with a plain
-HTTP POST, so any phone with the ntfy app gets them. Set `SMOKESTACK_NTFY_URL` to
-enable it:
+HTTP POST, so any phone with the ntfy app gets them. Set `SMOKESTACK_NTFY_URL`
+(and leave `SMOKESTACK_NTFY_ENABLED` on, as it is by default) to enable it:
 
 ```bash
 # public ntfy.sh topic

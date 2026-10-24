@@ -1608,9 +1608,8 @@
     logging: "Logging",
   };
 
-  const SOURCE_LABELS = { http: "WiFi (http)", ble: "Bluetooth (ble)", fake: "Fake (demo data)" };
+  const SOURCE_LABELS = { http: "WiFi", ble: "Bluetooth", fake: "Demo" };
   const LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"];
-  const ORIGIN_LABELS = { default: "Default", env: ".env", ui: "UI" };
   const APPLY_WATCH_MS = 30000;
   const PASSWORD_MIN_LENGTH = 8;
 
@@ -1618,32 +1617,59 @@
   const SETTING_META = {
     source: { label: "Source", type: "source", hint: "Bluetooth is listed only when the bridge can reach the host's Bluetooth (a Linux host running bluetoothd)." },
     model: { label: "Grill model", type: "text" },
-    host: { label: "Grill address", type: "text", hint: "WiFi source: IP or host:port." },
-    device_name: { label: "Bluetooth name", type: "text", hint: "Bluetooth source only." },
-    ble_adapter: { label: "Bluetooth adapter", type: "adapter", hint: "Bluetooth source only. On a host with more than one adapter, pick the one with the best range. Lists the adapters the bridge can see now." },
+    host: { label: "Grill address", type: "text", hint: "IP or host:port of the grill." },
+    device_name: { label: "Bluetooth name", type: "text" },
+    ble_adapter: { label: "Bluetooth adapter", type: "adapter", hint: "On a host with more than one adapter, pick the one with the best range. Lists the adapters the bridge can see now." },
     password: { label: "Grill password", type: "secret", hint: "The password the bridge uses to talk to the grill. Saving it here also ends a password change the bridge hasn't settled." },
-    poll_seconds: { label: "Poll every", type: "number", unit: "s", min: 0.1 },
-    stale_after_seconds: { label: "Stale after", type: "int", unit: "s", min: 1 },
-    mqtt_host: { label: "Broker host", type: "text", hint: "Blank turns MQTT off." },
-    mqtt_port: { label: "Broker port", type: "int", min: 1, max: 65535 },
+    poll_seconds: { label: "Poll every", type: "number", unit: "s", min: 0.1, step: 1, snap: false },
+    stale_after_seconds: { label: "Stale after", type: "int", unit: "s", min: 1, step: 1 },
+    mqtt_enabled: { label: "Publish to Home Assistant", type: "bool", hint: "Off stops publishing and keeps the broker settings." },
+    mqtt_host: { label: "Broker host", type: "text", hint: "An empty host leaves publishing off." },
+    mqtt_port: { label: "Broker port", type: "int", min: 1, max: 65535, short: true },
     mqtt_user: { label: "User", type: "text" },
     mqtt_password: { label: "Password", type: "secret" },
     mqtt_prefix: { label: "Topic prefix", type: "text" },
-    ntfy_url: { label: "ntfy topic URL", type: "text", inputmode: "url", hint: "Blank turns alerts off. Probe targets are set on each probe's card." },
+    ntfy_enabled: { label: "Send alerts", type: "bool", hint: "Off stops alerts and keeps the topic URL and token." },
+    ntfy_url: { label: "ntfy topic URL", type: "text", inputmode: "url", hint: "An empty URL leaves alerts off. Probe targets are set on each probe's card." },
     ntfy_token: { label: "Access token", type: "secret" },
-    alert_drift_degrees: { label: "Drift alert at", type: "number", unit: "°F", min: 0 },
-    alert_drift_minutes: { label: "…sustained for", type: "number", unit: "min", min: 0 },
-    alert_stale_seconds: { label: "No-data alert after", type: "number", unit: "s", min: 0 },
-    alert_cooldown_seconds: { label: "Repeat cooldown", type: "number", unit: "s", min: 0 },
-    retention_days: { label: "Keep history", type: "number", unit: "days", min: 0, hint: "0 keeps everything." },
-    enable_control: { label: "Grill control", type: "bool", hint: "Lets signed-in users turn the grill off, set its temperature and restart its WiFi module from the dashboard. Needs the login switched on. It can never turn the grill on." },
+    alert_drift_degrees: { label: "Drift alert at", type: "number", unit: "°F", min: 0.1, step: 5 },
+    alert_drift_minutes: { label: "…sustained for", type: "number", unit: "min", min: 0.1, step: 1 },
+    alert_stale_seconds: { label: "No-data alert after", type: "number", unit: "s", min: 0.1, step: 5 },
+    alert_cooldown_seconds: { label: "Repeat cooldown", type: "number", unit: "s", min: 0, step: 5 },
+    retention_days: { label: "Keep history", type: "number", unit: "days", min: 0, step: 1, hint: "0 keeps everything." },
+    enable_control: { label: "Grill control", type: "bool", hint: "Lets signed-in users turn the grill off, set its temperature and restart its WiFi module from the dashboard. It can never turn the grill on." },
     log_level: { label: "Log level", type: "log" },
+  };
+
+  // The source each field belongs to. Poll and stale apply to every source.
+  const SETTING_SOURCES = {
+    host: ["http"],
+    model: ["http", "ble"],
+    password: ["http", "ble"],
+    device_name: ["ble"],
+    ble_adapter: ["ble"],
+  };
+
+  // The switch whose off state folds these fields away.
+  const SETTING_DEPENDS_ON = {
+    mqtt_host: "mqtt_enabled",
+    mqtt_port: "mqtt_enabled",
+    mqtt_user: "mqtt_enabled",
+    mqtt_password: "mqtt_enabled",
+    mqtt_prefix: "mqtt_enabled",
+    ntfy_url: "ntfy_enabled",
+    ntfy_token: "ntfy_enabled",
+    alert_drift_degrees: "ntfy_enabled",
+    alert_drift_minutes: "ntfy_enabled",
+    alert_stale_seconds: "ntfy_enabled",
+    alert_cooldown_seconds: "ntfy_enabled",
   };
 
   const settings = {
     payload: null,
     fields: {}, // name -> field from the API
     changing: new Set(), // secrets the user chose to change
+    authOn: null, // whether the dashboard login is on; null until known
     busy: false,
     watchToken: 0,
   };
@@ -1659,6 +1685,82 @@
     const status = $("settings-status");
     status.textContent = text;
     status.dataset.kind = kind || "";
+  }
+
+  function stepWords(meta) {
+    const step = meta.step || 1;
+    if (meta.unit === "s") return step + " second" + (step === 1 ? "" : "s");
+    if (meta.unit === "min") return step + " minute" + (step === 1 ? "" : "s");
+    if (meta.unit === "days") return step + " day" + (step === 1 ? "" : "s");
+    return meta.unit ? step + meta.unit : String(step);
+  }
+
+  // A number input between - and + buttons. Taps step once, holding repeats,
+  // and typing stays possible: the value snaps to the step on blur.
+  function settingStepper(input, meta) {
+    const step = meta.step || 1;
+    const group = el("div", { className: "stepper", role: "group" });
+    group.setAttribute("aria-label", meta.label);
+    const down = el("button", { type: "button", className: "stepper-btn", textContent: "−" });
+    down.dataset.dir = "-1";
+    down.setAttribute("aria-label", "Lower by " + stepWords(meta));
+    const up = el("button", { type: "button", className: "stepper-btn", textContent: "+" });
+    up.dataset.dir = "1";
+    up.setAttribute("aria-label", "Raise by " + stepWords(meta));
+    group.append(down, input, up);
+
+    let wait = null;
+    let repeat = null;
+    function stop() {
+      clearTimeout(wait);
+      clearInterval(repeat);
+    }
+    function clamp(value) {
+      let next = value;
+      if (meta.min !== undefined) next = Math.max(meta.min, next);
+      if (meta.max !== undefined) next = Math.min(meta.max, next);
+      return next;
+    }
+    function sync() {
+      const raw = input.value.trim();
+      const value = Number(raw);
+      const known = raw !== "" && Number.isFinite(value);
+      down.disabled = known && meta.min !== undefined && value <= meta.min;
+      up.disabled = known && meta.max !== undefined && value >= meta.max;
+    }
+    function set(value) {
+      input.value = String(Number(clamp(value).toFixed(6)));
+      sync();
+    }
+    function move(dir) {
+      const raw = input.value.trim();
+      const current = raw !== "" && Number.isFinite(Number(raw)) ? Number(raw) : (meta.min || 0);
+      set(current + dir * step);
+      if ((meta.min !== undefined && Number(input.value) <= meta.min)
+        || (meta.max !== undefined && Number(input.value) >= meta.max)) stop();
+    }
+    [down, up].forEach((button) => {
+      const dir = Number(button.dataset.dir);
+      button.addEventListener("pointerdown", () => {
+        stop();
+        move(dir);
+        wait = setTimeout(() => { repeat = setInterval(() => move(dir), 90); }, 400);
+      });
+      ["pointerup", "pointerleave", "pointercancel"].forEach((event) => button.addEventListener(event, stop));
+      button.addEventListener("click", (event) => { if (event.detail === 0) move(dir); });
+    });
+    input.addEventListener("input", sync);
+    input.addEventListener("blur", () => {
+      const raw = input.value.trim();
+      if (raw === "" || !Number.isFinite(Number(raw))) {
+        set(meta.min || 0);
+        return;
+      }
+      const value = Number(raw);
+      set(meta.snap === false ? value : Math.round(value / step) * step);
+    });
+    sync();
+    return group;
   }
 
   function settingInput(field, meta) {
@@ -1693,16 +1795,19 @@
         el("option", { value: option, textContent: SOURCE_LABELS[option] && meta.type === "source" ? SOURCE_LABELS[option] : option, selected: option === value })));
     }
     const numeric = meta.type === "number" || meta.type === "int";
+    const classes = ["input"];
+    if (numeric) classes.push("input-mono");
+    if (meta.short) classes.push("input-short");
     const input = el("input", {
       id,
       name: field.name,
-      className: "input",
+      className: classes.join(" "),
       type: numeric ? "number" : meta.type === "secret" ? "password" : "text",
       value: value === null || value === undefined ? "" : String(value),
       autocomplete: meta.type === "secret" ? "new-password" : "off",
     });
     if (numeric) {
-      input.step = meta.type === "int" ? "1" : "any";
+      input.step = meta.step !== undefined ? String(meta.step) : meta.type === "int" ? "1" : "any";
       input.inputMode = meta.type === "int" ? "numeric" : "decimal";
       if (meta.min !== undefined) input.min = String(meta.min);
       if (meta.max !== undefined) input.max = String(meta.max);
@@ -1718,18 +1823,20 @@
     const meta = SETTING_META[field.name] || { label: field.name, type: field.secret ? "secret" : "text" };
     const row = el("div", { className: "setting" });
     row.dataset.name = field.name;
-    const badge = el("span", { className: "origin", textContent: ORIGIN_LABELS[field.origin] || field.origin });
-    badge.dataset.origin = field.origin;
-    badge.title = field.origin === "ui" ? "Saved from this page" : field.origin === "env" ? "From " + field.env : "Built-in default";
+    if (SETTING_DEPENDS_ON[field.name]) row.dataset.parent = SETTING_DEPENDS_ON[field.name];
     const head = el("div", { className: "setting-head" }, [
       el("label", { htmlFor: "set-" + field.name, textContent: meta.label }),
-      badge,
     ]);
     if (field.origin === "ui") {
+      head.append(el("span", { className: "badge", textContent: "Custom" }));
       const reset = el("button", { type: "button", className: "link-btn", textContent: "Reset" });
       reset.setAttribute("aria-label", "Reset " + meta.label + " to .env or default");
       reset.addEventListener("click", () => resetSetting(field.name));
       head.append(reset);
+    } else if (field.origin === "env") {
+      const origin = el("span", { className: "setting-origin", textContent: "from .env" });
+      origin.title = "From " + field.env;
+      head.append(origin);
     }
     row.append(head);
 
@@ -1737,7 +1844,7 @@
     if (meta.type === "secret" && !settings.changing.has(field.name)) {
       const isSet = field.value && field.value.set;
       control = el("div", { className: "secret" }, [
-        el("span", { id: "set-" + field.name, textContent: isSet ? "••• set" : "Not set" }),
+        el("span", { id: "set-" + field.name, textContent: isSet ? "••••••" : "Not set" }),
       ]);
       const change = el("button", { type: "button", className: "link-btn", textContent: isSet ? "Change" : "Set" });
       change.setAttribute("aria-label", (isSet ? "Change " : "Set ") + meta.label);
@@ -1748,19 +1855,70 @@
         if (input) input.focus();
       });
       control.append(change);
+    } else if (meta.type === "secret") {
+      const input = settingInput({ ...field, value: "" }, meta);
+      input.placeholder = "New value (blank clears it)";
+      const cancel = el("button", { type: "button", className: "link-btn", textContent: "Cancel" });
+      cancel.setAttribute("aria-label", "Cancel changing " + meta.label);
+      cancel.addEventListener("click", () => {
+        settings.changing.delete(field.name);
+        row.replaceWith(renderSettingField(field));
+      });
+      control = el("div", { className: "secret" }, [input, cancel]);
     } else {
-      const input = settingInput({ ...field, value: meta.type === "secret" ? "" : field.value }, meta);
-      if (meta.type === "secret") input.placeholder = "New value (blank clears it)";
+      const input = settingInput(field, meta);
       control = meta.unit
-        ? el("div", { className: "with-unit" }, [input, el("span", { className: "unit-label", textContent: meta.unit })])
+        ? el("div", { className: "with-unit" }, [settingStepper(input, meta), el("span", { className: "unit-label", textContent: meta.unit })])
         : input;
     }
     row.append(control);
     const hint = el("p", { className: "setting-hint", textContent: meta.hint || "" });
     hint.hidden = !meta.hint;
     row.append(hint);
+    if (field.name === "enable_control") {
+      row.append(el("p", {
+        className: "setting-hint setting-locked",
+        textContent: "Turn on the dashboard password first.",
+        hidden: true,
+      }));
+    }
     row.append(el("p", { className: "setting-error", hidden: true }));
     return row;
+  }
+
+  function settingToggleOn(name) {
+    const input = $("set-" + name);
+    if (input) return input.checked;
+    const field = settings.fields[name];
+    return Boolean(field && field.value);
+  }
+
+  function settingAppliesToSource(name) {
+    const sources = SETTING_SOURCES[name];
+    if (!sources) return true;
+    const input = $("set-source");
+    const source = input ? input.value : (settings.fields.source && settings.fields.source.value);
+    return sources.includes(source);
+  }
+
+  // Show only the fields the chosen source uses, and fold away an
+  // integration's fields while its switch is off.
+  function applySettingsVisibility() {
+    document.querySelectorAll("#settings-groups .setting").forEach((row) => {
+      const parent = row.dataset.parent;
+      row.hidden = !settingAppliesToSource(row.dataset.name)
+        || Boolean(parent && !settingToggleOn(parent));
+    });
+  }
+
+  function syncControlToggle() {
+    const input = $("set-enable_control");
+    if (!input) return;
+    const row = input.closest(".setting");
+    const locked = settings.authOn === false;
+    input.disabled = locked;
+    row.classList.toggle("is-locked", locked);
+    row.querySelector(".setting-locked").hidden = !locked;
   }
 
   function renderSettings(payload) {
@@ -1779,9 +1937,19 @@
       }
       groups.append(fieldset);
     }
-    $("settings-envonly").textContent = payload.env_only && payload.env_only.length
-      ? "Set only in .env: " + payload.env_only.join(", ") + "."
+    const source = $("set-source");
+    if (source) source.addEventListener("change", applySettingsVisibility);
+    for (const name of ["mqtt_enabled", "ntfy_enabled"]) {
+      const input = $("set-" + name);
+      if (input) input.addEventListener("change", applySettingsVisibility);
+    }
+    applySettingsVisibility();
+    syncControlToggle();
+    const envOnly = payload.env_only || [];
+    $("settings-envonly").textContent = envOnly.length
+      ? "Set only in .env: " + envOnly.join(", ") + "."
       : "";
+    $("settings-dev").hidden = !envOnly.length;
   }
 
   // The fields whose inputs differ from what the bridge reported.
@@ -1792,6 +1960,10 @@
       const meta = SETTING_META[name] || { type: field.secret ? "secret" : "text" };
       const input = $("set-" + name);
       if (!input || !("value" in input) || input.tagName === "SPAN") continue;
+      // A field the chosen source doesn't use stays out of the update. A
+      // field folded under an off switch still saves: the switch keeps it for
+      // when it is turned back on.
+      if (!settingAppliesToSource(name)) continue;
       if (meta.type === "secret") {
         if (settings.changing.has(name)) changes[name] = input.value;
         continue;
@@ -2022,6 +2194,8 @@
     );
     box.hidden = false;
     $("logout").hidden = !on;
+    settings.authOn = on;
+    syncControlToggle();
   }
 
   async function loadAuth() {

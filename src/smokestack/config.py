@@ -30,11 +30,13 @@ class Settings:
     stale_after_seconds: int = 30
     start_collector: bool = True
     log_level: str = "INFO"
+    mqtt_enabled: bool = True
     mqtt_host: str = ""
     mqtt_port: int = 1883
     mqtt_user: str = ""
     mqtt_password: str = ""
     mqtt_prefix: str = "smokestack"
+    ntfy_enabled: bool = True
     ntfy_url: str = ""
     ntfy_token: str = ""
     alert_drift_degrees: float = 25.0
@@ -58,11 +60,13 @@ class Settings:
             stale_after_seconds=int(os.getenv("SMOKESTACK_STALE_AFTER_SECONDS", "30")),
             start_collector=_bool_env("SMOKESTACK_START_COLLECTOR", True),
             log_level=os.getenv("SMOKESTACK_LOG_LEVEL", "INFO").upper(),
+            mqtt_enabled=_bool_env("SMOKESTACK_MQTT_ENABLED", True),
             mqtt_host=os.getenv("SMOKESTACK_MQTT_HOST", ""),
             mqtt_port=int(os.getenv("SMOKESTACK_MQTT_PORT", "1883")),
             mqtt_user=os.getenv("SMOKESTACK_MQTT_USER", ""),
             mqtt_password=os.getenv("SMOKESTACK_MQTT_PASSWORD", ""),
             mqtt_prefix=os.getenv("SMOKESTACK_MQTT_PREFIX", "smokestack"),
+            ntfy_enabled=_bool_env("SMOKESTACK_NTFY_ENABLED", True),
             ntfy_url=os.getenv("SMOKESTACK_NTFY_URL", ""),
             ntfy_token=os.getenv("SMOKESTACK_NTFY_TOKEN", ""),
             alert_drift_degrees=float(os.getenv("SMOKESTACK_ALERT_DRIFT_DEGREES", "25")),
@@ -94,8 +98,16 @@ EDITABLE_GROUPS: dict[str, tuple[str, ...]] = {
         "poll_seconds",
         "stale_after_seconds",
     ),
-    "mqtt": ("mqtt_host", "mqtt_port", "mqtt_user", "mqtt_password", "mqtt_prefix"),
+    "mqtt": (
+        "mqtt_enabled",
+        "mqtt_host",
+        "mqtt_port",
+        "mqtt_user",
+        "mqtt_password",
+        "mqtt_prefix",
+    ),
     "alerts": (
+        "ntfy_enabled",
         "ntfy_url",
         "ntfy_token",
         "alert_drift_degrees",

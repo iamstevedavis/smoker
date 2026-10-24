@@ -48,10 +48,13 @@
         <button id="settings-close" class="btn btn-ghost btn-sm" type="button">Close</button>
       </div>
       <div class="settings-body">
-        <p class="settings-intro">Saved values live in the bridge's data volume and override <code>.env</code>. Reset a field to fall back to <code>.env</code> or the default.</p>
         <fieldset id="settings-auth" class="setting-group" hidden></fieldset>
         <div id="settings-groups"><p class="settings-note">Loading…</p></div>
-        <p id="settings-envonly" class="settings-note"></p>
+        <details id="settings-dev" class="settings-dev">
+          <summary>Set only in .env</summary>
+          <p class="settings-intro">Saved values live in the bridge's data volume and override <code>.env</code>. A field saved from this page shows <strong>Custom</strong>; <strong>Reset</strong> drops it and falls back to <code>.env</code> or the default.</p>
+          <p id="settings-envonly" class="settings-note"></p>
+        </details>
       </div>
       <div class="settings-foot">
         <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>

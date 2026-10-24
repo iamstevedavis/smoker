@@ -1921,7 +1921,6 @@ dialog::backdrop {
 }
 
 .setting-head .link-btn {
-  margin-left: auto;
   font-size: var(--text-12);
 }
 
@@ -1958,22 +1957,32 @@ dialog::backdrop {
   border-color: var(--color-error);
 }
 
-/* Where a setting's value came from. */
-.origin {
+/* Where a setting's value came from. Defaults show nothing. */
+.setting-origin {
   font-family: var(--font-mono);
   font-size: var(--text-11);
   color: var(--color-label-secondary);
-  background: var(--color-surface-2);
-  border: var(--border-subtle);
-  border-radius: var(--radius-pill);
-  padding: 1px var(--space-2);
   white-space: nowrap;
 }
 
-.origin[data-origin="ui"] {
-  color: var(--color-bg);
-  background: var(--color-label-primary);
-  border-color: var(--color-label-primary);
+/* A row hidden because the source or an off switch doesn't use it. */
+.setting[hidden] {
+  display: none;
+}
+
+/* Short inputs for ports and other values with a fixed width. */
+.setting > .input.input-short {
+  width: 104px;
+}
+
+/* Grill control can't be switched on without the dashboard password. */
+.setting.is-locked .toggle,
+.setting.is-locked .toggle-state {
+  opacity: 0.4;
+}
+
+.setting.is-locked .toggle-track {
+  cursor: not-allowed;
 }
 
 .with-unit {
@@ -1992,11 +2001,40 @@ dialog::backdrop {
   font-size: var(--text-13);
 }
 
+.secret .input {
+  width: min(100%, 200px);
+}
+
 .toggle-wrap {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   justify-self: end;
+}
+
+/* Developer details sit at the bottom, folded away. */
+.settings-dev {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: var(--border-subtle);
+}
+
+.settings-dev[hidden] {
+  display: none;
+}
+
+.settings-dev summary {
+  font-size: var(--text-12);
+  color: var(--color-label-secondary);
+  cursor: pointer;
+}
+
+.settings-dev[open] summary {
+  margin-bottom: var(--space-2);
+}
+
+.settings-dev .settings-intro {
+  margin-bottom: var(--space-2);
 }
 
 /* Login: the password the bridge needs. */
@@ -2167,7 +2205,6 @@ main.login {
     justify-self: stretch;
     width: 100%;
   }
-  .setting-head .link-btn { margin-left: auto; }
   /* The stepper's buttons are touch targets on a phone. */
   .stepper .input,
   .stepper .stepper-btn { height: 44px; }
