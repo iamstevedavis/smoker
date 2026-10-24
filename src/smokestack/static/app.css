@@ -265,6 +265,8 @@
   --input-height-md: 44px;
   --z-sticky: 200;
   --z-modal: 400;
+  /* The header: max(12px, safe-area) top, 36px controls, 12px bottom. */
+  --header-height: calc(max(12px, env(safe-area-inset-top)) + 48px);
 }
 
 /* ---- Base -------------------------------------------------------------- */
@@ -969,14 +971,31 @@ main {
   margin: 0 auto;
 }
 
+/* The readings and the controls share the first column, so the controls sit
+   under the grill readout instead of below every other card. */
+.dashboard-side {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  min-width: 0;
+}
+
 @media (min-width: 960px) {
   main {
     grid-template-columns: minmax(340px, 420px) 1fr;
     align-items: start;
   }
 
-  .chart-card { grid-column: 2; grid-row: 1 / span 4; }
+  .dashboard-side { grid-column: 1; grid-row: 1; }
+  .chart-card { grid-column: 2; grid-row: 1; }
   .foot { grid-column: 1 / -1; }
+
+  /* Stay in reach while the readings below scroll past. */
+  .controls {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-4));
+    z-index: var(--z-sticky);
+  }
 }
 
 .card {
