@@ -311,6 +311,9 @@ def test_settings_panel_handles_new_sources_and_cancelled_secrets(app):
     assert "function chooseSource(name)" in js
     assert "settings.draftSource = name" in js
     assert "settings.draftSource === value" in js
+    # A source picked while another switch is saving queues the final choice.
+    assert "const pending = settings.queued.source;" in js
+    assert "if (name === pending)" in js
 
     # Cancel wins over the blur save, and a saved secret returns to its mask
     # unless the user has typed a newer value while the save was pending.

@@ -2170,8 +2170,16 @@
   // A source that needs a host or device name can't be saved yet. Show its
   // fields, then save the switch once the required field is saved.
   function chooseSource(name) {
-    if (name === sourceValue()) {
+    const pending = settings.queued.source;
+    if (name === sourceValue() && pending === undefined) {
       settings.draftSource = null;
+      clearFieldError("source");
+      syncSourceSelection();
+      return;
+    }
+    if (name === pending) {
+      // The switch is already on its way; clicking it again changes nothing.
+      settings.draftSource = name === sourceValue() ? null : name;
       clearFieldError("source");
       syncSourceSelection();
       return;
