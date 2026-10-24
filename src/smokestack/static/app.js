@@ -2049,12 +2049,12 @@
         commitNumber(field.name, input, meta);
         return;
       }
-      const value = input.value.trim();
-      if (value === field.value) {
+      const current = settings.fields[field.name];
+      if (current && !inputChanged(input, current.value)) {
         clearFieldError(field.name);
         return;
       }
-      saveField(field.name, value);
+      saveField(field.name, input.value.trim());
     });
   }
 
@@ -2206,6 +2206,41 @@
     return document.querySelector('#settings [data-name="' + name + '"]');
   }
 
+  function fieldInput(name) {
+    const node = fieldNode(name);
+    return node ? node.querySelector("input, select") : null;
+  }
+
+  // Whether the control now holds a different value from the one saved.
+  function inputChanged(input, value) {
+    if (!input) return false;
+    if (input.type === "checkbox") return input.checked !== Boolean(value);
+    const submitted = value === null || value === undefined ? "" : String(value);
+    if (input.tagName === "SELECT") return input.value !== submitted;
+    const raw = input.value.trim();
+    if (input.type === "number") {
+      if (raw === "") return submitted !== "";
+      return !Number.isFinite(Number(raw)) || Number(raw) !== Number(submitted);
+    }
+    return raw !== submitted;
+  }
+
+  function hasQueuedEdit(name, value) {
+    return settings.queued[name] !== undefined && settings.queued[name] !== value;
+  }
+
+  function hasNewerEdit(name, value) {
+    if (hasQueuedEdit(name, value)) return true;
+    return inputChanged(fieldInput(name), value);
+  }
+
+  // Don't replace an input the user has returned to or edited while its save
+  // was in flight.
+  function pendingEdit(name, value) {
+    const input = fieldInput(name);
+    return hasNewerEdit(name, value) || Boolean(input && input === document.activeElement);
+  }
+
   function setFieldStatus(name, text) {
     const node = fieldNode(name);
     if (!node) return;
@@ -2288,22 +2323,33 @@
       if (res.status === 422) {
         const { errors, general } = errorsFrom(body.detail);
         const message = errors[name] || general || "That value was rejected.";
-        if (!["text", "number", "int", "secret"].includes(meta.type)) refreshField(name);
-        setFieldStatus(name, "");
-        showFieldError(name, message);
+        if (!hasNewerEdit(name, value)) {
+          if (!["text", "number", "int", "secret"].includes(meta.type)) refreshField(name);
+          setFieldStatus(name, "");
+          showFieldError(name, message);
+        }
         return false;
       }
       if (!res.ok) {
-        if (!["text", "number", "int", "secret"].includes(meta.type)) refreshField(name);
-        setFieldStatus(name, "");
-        showFieldError(name, body.detail ? String(body.detail) : "Save failed (HTTP " + res.status + ").");
+        if (!hasNewerEdit(name, value)) {
+          if (!["text", "number", "int", "secret"].includes(meta.type)) refreshField(name);
+          setFieldStatus(name, "");
+          showFieldError(name, body.detail ? String(body.detail) : "Save failed (HTTP " + res.status + ").");
+        }
         return false;
       }
-      if (meta.type === "secret") settings.changing.delete(name);
+      if (meta.type === "secret" && !hasNewerEdit(name, value)) settings.changing.delete(name);
       if (name === "source" && settings.draftSource === value) settings.draftSource = null;
       applyPayload(body);
-      refreshField(name);
-      flashSaved(name);
+      if (hasQueuedEdit(name, value)) {
+        // A newer save is already on its way and shows "Saving…"; leave it to
+        // refresh the field when it finishes.
+      } else if (hasNewerEdit(name, value)) {
+        setFieldStatus(name, "");
+      } else {
+        if (!pendingEdit(name, value)) refreshField(name);
+        flashSaved(name);
+      }
       if (settings.open && (options.connection || CONNECTION_FIELDS.has(name))) watchApply();
       if (name === "enable_control") loadControl();
       if (name.startsWith("ntfy_") || name.startsWith("alert_")) loadAlertTargets();
@@ -2315,7 +2361,7 @@
       }
       return true;
     } catch (e) {
-      if (e.message !== "not authenticated") {
+      if (e.message !== "not authenticated" && !hasNewerEdit(name, value)) {
         if (!["text", "number", "int", "secret"].includes(meta.type)) refreshField(name);
         setFieldStatus(name, "");
         showFieldError(name, "Can't reach the bridge.");
