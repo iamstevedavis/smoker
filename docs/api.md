@@ -143,7 +143,10 @@ and
   (ties go to the lower one). `unit` is optional but recommended: when it no
   longer matches the grill's unit (changed on the grill's panel since you
   looked), the request is refused with `409` instead of being read in the new
-  unit. The dashboard always sends it.
+  unit. The dashboard always sends it. Only while the grill is on: `409` when
+  the latest reading reports `moduleIsOn: false`, because the bridge can't
+  turn it on; a missing `moduleIsOn` doesn't count as off, the same as
+  set-unit.
 - `POST /api/control/reboot`
 - `POST /api/control/set-unit` `{"unit": "C"}` switches the unit the grill
   itself works in (its panel and every value it reports), only while it is
@@ -211,7 +214,7 @@ Refusals send nothing and answer `{"detail": "...", "audit_id": 813}`:
 | --- | --- |
 | `401` | No valid session |
 | `403` | Control is off, the login is off, the header is missing, a cross-site `Origin`, or (set-password) the dashboard password is wrong |
-| `409` | Another command is still being confirmed; (set-temperature) the grill's unit isn't known yet or isn't the `unit` sent; (set-unit) the grill isn't off; (set-password) a password change is still in flight: save the password in Settings, or wait for it to settle |
+| `409` | Another command is still being confirmed; (set-temperature) the grill is off, its unit isn't known yet, or isn't the `unit` sent; (set-unit) the grill isn't off; (set-password) a password change is still in flight: save the password in Settings, or wait for it to settle |
 | `422` | Bad body (`temp` must be above 0 and at most 1000; the two passwords must be the same) |
 | `429` | Less than 5 s since the last command that may have reached the grill; see `Retry-After` |
 | `503` | The grill isn't connected, its data is stale, or the source can't send commands |
