@@ -134,6 +134,20 @@ def test_dashboard_controls_confirm_first_and_word_every_result(app):
     assert "Controls are paused until the grill is reporting again." in html
 
 
+def test_dashboard_disables_set_temperature_while_the_grill_is_off(app):
+    with TestClient(app) as client:
+        html = client.get("/").text
+        js = client.get("/static/app.js").text
+
+    assert 'id="control-temp-hint"' in html
+    assert "Turn the grill on at the grill to set its temperature." in html
+    # The input, both stepper buttons and Set, not the other controls.
+    assert html.count("data-temp-control") == 4
+    controls = js.split("function renderControls()", 1)[1].split("\n  }\n", 1)[0]
+    assert "data-temp-control" in controls
+    assert "moduleIsOn === false" in controls
+
+
 def test_the_dashboard_can_change_the_grill_password(app):
     with TestClient(app) as client:
         html = client.get("/").text

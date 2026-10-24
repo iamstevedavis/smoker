@@ -6,7 +6,8 @@ is tracked in #59.
 Revised 2026-10-20 for what has landed since it was written: dashboard login
 (#36), settings saved from the dashboard, retention pruning, and bridge-side
 probe alert targets (#37). Revised again on 2026-10-20 with the owner's
-answers to the open decisions (see [Decisions](#decisions)).
+answers to the open decisions (see [Decisions](#decisions)). Revised
+2026-10-23 to require the grill to be on for set-temperature (#82).
 
 ## Goal
 
@@ -20,7 +21,8 @@ decision below favours "do less" over "do more".
 In scope, all in the first release:
 
 1. **Turn off** (lowest risk: it only ever reduces heat).
-2. **Set grill temperature**, snapped to values the board accepts.
+2. **Set grill temperature**, snapped to values the board accepts, only
+   while the grill is on.
 3. **Reboot the WiFi module**, which leaves the grill itself running.
 
 Added later, approved by the owner on 2026-10-20 (#58):
@@ -81,7 +83,10 @@ firmware clears its status cache, so the next state frame comes back blank.
 - **Temperature.** No bounds beyond the board's own: a request is in the
   grill's current unit (as `pytboss` expects), is snapped to the board's
   accepted setpoints, and the snapped value is reported back. If the grill's
-  unit is unknown, set-temperature is rejected.
+  unit is unknown, set-temperature is rejected. It is also rejected with 409
+  while the fresh reading reports `moduleIsOn: false`: setting a temperature
+  on an off grill does nothing, and the bridge can't turn it on. A missing
+  `moduleIsOn` doesn't count as off, the same as set-unit.
 - **Only against a live, fresh source.** Rejected with 503 when the source is
   disconnected or data is stale, because the confirmation step needs a live view.
 - **Rate limiting.** One command in flight at a time (409 otherwise) and a
@@ -176,7 +181,8 @@ the last command, its time, and its result until replaced, with a spinner
 while confirming. Every result state has its own wording: `confirmed`,
 `unconfirmed`, `failed`, and `already_applied` ("The grill was already off" /
 "already set to 250 F"; nothing was sent), which also clears the spinner. The
-control buttons are disabled while the source is stale.
+control buttons are disabled while the source is stale. Set temperature is
+also disabled while the grill is off, with a note to turn it on at the grill.
 
 ## Testing without a live fire
 

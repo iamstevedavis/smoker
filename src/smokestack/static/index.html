@@ -284,14 +284,15 @@
           <label for="control-temp">Set grill to</label>
           <div class="control-temp-row">
             <div class="stepper" role="group" aria-label="Set grill to">
-              <button type="button" class="stepper-btn" data-dir="-1" aria-label="Lower the set temperature" data-control>−</button>
-              <input id="control-temp" class="input" type="number" inputmode="numeric" step="any" min="1" max="1000" autocomplete="off" data-control>
-              <button type="button" class="stepper-btn" data-dir="1" aria-label="Raise the set temperature" data-control>+</button>
+              <button type="button" class="stepper-btn" data-dir="-1" aria-label="Lower the set temperature" data-control data-temp-control>−</button>
+              <input id="control-temp" class="input" type="number" inputmode="numeric" step="any" min="1" max="1000" autocomplete="off" data-control data-temp-control>
+              <button type="button" class="stepper-btn" data-dir="1" aria-label="Raise the set temperature" data-control data-temp-control>+</button>
             </div>
             <span class="unit-label" data-unit>°F</span>
-            <button type="submit" class="btn btn-primary btn-sm" data-control>Set</button>
+            <button type="submit" class="btn btn-primary btn-sm" data-control data-temp-control>Set</button>
           </div>
         </form>
+        <p id="control-temp-hint" class="controls-note" hidden>Turn the grill on at the grill to set its temperature.</p>
         <div class="control-buttons">
           <button type="button" class="btn btn-danger btn-sm" id="control-off" data-control>Turn off</button>
           <button type="button" class="btn btn-secondary btn-sm" id="control-reboot" data-control>Restart WiFi</button>

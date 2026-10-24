@@ -1116,7 +1116,9 @@
       return;
     }
     const value = tempStepValue(points);
-    const blocked = !control.live || control.busy;
+    // The grill can't be turned on from the bridge, so an off grill can't
+    // have its temperature set either (#82).
+    const blocked = !control.live || control.busy || state.fields.moduleIsOn === false;
     down.disabled = blocked || !points.some((p) => p < value);
     up.disabled = blocked || !points.some((p) => p > value);
   }
@@ -1273,8 +1275,12 @@
     // A password change the bridge hasn't settled: it needs the user.
     $("controls-pending").hidden = !s.pending_password_change;
     section.querySelectorAll("[data-control]").forEach((node) => { node.disabled = !live || busy; });
-    // The unit can only be switched while the grill is off (#58).
+    // The bridge can't turn the grill on, so setting a temperature while it
+    // is off would do nothing (#82).
     const off = state.fields.moduleIsOn === false;
+    section.querySelectorAll("[data-temp-control]").forEach((node) => { node.disabled = !live || busy || off; });
+    $("control-temp-hint").hidden = !off || !live;
+    // The unit can only be switched while the grill is off (#58).
     section.querySelectorAll("[data-unit-target]").forEach((node) => {
       const current = node.dataset.unitTarget === s.unit;
       node.setAttribute("aria-pressed", String(current));

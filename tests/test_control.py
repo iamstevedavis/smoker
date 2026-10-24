@@ -283,6 +283,27 @@ def test_bad_set_temperature_bodies_are_rejected(tmp_path, body):
     assert _source(app).executed == []
 
 
+def test_set_temperature_is_refused_while_the_grill_is_off(tmp_path):
+    app = _app(tmp_path)
+    source = _source(app)
+    with TestClient(app) as client:
+        _signed_in(client, app)
+        assert _post(client, "turn-off").json()["outcome"] == "confirmed"
+        response = _post(client, "set-temperature", {"temp": 250})
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "turn the grill on at the grill to set its temperature"
+    )
+    assert source.executed == [Command("turn-off")]
+    event = _audit(app)[0]  # newest first
+    assert (event["data"]["command"], event["data"]["outcome"]) == (
+        "set-temperature",
+        "rejected",
+    )
+    assert event["data"]["args"] == {"temp": 250}
+
+
 def test_already_applied_sends_nothing(tmp_path):
     app = _app(tmp_path)
     _source(app).set_temp = 230
