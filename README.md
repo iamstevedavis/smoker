@@ -85,10 +85,12 @@ Home Assistant (`SMOKESTACK_MQTT_*`) and ntfy alerts (`SMOKESTACK_NTFY_*`, `SMOK
 The wrench button opens a settings panel. **Save & apply** restarts the grill connection, MQTT and alerts inside the bridge, so there's no container restart and the page stays up.
 
 - **Precedence:** built-in default, then `.env`/environment, then values saved in the panel. Saved values win.
-- Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Each field shows where its value comes from (Default, .env or UI); **Reset** drops the saved value and falls back to `.env` or the default.
+- Saved values live in the SQLite database in the data volume (`/data` in Docker), so they survive restarts and upgrades. Only fields that differ from the default are marked: **Custom** with **Reset** for a saved value, "from .env" for one from the environment. **Reset** drops the saved value and falls back to `.env` or the default.
+- The panel shows only the fields the chosen source uses: the grill address for WiFi, the Bluetooth name and adapter for Bluetooth, and neither for Demo.
+- MQTT and ntfy each have a switch. Turning one off keeps its host or URL, so turning it back on just works. An integration runs only while it is on and its host or URL is set.
 - Passwords and tokens are write-only: the panel shows whether they are set, never their value.
 - The **Login** section turns the dashboard password off or on, at once and with no restart. Change the password itself under **Profile**.
-- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`.
+- **Env only:** `SMOKESTACK_DB`, `SMOKESTACK_PORT` and `SMOKESTACK_START_COLLECTOR`, listed under **Set only in .env** at the bottom.
 - The source list only offers what can actually run: `fake` and `http` (WiFi) always, and `ble` only when the host's Bluetooth is reachable: a Linux host with `bluetoothd` running ([docs/ble.md](docs/ble.md)). With Docker Compose that's the same container either way, so switching between WiFi and Bluetooth is just a setting.
 
 ## More

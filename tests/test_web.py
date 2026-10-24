@@ -194,3 +194,25 @@ def test_chart_range_handler_ignores_other_segmented_buttons(app):
     assert 'data-unit-target="C"' in html
     assert 'querySelectorAll(".seg button[data-hours]")' in js
     assert 'querySelectorAll(".seg button")' not in js
+
+
+def test_settings_panel_only_shows_fields_that_apply(app):
+    with TestClient(app) as client:
+        js = client.get("/static/app.js").text
+        html = client.get("/").text
+
+    # Source-specific fields: WiFi gets the address, Bluetooth the name and
+    # adapter, Demo neither.
+    assert "const SETTING_SOURCES = {" in js
+    assert 'host: ["http"]' in js
+    assert 'device_name: ["ble"]' in js
+    assert 'ble_adapter: ["ble"]' in js
+    # The integration switches back the new settings.
+    assert 'mqtt_enabled: { label: "Publish to Home Assistant", type: "bool"' in js
+    assert 'ntfy_enabled: { label: "Send alerts", type: "bool"' in js
+    assert 'textContent: "Turn on the dashboard password first."' in js
+    # Only non-default values are marked, and values are stepped, not spun.
+    assert 'textContent: "Custom"' in js and 'textContent: "from .env"' in js
+    assert "function settingStepper(input, meta)" in js
+    # Developer text is folded away at the bottom.
+    assert "<summary>Set only in .env</summary>" in html

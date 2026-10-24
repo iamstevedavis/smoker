@@ -88,8 +88,10 @@ three endpoints sit behind the login.
   Field names are the variable names without the `PITBOSS_` or `SMOKESTACK_`
   prefix, lower case. The whole update is validated first; any bad field
   returns 422 and nothing changes. Otherwise the values are saved and the source, MQTT and alerts are
-  restarted with them. Returns the same shape as `GET`. An empty `mqtt_host`
-  or `ntfy_url` turns that service off.
+  restarted with them. Returns the same shape as `GET`. `mqtt_enabled` and
+  `ntfy_enabled` switch MQTT and alerts off while keeping their host or URL;
+  an empty `mqtt_host` or `ntfy_url` also leaves that service off because it
+  has nowhere to send.
   Saving the grill's `password` here also ends a password change the bridge
   hasn't settled: your value wins, and the bridge uses it from then on.
 - `DELETE /api/settings/{name}`: drop the saved value so the field falls back
@@ -108,8 +110,8 @@ The temperatures at which each probe sends an ntfy alert. Behind the login.
   converted to the unit of each reading it is checked against, so changing the
   grill's unit doesn't change what a target means. A unit of `null` next to a
   target means it was saved before units were recorded: it isn't checked until
-  it is entered again. `alerts_enabled` is false while no ntfy URL is set;
-  targets are kept either way.
+  it is entered again. `alerts_enabled` is false while alerts are off or no
+  ntfy URL is set; targets are kept either way.
 - `PUT /api/probe-targets`: partial update, e.g. `{"probe1": 203}`; `null`
   clears a target. Values must be above 0 and at most 1000. New targets are
   saved in `unit` (`"F"` or `"C"`) when given, e.g.

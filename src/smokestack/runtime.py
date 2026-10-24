@@ -161,7 +161,7 @@ class Runtime:
         )
 
         self.mqtt: MqttPublisher | None = None
-        if settings.mqtt_host:
+        if settings.mqtt_enabled and settings.mqtt_host:
             self.mqtt = MqttPublisher(
                 MqttConfig(
                     host=settings.mqtt_host,
@@ -176,7 +176,7 @@ class Runtime:
             )
 
         self.alerts: AlertService | None = None
-        if settings.ntfy_url:
+        if settings.ntfy_enabled and settings.ntfy_url:
             # Probe targets are set from the dashboard, not from Settings.
             targets = store.load_probe_targets()
             self.alerts = AlertService(

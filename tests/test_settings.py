@@ -220,6 +220,77 @@ def test_enable_control_from_env(tmp_path, monkeypatch):
     assert (field["value"], field["origin"]) == (True, "env")
 
 
+def test_mqtt_and_ntfy_switches_round_trip_and_survive_a_restart(
+    tmp_path, monkeypatch
+):
+    app = _env_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        fields = _fields(client.get("/api/settings").json())
+        for name in ("mqtt_enabled", "ntfy_enabled"):
+            # On by default, so an existing install with a host or URL keeps
+            # publishing or alerting after the upgrade.
+            assert (fields[name]["value"], fields[name]["origin"]) == (True, "default")
+
+        client.put(
+            "/api/settings",
+            json={
+                "mqtt_host": "127.0.0.1",
+                "mqtt_port": 9,
+                "ntfy_url": "http://127.0.0.1:9/unreachable",
+            },
+        )
+        assert app.state.runtime.mqtt is not None
+        assert app.state.runtime.alerts is not None
+
+        fields = _fields(
+            client.put(
+                "/api/settings",
+                json={"mqtt_enabled": False, "ntfy_enabled": False},
+            ).json()
+        )
+        for name in ("mqtt_enabled", "ntfy_enabled"):
+            assert (fields[name]["value"], fields[name]["origin"]) == (False, "ui")
+        # Switching off stops the service but keeps where it would send.
+        assert app.state.runtime.mqtt is None
+        assert app.state.runtime.alerts is None
+        assert app.state.settings.mqtt_host == "127.0.0.1"
+        assert app.state.settings.ntfy_url == "http://127.0.0.1:9/unreachable"
+
+    restarted = _env_app(tmp_path, monkeypatch)
+    assert restarted.state.settings.mqtt_enabled is False
+    assert restarted.state.settings.ntfy_enabled is False
+    with TestClient(restarted) as client:
+        fields = _fields(
+            client.put(
+                "/api/settings",
+                json={"mqtt_enabled": True, "ntfy_enabled": True},
+            ).json()
+        )
+        for name in ("mqtt_enabled", "ntfy_enabled"):
+            assert (fields[name]["value"], fields[name]["origin"]) == (True, "ui")
+        # Turning them back on reuses the host and URL saved earlier.
+        assert restarted.state.runtime.mqtt is not None
+        assert restarted.state.runtime.alerts is not None
+
+
+def test_mqtt_and_ntfy_switches_from_env(tmp_path, monkeypatch):
+    app = _env_app(
+        tmp_path,
+        monkeypatch,
+        SMOKESTACK_MQTT_ENABLED="false",
+        SMOKESTACK_MQTT_HOST="127.0.0.1",
+        SMOKESTACK_MQTT_PORT="9",
+        SMOKESTACK_NTFY_ENABLED="false",
+        SMOKESTACK_NTFY_URL="http://127.0.0.1:9/unreachable",
+    )
+    with TestClient(app) as client:
+        fields = _fields(client.get("/api/settings").json())
+    for name in ("mqtt_enabled", "ntfy_enabled"):
+        assert (fields[name]["value"], fields[name]["origin"]) == (False, "env")
+    assert app.state.runtime.mqtt is None
+    assert app.state.runtime.alerts is None
+
+
 def test_values_passed_to_create_app_count_as_env(tmp_path):
     with TestClient(create_app(_settings(tmp_path, mqtt_prefix="grill"))) as client:
         fields = _fields(client.get("/api/settings").json())
@@ -267,6 +338,8 @@ def test_secrets_are_never_returned(tmp_path, monkeypatch):
         {"poll_seconds": 3, "log_level": "LOUD"},
         {"poll_seconds": 3, "ntfy_url": "ntfy.sh/topic"},
         {"poll_seconds": 3, "mqtt_prefix": "pit/#"},
+        {"poll_seconds": 3, "mqtt_enabled": "maybe"},
+        {"poll_seconds": 3, "ntfy_enabled": "sometimes"},
         {"poll_seconds": 3, "stale_after_seconds": 0},
         {"poll_seconds": 3, "ble_adapter": "../hci0"},
         {"poll_seconds": 0},
