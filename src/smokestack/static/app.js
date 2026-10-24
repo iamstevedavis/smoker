@@ -14,6 +14,9 @@
   const OFFLINE_AFTER_MS = 5000; // websocket down this long counts as offline
   const TABLE_ROWS = 60;
 
+  // The user-facing names for the bridge's sources.
+  const SOURCE_LABELS = { http: "WiFi", ble: "Bluetooth", fake: "Demo" };
+
   const SERIES = [
     { key: "grill", field: "grillTemp", label: "Grill", short: "Grill", color: "--series-grill" },
     { key: "set", field: "grillSetTemp", label: "Set", short: "Set", color: "--series-set", dashed: true, step: true },
@@ -544,15 +547,44 @@
     main.classList.toggle("is-waiting", s.age === null);
     main.classList.toggle("is-stale", s.age !== null && s.kind !== "live" && s.kind !== "reconnecting");
 
+    renderSource();
     setText($("foot-updated"), s.age === null ? "No readings yet" : "Updated " + fmtAge(s.age));
     const parts = [];
-    const source = state.source || (state.health && state.health.source);
-    if (source) parts.push("Source: " + source);
+    const source = activeSource();
+    if (source) parts.push("Source: " + sourceLabel(source));
     if (state.health && state.health.reconnect_count) parts.push("Reconnects: " + state.health.reconnect_count);
     if (state.health && state.health.version) parts.push("v" + state.health.version);
     setText($("foot-source"), parts.join(" · "));
     // Controls pause while the data is stale.
     if (control.status) renderControls();
+  }
+
+  // The source behind the readings on screen. A connected source has just
+  // delivered a reading, so it is the live one; before the first reading, or
+  // after Save & apply switches source, fall back to the source of the last
+  // reading shown.
+  function activeSource() {
+    const health = state.health;
+    if (health && health.connected && health.source) return health.source;
+    return state.source || (health && health.source) || null;
+  }
+
+  function sourceLabel(source) {
+    return SOURCE_LABELS[source] || source;
+  }
+
+  function renderSource() {
+    const source = activeSource();
+    const badge = $("source-badge");
+    badge.hidden = !source;
+    if (!source) return;
+    const label = sourceLabel(source);
+    setText($("source-text"), label);
+    const name = "Source: " + label;
+    if (badge.title !== name) {
+      badge.title = name;
+      badge.setAttribute("aria-label", name);
+    }
   }
 
   // Rendering: chart -----------------------------------------------------
@@ -1614,7 +1646,6 @@
     logging: "Logging",
   };
 
-  const SOURCE_LABELS = { http: "WiFi", ble: "Bluetooth", fake: "Demo" };
   const LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"];
   const APPLY_WATCH_MS = 30000;
   const PASSWORD_MIN_LENGTH = 8;
@@ -2085,7 +2116,7 @@
         state.healthOk = true;
         renderStatus();
         if (health.connected) {
-          settingStatus("Saved. Connected to the grill (" + health.source + ").", "ok");
+          settingStatus("Saved. Connected to the grill (" + sourceLabel(health.source) + ").", "ok");
           return;
         }
       }

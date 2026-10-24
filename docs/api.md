@@ -266,6 +266,6 @@ errors, and retries are also logged and recorded as health events in SQLite.
 
 ## Dashboard
 
-The dashboard at `/` updates live over `WS /api/live`. Its only writes to the grill are the Controls section's commands (see [Grill control](#grill-control)), each confirmed in a dialog first; its settings panel edits bridge settings only. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `SMOKESTACK_STALE_AFTER_SECONDS`.
+The dashboard at `/` updates live over `WS /api/live`. Its only writes to the grill are the Controls section's commands (see [Grill control](#grill-control)), each confirmed in a dialog first; its settings panel edits bridge settings only. The header names the source behind the readings next to the connection status (WiFi, Bluetooth or Demo), and follows it when Save & apply switches source and the new one connects. It warns when the bridge is unreachable, the grill is disconnected, or readings are older than `SMOKESTACK_STALE_AFTER_SECONDS`.
 
 It works as an installable app (PWA), but browsers only offer install on `localhost` or HTTPS. Over plain `http://<host>:8000/` it works in the browser and iOS "Add to Home Screen" still gives a full-screen icon; Android/Chrome's install prompt needs HTTPS (for example behind a reverse proxy). The service worker caches only the page shell, never API data.
