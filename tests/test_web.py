@@ -144,9 +144,16 @@ def test_the_dashboard_can_change_the_grill_password(app):
     # bridge out.
     assert 'name="dashboard_password"' in html
     assert 'sendControl("set-password"' in js
-    assert "The bridge doesn't know which password the grill has." in js
-    # A password change the bridge hasn't settled says so.
+    # The dialog says what changes, where the new password is saved, and what
+    # the Pit Boss app needs.
+    assert "The bridge saves it in its settings, so nothing needs changing in .env" in js
+    assert "the Pit Boss app will need the new password too" in js
+    # An unconfirmed change says the bridge keeps both passwords and retries.
+    assert "The bridge can't tell whether the grill took the new password." in js
+    assert "It keeps both the old and the new one and keeps trying them" in js
+    # A password change the bridge hasn't settled says so, and that it retries.
     assert "The grill's password may have changed." in html
+    assert "The bridge keeps trying both passwords" in html
 
 
 def test_dashboard_command_log_prunes_only_after_counting_and_confirming(app):

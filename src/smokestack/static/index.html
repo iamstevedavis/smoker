@@ -137,7 +137,7 @@
         <button id="password-close" class="btn btn-ghost btn-sm" type="button">Close</button>
       </div>
       <div class="settings-body">
-        <p class="settings-intro">The bridge connects to the grill with this password, so it changes to match. Nothing else about the grill changes.</p>
+        <p class="settings-intro">The grill starts using this password, and the bridge saves it in its settings so it keeps connecting. The Pit Boss app will need it too; nothing else about the grill changes.</p>
         <div class="setting">
           <label for="password-new">New grill password</label>
           <input id="password-new" class="input" name="password" type="password" autocomplete="new-password" required>
@@ -306,7 +306,7 @@
         </div>
         <p id="control-unit-hint" class="controls-note" hidden>Turn the grill off to switch its unit.</p>
         <p id="controls-stale" class="controls-note" hidden>Controls are paused until the grill is reporting again.</p>
-        <p id="controls-pending" class="controls-note" hidden>The grill's password may have changed. Set it in Settings, or reset it at the grill.</p>
+        <p id="controls-pending" class="controls-note" hidden>The grill's password may have changed. The bridge keeps trying both passwords, so it reconnects on its own if the grill kept one of them; to settle it now, save the password in Settings, or reset it at the grill.</p>
       </div>
       <div id="control-result" class="control-result" role="status" aria-live="polite" hidden>
         <span class="spinner" aria-hidden="true"></span>
