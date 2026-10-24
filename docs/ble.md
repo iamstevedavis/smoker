@@ -11,8 +11,9 @@ extra to start:
 docker compose pull && docker compose up -d
 ```
 
-Then choose **Bluetooth** under **Settings → Grill → Source**, fill in the
-**Bluetooth name** and **Save & apply**. Or set it in `.env` before starting:
+Then choose **Bluetooth** under **Settings → Grill → Source** and fill in the
+**Bluetooth name**; the bridge reconnects when the field saves. Or set it in
+`.env` before starting:
 
 ```bash
 PITBOSS_SOURCE=ble
@@ -132,7 +133,7 @@ If `PITBOSS_DEVICE_NAME` does not match what `bluetoothctl` shows, the BLE sourc
 On a host with more than one Bluetooth adapter, the bridge uses the system
 default, usually `hci0`. If another adapter has the better range (a USB dongle
 with an external antenna, say), choose it under **Settings → Grill →
-Bluetooth adapter** and **Save & apply**; the bridge reconnects through it.
+Bluetooth adapter**; the bridge reconnects through it.
 The list shows the adapters BlueZ knows right now, with their alias and
 address, and marks one that is powered off. A saved adapter that's unplugged
 stays selected, marked "not found".

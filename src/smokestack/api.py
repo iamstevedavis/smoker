@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from smokestack import __version__, auth, bluetooth, overrides
 from smokestack.config import EDITABLE_FIELDS, Settings
 from smokestack.runtime import Runtime, configure_logging, make_source
+from smokestack.services.alerts import Notification, NtfySender
 from smokestack.services.collector import StateHub
 from smokestack.services.control import (
     CONTROL_HEADER,
@@ -400,6 +401,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         set_pending_passwords(new.collector.source, ())
                     await swap(new, new_overrides)
         return await current_settings_payload()
+
+    @app.post("/api/alerts/test")
+    async def send_test_alert() -> dict[str, bool]:
+        """Send one ntfy message with the saved URL and token.
+
+        This writes to ntfy, not the grill, so it isn't a control route. The
+        sender is built from the current settings, so a value saved from the
+        dashboard is the one tested.
+        """
+        current = app.state.settings
+        if not current.ntfy_enabled:
+            raise HTTPException(status_code=409, detail="Turn alerts on first.")
+        if not current.ntfy_url:
+            raise HTTPException(status_code=409, detail="Set an ntfy topic URL first.")
+        sender = NtfySender(current.ntfy_url, current.ntfy_token)
+        try:
+            await sender.send(
+                Notification(
+                    "Smokestack test alert",
+                    "Alerts are working. This is a test from Smokestack.",
+                    tags=("white_check_mark",),
+                )
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=str(exc) or "ntfy did not accept the alert",
+            ) from exc
+        return {"sent": True}
 
     def probe_targets_payload() -> dict[str, Any]:
         targets = store.load_probe_targets()

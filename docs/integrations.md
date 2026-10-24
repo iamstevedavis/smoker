@@ -2,12 +2,14 @@
 
 ## Settings
 
-Every setting below can also be changed from the dashboard's settings panel
-and applied without a restart. Values saved there are stored in the data volume
-and override `.env`; see [Changing settings from the dashboard](../README.md#changing-settings-from-the-dashboard).
+Every setting below can also be changed from the dashboard's settings panel.
+It saves each field as you go and applies it without a restart; connection
+settings reconnect the bridge to the grill. Values saved there are stored in
+the data volume and override `.env`; see
+[Changing settings from the dashboard](../README.md#changing-settings-from-the-dashboard).
 
 - `SMOKESTACK_MQTT_ENABLED` (default `true`), `SMOKESTACK_MQTT_HOST`, `SMOKESTACK_MQTT_PORT` (default `1883`), `SMOKESTACK_MQTT_USER`, `SMOKESTACK_MQTT_PASSWORD`, `SMOKESTACK_MQTT_PREFIX` (default `smokestack`): MQTT publishing. It runs only when it is enabled and the host is set. Turning it off in the settings panel keeps the host and the rest for next time.
-- `SMOKESTACK_NTFY_ENABLED` (default `true`), `SMOKESTACK_NTFY_URL`, `SMOKESTACK_NTFY_TOKEN`: ntfy alerts. They run only when they are enabled and the URL is set. Turning them off in the settings panel keeps the URL and token for next time.
+- `SMOKESTACK_NTFY_ENABLED` (default `true`), `SMOKESTACK_NTFY_URL`, `SMOKESTACK_NTFY_TOKEN`: ntfy alerts. They run only when they are enabled and the URL is set. Turning them off in the settings panel keeps the URL and token for next time. **Send test alert** in the Alerts section sends one message with the saved URL and token and shows ntfy's error if it fails.
 - `SMOKESTACK_ALERT_DRIFT_DEGREES` (default `25`), `SMOKESTACK_ALERT_DRIFT_MINUTES` (default `10`): grill-vs-set-temp drift alert. The degrees are Fahrenheit degrees, scaled by 5/9 while the grill reports Celsius (25 °F is about 14 °C).
 - `SMOKESTACK_ALERT_STALE_SECONDS` (default `60`): seconds without data before a disconnect alert
 - `SMOKESTACK_ALERT_COOLDOWN_SECONDS` (default `0`): minimum gap before the same alert can fire again
@@ -61,8 +63,8 @@ docker compose -f docker-compose.yml -f docker-compose.mqtt.yml --profile mqtt u
 
 ## Grill control
 
-With `SMOKESTACK_ENABLE_CONTROL` on (in `.env`, or **Settings → Grill
-control**), the dashboard gets a **Controls** section that can:
+With `SMOKESTACK_ENABLE_CONTROL` on (in `.env`, or **Settings → Access &
+control → Grill control**), the dashboard gets a **Controls** section that can:
 
 - turn the grill off (the fan keeps running for about 10 minutes, the normal
   shutdown cycle);
@@ -75,7 +77,8 @@ control**), the dashboard gets a **Controls** section that can:
 
 There is no way to turn the grill on: the bridge never sends power-on or
 ignition. Control also needs the dashboard login switched on; the switch in
-Settings stays off until it is, and each action asks for confirmation. The
+**Access & control** stays off until it is, and each action asks for
+confirmation. The
 bridge then waits for the grill to report the change and shows whether it was
 confirmed, unconfirmed, failed or already applied; an unconfirmed command
 means: go and check the grill. The
