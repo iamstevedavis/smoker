@@ -134,9 +134,11 @@ class PasswordChange:
                 logger.warning("Could not check the grill's password: %s", exc)
                 return (
                     UNCONFIRMED,
-                    "The grill could not be reached, so the password change is "
-                    "unconfirmed. Set the password in Settings, or reset it at "
-                    "the grill.",
+                    "The grill could not be reached, so the bridge can't tell "
+                    "whether it took the new password. It keeps both the old and "
+                    "the new one and keeps trying them, so it reconnects on its "
+                    "own if the grill kept one of them; to settle it now, save "
+                    "the password in Settings, or reset it at the grill.",
                 )
             if not accepted:
                 continue
@@ -144,15 +146,21 @@ class PasswordChange:
                 await self.adopt(candidate)
                 return (
                     CONFIRMED,
-                    "The grill now uses the new password, and the bridge "
-                    "matches it.",
+                    "The grill now uses the new password. The bridge saved it in "
+                    "its settings, so nothing needs changing in .env; use the new "
+                    "password in the Pit Boss app too.",
                 )
             self.clear()
-            return (FAILED, "The grill still uses the old password.")
+            return (
+                FAILED,
+                "The grill didn't take the new password, so the grill and the "
+                "bridge still use the old password.",
+            )
         return (
             UNCONFIRMED,
-            "The grill accepted neither the old nor the new password. Set the "
-            "password in Settings, or reset it at the grill.",
+            "The grill accepted neither the old nor the new password. The "
+            "bridge keeps both and keeps trying; set the password in Settings, "
+            "or reset it at the grill.",
         )
 
     async def watch(self, source_of: Callable[[], Any]) -> None:

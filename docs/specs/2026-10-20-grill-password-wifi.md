@@ -80,12 +80,16 @@ changes.
    refresh).
    - New works: save it as the `password` setting (a UI override, so it
      wins over `.env`), clear *pending*, report `confirmed` (even if the
-     send raised).
+     send raised). The dialog says the bridge saves it in its settings, so
+     `.env` needs no change, and that the Pit Boss app needs the new
+     password too.
    - Only old works: the change didn't take; keep the old setting, clear
      *pending*, report `failed`.
    - Neither works, or the grill can't be reached: stay *pending*, report
-     `unconfirmed`, and say how to recover (set the password in Settings,
-     or reset it at the grill).
+     `unconfirmed`, and say how to recover. The bridge keeps trying both
+     passwords on its own, so it reconnects whichever one the grill ends up
+     with; saving the password in Settings, or resetting it at the grill,
+     settles it now.
      While *pending*, an `Unauthorized` poll retries with the other
      password, so whichever the grill ends up with, the bridge reconnects
      without anyone touching it.

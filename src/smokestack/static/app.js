@@ -1204,7 +1204,7 @@
         if (result.command === "turn-off") return ["Done.", "The grill is off. The fan runs for about 10 minutes."];
         if (result.command === "set-temperature") return ["Done.", "The grill is set to " + result.target + unit + "."];
         if (result.command === "set-unit") return ["Done.", "The grill now uses °" + result.args.unit + "."];
-        if (result.command === "set-password") return ["Done.", "The grill now uses the new password, and the bridge matches it."];
+        if (result.command === "set-password") return ["Done.", "The grill now uses the new password. The bridge saved it in its settings, so nothing needs changing in .env; use the new password in the Pit Boss app too."];
         return ["Done.", "The WiFi module restarted and the grill is reporting again."];
       case "already_applied":
         if (result.command === "turn-off") return ["Nothing sent.", "The grill was already off."];
@@ -1212,12 +1212,12 @@
         return ["Nothing sent.", "The grill was already set to " + result.target + unit + "."];
       case "unconfirmed":
         if (result.command === "set-password") {
-          return ["Not confirmed.", "The bridge doesn't know which password the grill has. Set it in Settings, or reset it at the grill."];
+          return ["Not confirmed.", "The bridge can't tell whether the grill took the new password. It keeps both the old and the new one and keeps trying them, so it reconnects on its own if the grill kept one of them. If you want to settle it now, save the password in Settings, or reset it at the grill."];
         }
         return ["Not confirmed.", "The command was sent, but the grill didn't report the change in time. Check the grill."];
       case "failed":
         if (result.command === "set-password") {
-          return ["Failed.", "The grill still uses the old password, so nothing changed."];
+          return ["Failed.", "The grill didn't take the new password, so the grill and the bridge still use the old password."];
         }
         return ["Failed.", (result.detail || "The grill didn't take the command.") + " Check the grill."];
       default:
@@ -1383,7 +1383,7 @@
     if (!dashboard) return passwordStatus("Enter your dashboard password.", "error");
     const ok = await confirmControl(
       "Change the grill's password?",
-      "The grill will use the new password, and the bridge will use it too. If the grill ends up with the other one, the bridge works it out on its own.",
+      "The grill will start using the new password. The bridge saves it in its settings, so nothing needs changing in .env, and the Pit Boss app will need the new password too. If the grill doesn't confirm the change, it may still have the old password; the bridge keeps both and tries them, so it reconnects on its own.",
       "Change password",
     );
     if (!ok) return;

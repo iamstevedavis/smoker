@@ -202,11 +202,12 @@ A password change is settled differently: what the command returned is only a
 hint, because a reply lost after the grill applied the change looks like a
 failure but isn't. So the bridge asks the grill which password it accepts
 and keeps that one. `confirmed` means the grill now uses the new password
-and the bridge matches it, `failed` that the grill still uses the old one,
-and `unconfirmed` that the bridge cannot tell: the change stays pending, the
-dashboard says so, and the bridge keeps asking until the grill answers.
-Saving the password in **Settings** ends it as well. The passwords never
-appear in the answer, the log or the audit row.
+and the bridge saved it in its settings (so `.env` needs no change, and the
+Pit Boss app needs the new password too), `failed` that the grill still uses
+the old one, and `unconfirmed` that the bridge cannot tell: the change stays
+pending, the dashboard says so, and the bridge keeps trying both passwords
+until the grill answers. Saving the password in **Settings** ends it as
+well. The passwords never appear in the answer, the log or the audit row.
 
 Refusals send nothing and answer `{"detail": "...", "audit_id": 813}`:
 
