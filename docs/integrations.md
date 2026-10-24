@@ -91,14 +91,17 @@ when the next poll is due: keep **Poll every** below **Stale after**, or the
 controls stay disabled because the readings look old.
 
 Changing the password asks for the dashboard password again, because it is
-the one command whose failure can lock the bridge out. What settles it is
-which password the grill accepts afterwards, never what the command
-returned: a reply lost after the grill applied the change looks like a
-failure but isn't. Both passwords are kept until the change is settled, so a
-bridge that stops mid-change comes back knowing both and reconnects on its
-own. If it still cannot tell, the Controls card says so, and the bridge
-keeps asking until the grill answers; saving the password in **Settings**
-ends it as well. The passwords never appear in the log or the command log.
+the one command whose failure can lock the bridge out. The grill and the
+bridge both move to the new password, and the bridge saves it in its
+settings, so nothing needs changing in `.env`; the Pit Boss app needs the
+new password too. What settles the change is which password the grill
+accepts afterwards, never what the command returned: a reply lost after the
+grill applied the change looks like a failure but isn't. Both passwords are
+kept until the change is settled, so a bridge that stops mid-change comes
+back knowing both and reconnects on its own. If it still cannot tell, the
+Controls card says so, and the bridge keeps trying both until the grill
+answers; saving the password in **Settings** ends it as well. The passwords
+never appear in the log or the command log.
 
 Every attempt is kept in the database as a `control_command` health event,
 and retention pruning leaves those alone. **Command log** on the Controls card

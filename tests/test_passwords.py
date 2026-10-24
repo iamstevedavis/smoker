@@ -211,6 +211,8 @@ def test_a_change_whose_reply_was_lost_is_still_confirmed(tmp_path):
 
     # The send failed, but the grill took the change: the bridge asks.
     assert body["outcome"] == "confirmed"
+    assert "saved it in its settings" in body["detail"]
+    assert "Pit Boss app" in body["detail"]
     assert _source(app).password == NEW
     assert app.state.settings.password == NEW
     assert app.state.store.load_pending_password() is None
@@ -251,6 +253,7 @@ def test_a_change_that_cannot_be_reconciled_stays_pending(tmp_path):
     assert (pending.old_password, pending.new_password) == (OLD, NEW)
     assert status["pending_password_change"] is not None
     assert "Settings" in body["detail"]
+    assert "reconnects on its own" in body["detail"]
 
 
 # Recovery -------------------------------------------------------------------

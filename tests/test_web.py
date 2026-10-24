@@ -134,6 +134,20 @@ def test_dashboard_controls_confirm_first_and_word_every_result(app):
     assert "Controls are paused until the grill is reporting again." in html
 
 
+def test_dashboard_disables_set_temperature_while_the_grill_is_off(app):
+    with TestClient(app) as client:
+        html = client.get("/").text
+        js = client.get("/static/app.js").text
+
+    assert 'id="control-temp-hint"' in html
+    assert "Turn the grill on at the grill to set its temperature." in html
+    # The input, both stepper buttons and Set, not the other controls.
+    assert html.count("data-temp-control") == 4
+    controls = js.split("function renderControls()", 1)[1].split("\n  }\n", 1)[0]
+    assert "data-temp-control" in controls
+    assert "moduleIsOn === false" in controls
+
+
 def test_the_dashboard_can_change_the_grill_password(app):
     with TestClient(app) as client:
         html = client.get("/").text
@@ -144,9 +158,16 @@ def test_the_dashboard_can_change_the_grill_password(app):
     # bridge out.
     assert 'name="dashboard_password"' in html
     assert 'sendControl("set-password"' in js
-    assert "The bridge doesn't know which password the grill has." in js
-    # A password change the bridge hasn't settled says so.
+    # The dialog says what changes, where the new password is saved, and what
+    # the Pit Boss app needs.
+    assert "The bridge saves it in its settings, so nothing needs changing in .env" in js
+    assert "the Pit Boss app will need the new password too" in js
+    # An unconfirmed change says the bridge keeps both passwords and retries.
+    assert "The bridge can't tell whether the grill took the new password." in js
+    assert "It keeps both the old and the new one and keeps trying them" in js
+    # A password change the bridge hasn't settled says so, and that it retries.
     assert "The grill's password may have changed." in html
+    assert "The bridge keeps trying both passwords" in html
 
 
 def test_dashboard_command_log_prunes_only_after_counting_and_confirming(app):

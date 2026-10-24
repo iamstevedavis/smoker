@@ -364,6 +364,13 @@ class GrillControl:
             return Command(name)  # type: ignore[arg-type]
         if temp is None:
             raise ControlRejected(422, "temp is required")
+        # Only while the grill is on: setting a temperature on an off grill
+        # does nothing, and the bridge can't turn it on. A missing moduleIsOn
+        # doesn't count as off, the same as set-unit.
+        if values.get("moduleIsOn") is False:
+            raise ControlRejected(
+                409, "turn the grill on at the grill to set its temperature"
+            )
         unit = temperature_unit(values)
         setpoints = self._setpoints(unit)
         if unit is None:
