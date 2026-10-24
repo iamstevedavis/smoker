@@ -287,6 +287,10 @@ def test_settings_panel_has_sections_and_saves_as_you_go(app):
     assert "function hasQueuedEdit(name, value)" in js
     assert "if (!hasNewerEdit(name, value)) {" in js
     assert "if (!pendingEdit(name, value)) refreshField(name);" in js
+    # The blur checks also compare against a value already on its way, so
+    # reverting to the saved value during a pending save is queued.
+    assert "const pending = settings.queued[field.name];" in js
+    assert "const queued = settings.queued[name];" in js
     assert "Changes save when you leave a field. Changing the connection reconnects to the grill." in html
     assert "Send test alert" in js and 'apiFetch("api/alerts/test"' in js
     # Typing a topic URL enables the test before the blur that saves it.

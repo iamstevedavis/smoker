@@ -2049,8 +2049,16 @@
         commitNumber(field.name, input, meta);
         return;
       }
+      const pending = settings.queued[field.name];
       const current = settings.fields[field.name];
-      if (current && !inputChanged(input, current.value)) {
+      if (pending !== undefined) {
+        // The input is already on its way; don't queue it twice, but do queue
+        // a reversion to a different value.
+        if (!inputChanged(input, pending)) {
+          clearFieldError(field.name);
+          return;
+        }
+      } else if (current && !inputChanged(input, current.value)) {
         clearFieldError(field.name);
         return;
       }
@@ -2066,6 +2074,15 @@
       return;
     }
     const value = Number(raw);
+    const queued = settings.queued[name];
+    if (queued !== undefined) {
+      if (Number(value) === Number(queued)) {
+        clearFieldError(name);
+        return;
+      }
+      saveField(name, value);
+      return;
+    }
     const field = settings.fields[name];
     if (field && Number(value) === Number(field.value)) {
       clearFieldError(name);
